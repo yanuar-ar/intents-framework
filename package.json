@@ -1,0 +1,21 @@
+{
+  "name": "intents-framework",
+  "version": "0.1.0",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BootNodeDev/intents-framework.git"
+  },
+  "author": "",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/BootNodeDev/intents-framework/issues"
+  },
+  "homepage": "https://github.com/BootNodeDev/intents-framework#readme",
+  "description": "",
+  "workspaces": [
+    "typescript/solver"
+  ]
+}
