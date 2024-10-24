@@ -30,8 +30,6 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         REFUNDED
     }
 
-    uint32 internal immutable _localDomain;
-
     // ============ Public Storage ============
 
     mapping(address sender => uint256 nonce) public senderNonce;
@@ -62,10 +60,6 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     error InvalidSenderNonce();
 
     // ============ Constructor ============
-
-    constructor(uint32 __localDomain) {
-        _localDomain = __localDomain;
-     }
 
     // ============ Initializers ============
 
@@ -169,7 +163,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
         if (_orderId != _getOrderId(orderData)) revert InvalidOrderId();
         if (orderData.fillDeadline > block.timestamp) revert OrderExpired();
-        if (orderData.destinationDomain != _localDomain) revert InvalidOrderDomain();
+        if (orderData.destinationDomain != _localDomain()) revert InvalidOrderDomain();
         _mustHaveRemoteCounterpart(orderData.originDomain);
         if (orderStatus[_orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
 
@@ -183,8 +177,6 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
             msg.sender, TypeCasts.bytes32ToAddress(orderData.recipient), orderData.amountOut
         );
     }
-
-    function _mustHaveRemoteCounterpart(uint32 _domain) internal virtual view returns (bytes32);
 
     // ============ Internal Functions ============
 
@@ -207,7 +199,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
         orderData = OrderEncoder.decode(_orderData);
 
-        if (orderData.originDomain != _localDomain) revert InvalidOriginDomain(orderData.originDomain);
+        if (orderData.originDomain != _localDomain()) revert InvalidOriginDomain(orderData.originDomain);
         if (orderData.senderNonce != senderNonce[_sender]) revert InvalidSenderNonce();
         bytes32 destinationSettler = _mustHaveRemoteCounterpart(orderData.destinationDomain);
 
@@ -239,7 +231,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
         resolvedOrder = ResolvedCrossChainOrder({
             user: _sender,
-            originChainId: _localDomain,
+            originChainId: _localDomain(),
             openDeadline: _openDeadline,
             fillDeadline: _fillDeadline,
             minReceived: minReceived,
@@ -247,4 +239,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
             fillInstructions: fillInstructions
         });
     }
+
+    function _mustHaveRemoteCounterpart(uint32 _domain) internal virtual view returns (bytes32);
+
+    function _localDomain() internal virtual view returns (uint32);
 }

@@ -23,7 +23,7 @@ contract Router7683 is Router, Base7683 {
 
     // ============ Constructor ============
 
-    constructor(address _mailbox) Router(_mailbox) Base7683(localDomain) { }
+    constructor(address _mailbox) Router(_mailbox) { }
 
     // ============ Initializers ============
 
@@ -58,5 +58,9 @@ contract Router7683 is Router, Base7683 {
 
     function _mustHaveRemoteCounterpart(uint32 _domain) internal virtual override view returns (bytes32) {
         return _mustHaveRemoteRouter(_domain);
+    }
+
+    function _localDomain() internal view override returns (uint32) {
+        return localDomain;
     }
 }
