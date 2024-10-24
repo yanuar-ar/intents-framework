@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.25;
 
+
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { TypeCasts } from "@hyperlane-xyz/libs/TypeCasts.sol";
+import { IPermit2, ISignatureTransfer } from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 
 import {
     GaslessCrossChainOrder,
@@ -22,6 +24,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
     // ============ Constants ============
 
+    IPermit2 public immutable PERMIT2;
+
     enum OrderStatus {
         UNFILLED,
         OPENED,
@@ -29,6 +33,12 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         SETTLED,
         REFUNDED
     }
+
+    bytes32 public constant GASLESS_CROSS_CHAIN_ORDER_TYPEHASH = keccak256(
+        "GaslessCrossChainOrder(address originSettler,address user,uint256 nonce,uint64 originChainId,uint32 openDeadline,uint32 fillDeadline,bytes32 orderDataType,bytes orderData)"
+    );
+
+    string public constant witnessTypeString = "GaslessCrossChainOrder witness)GaslessCrossChainOrder(address originSettler,address user,uint256 nonce,uint64 originChainId,uint32 openDeadline,uint32 fillDeadline,bytes32 orderDataType,bytes orderData)TokenPermissions(address token,uint256 amount)";
 
     // ============ Public Storage ============
 
@@ -50,16 +60,21 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
     // ============ Errors ============
 
+    error OrderOpenExpired();
     error InvalidOrderType(bytes32 orderType);
     error InvalidSenderNonc();
     error InvalidOriginDomain(uint32 originDomain);
     error InvalidOrderId();
-    error OrderExpired();
+    error OrderFillExpired();
     error InvalidOrderDomain();
     error InvalidOrderStatus();
     error InvalidSenderNonce();
 
     // ============ Constructor ============
+
+    constructor(address _permit2) {
+        PERMIT2 = IPermit2(_permit2);
+    }
 
     // ============ Initializers ============
 
@@ -78,17 +93,18 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     )
         external
     {
+        if (order.openDeadline > block.timestamp) revert OrderOpenExpired();
+
         (ResolvedCrossChainOrder memory resolvedOrder, OrderData memory orderData) =
             _resolvedOrder(order.orderDataType, order.user, order.orderData, order.openDeadline, order.fillDeadline);
 
         bytes32 orderId = _getOrderId(orderData);
 
-
         orders[orderId] = orderData;
         orderStatus[orderId] = OrderStatus.OPENED;
         senderNonce[order.user] += 1;
 
-        // TODO - add actual open logic
+        _permitTransferFrom(order, signature, address(this));
 
         emit Open(orderId, resolvedOrder);
     }
@@ -123,29 +139,29 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     /// @dev Intended to improve standardized integration of various order types and settlement contracts
     /// @param order The GaslessCrossChainOrder definition
     /// NOT USED originFillerData Any filler-defined data required by the settler
-    /// @return resolverOrder ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
+    /// @return resolvedOrder ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
     function resolveFor(
         GaslessCrossChainOrder calldata order,
         bytes calldata
     )
         public
         view
-        returns (ResolvedCrossChainOrder memory resolverOrder)
+        returns (ResolvedCrossChainOrder memory resolvedOrder)
     {
-        (resolverOrder,) =
+        (resolvedOrder,) =
             _resolvedOrder(order.orderDataType, order.user, order.orderData, order.openDeadline, order.fillDeadline);
     }
 
     /// @notice Resolves a specific OnchainCrossChainOrder into a generic ResolvedCrossChainOrder
     /// @dev Intended to improve standardized integration of various order types and settlement contracts
     /// @param order The OnchainCrossChainOrder definition
-    /// @return resolverOrder ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
+    /// @return resolvedOrder ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
     function resolve(OnchainCrossChainOrder calldata order)
         public
         view
-        returns (ResolvedCrossChainOrder memory resolverOrder)
+        returns (ResolvedCrossChainOrder memory resolvedOrder)
     {
-        (resolverOrder,) = _resolvedOrder(
+        (resolvedOrder,) = _resolvedOrder(
             order.orderDataType,
             msg.sender,
             order.orderData,
@@ -162,7 +178,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         OrderData memory orderData = OrderEncoder.decode(_originData);
 
         if (_orderId != _getOrderId(orderData)) revert InvalidOrderId();
-        if (orderData.fillDeadline > block.timestamp) revert OrderExpired();
+        if (orderData.fillDeadline > block.timestamp) revert OrderFillExpired();
         if (orderData.destinationDomain != _localDomain()) revert InvalidOrderDomain();
         _mustHaveRemoteCounterpart(orderData.originDomain);
         if (orderStatus[_orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
@@ -226,7 +242,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         fillInstructions[0] = FillInstruction({
             destinationChainId: orderData.destinationDomain,
             destinationSettler: destinationSettler,
-            originData: _orderData
+            originData: OrderEncoder.encode(orderData)
         });
 
         resolvedOrder = ResolvedCrossChainOrder({
@@ -238,6 +254,42 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
             maxSpent: maxSpent,
             fillInstructions: fillInstructions
         });
+    }
+
+    function _permitTransferFrom(GaslessCrossChainOrder calldata order, bytes calldata signature, address receiver) internal {
+        OrderData memory orderData = OrderEncoder.decode(order.orderData);
+
+        PERMIT2.permitWitnessTransferFrom(
+            ISignatureTransfer.PermitTransferFrom({
+                permitted: ISignatureTransfer.TokenPermissions({
+                  token: TypeCasts.bytes32ToAddress(orderData.inputToken),
+                  amount: orderData.amountIn
+                }),
+                nonce: order.nonce,
+                deadline: order.openDeadline
+            }),
+            ISignatureTransfer.SignatureTransferDetails({to: receiver, requestedAmount: orderData.amountIn}),
+            order.user,
+            _witnessHash(order),
+            witnessTypeString,
+            signature
+        );
+    }
+
+    function _witnessHash(GaslessCrossChainOrder calldata order) internal view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                GASLESS_CROSS_CHAIN_ORDER_TYPEHASH,
+                order.originSettler,
+                order.user,
+                order.nonce,
+                order.originChainId,
+                order.openDeadline,
+                order.fillDeadline,
+                order.orderDataType,
+                order.orderData
+            )
+        );
     }
 
     function _mustHaveRemoteCounterpart(uint32 _domain) internal virtual view returns (bytes32);

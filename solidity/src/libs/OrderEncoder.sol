@@ -57,7 +57,33 @@ library OrderEncoder {
         );
     }
 
-    function decode(bytes memory orderBytes) internal pure returns (OrderData memory order) {
-        order = abi.decode(orderBytes, (OrderData));
+    function decode(bytes memory orderBytes) internal pure returns (OrderData memory) {
+        (
+            bytes32 sender,
+            bytes32 recipient,
+            bytes32 inputToken,
+            bytes32 outputToken,
+            uint256 amountIn,
+            uint256 amountOut,
+            uint256 senderNonce,
+            uint32 originDomain,
+            uint32 destinationDomain,
+            uint32 fillDeadline,
+            bytes memory data
+        ) = abi.decode(orderBytes, (bytes32, bytes32, bytes32, bytes32, uint256, uint256, uint256, uint32, uint32, uint32, bytes));
+
+        return OrderData(
+            sender,
+            recipient,
+            inputToken,
+            outputToken,
+            amountIn,
+            amountOut,
+            senderNonce,
+            originDomain,
+            destinationDomain,
+            fillDeadline,
+            data
+        );
     }
 }

@@ -23,7 +23,7 @@ contract Router7683 is Router, Base7683 {
 
     // ============ Constructor ============
 
-    constructor(address _mailbox) Router(_mailbox) { }
+    constructor(address _mailbox, address _permit2) Router(_mailbox) Base7683(_permit2) { }
 
     // ============ Initializers ============
 
