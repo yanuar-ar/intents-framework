@@ -18,6 +18,7 @@
   "dependencies": {
     "@hyperlane-xyz/registry": "^4.10.0",
     "@hyperlane-xyz/sdk": "^5.5.0",
+    "@hyperlane-xyz/utils": "^5.6.0",
     "ethers": "^5.7.2"
   }
 }
