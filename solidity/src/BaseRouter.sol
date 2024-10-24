@@ -45,10 +45,7 @@ abstract contract BaseRouter is Router {
     {
         _MailboxClient_initialize(_customHook, _interchainSecurityModule, _owner);
 
-        uint256 length = _domains.length;
-        for (uint256 i = 0; i < length; i += 1) {
-            _enrollRemoteRouter(_domains[i], TypeCasts.addressToBytes32(address(this)));
-        }
+        _enrollRemoteDomains(_domains);
     }
 
     // ============ External Functions ============
@@ -67,10 +64,7 @@ abstract contract BaseRouter is Router {
      * @param _domains The domains of the remote Application Routers
      */
     function enrollRemoteDomains(uint32[] calldata _domains) external virtual onlyOwner {
-        uint256 length = _domains.length;
-        for (uint256 i = 0; i < length; i += 1) {
-            _enrollRemoteRouter(_domains[i], TypeCasts.addressToBytes32(address(this)));
-        }
+        _enrollRemoteDomains(_domains);
     }
 
     /**
@@ -91,4 +85,13 @@ abstract contract BaseRouter is Router {
     {
         return _Router_quoteDispatch(_destination, _messageBody, _hookMetadata, address(hook));
     }
+
+    function _enrollRemoteDomains(uint32[] calldata _domains) internal virtual {
+        uint256 length = _domains.length;
+        bytes32 thisAddress = TypeCasts.addressToBytes32(address(this));
+        for (uint256 i = 0; i < length; i += 1) {
+            _enrollRemoteRouter(_domains[i], thisAddress);
+        }
+    }
+
 }
