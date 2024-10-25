@@ -17,5 +17,6 @@
   "description": "",
   "workspaces": [
     "typescript/solver"
-  ]
+  ],
+  "packageManager": "yarn@4.5.1"
 }
