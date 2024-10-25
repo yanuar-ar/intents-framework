@@ -8,11 +8,12 @@ const create = () => {
   const { settlerContract } = setup();
 
   return function onChain(handler: (openEventArgs: OpenEventArgs) => void) {
-    settlerContract.on(settlerContract.filters.Open(), (_from, _to, event) => {
-      const { orderId, resolvedOrder } = event.args;
-
-      handler({ orderId, resolvedOrder: resolvedOrder });
-    });
+    settlerContract.on(
+      settlerContract.filters.Open(),
+      (orderId, resolvedOrder) => {
+        handler({ orderId, resolvedOrder });
+      },
+    );
   };
 };
 
