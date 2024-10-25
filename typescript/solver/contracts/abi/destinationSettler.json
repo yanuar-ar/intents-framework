@@ -1,0 +1,13 @@
+[
+  {
+    "name": "fill",
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "type": "bytes32", "name": "orderId" },
+      { "type": "bytes", "name": "originData" },
+      { "type": "bytes", "name": "fillerData" }
+    ],
+    "outputs": []
+  }
+]
