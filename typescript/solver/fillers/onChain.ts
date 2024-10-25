@@ -1,3 +1,4 @@
+import { AddressZero } from "@ethersproject/constants";
 import { Contract } from "@ethersproject/contracts";
 import { Wallet } from "@ethersproject/wallet";
 import { chainMetadata } from "@hyperlane-xyz/registry";
@@ -7,18 +8,20 @@ import { ensure0x } from "@hyperlane-xyz/utils";
 import DESTINATION_SETTLER_ABI from "../contracts/abi/destinationSettler";
 import { Erc20__factory } from "../contracts/typechain/factories/ERC20__factory";
 
+import { Provider } from "@ethersproject/abstract-provider";
+import { BigNumber } from "ethers";
 import type { OpenEventArgs, ResolvedCrossChainOrder } from "../types";
 
 const create = () => {
   const { multiProvider } = setup();
 
   return async function onChain({ orderId, resolvedOrder }: OpenEventArgs) {
-    const { outputs, fillInstructions } = await selectOutputs(
+    const { fillInstructions } = await selectOutputs(
       resolvedOrder,
       multiProvider,
     );
 
-    await fill(orderId, outputs, fillInstructions, multiProvider);
+    await fill(orderId, fillInstructions, multiProvider);
   };
 };
 
@@ -39,54 +42,91 @@ function setup() {
   return { multiProvider };
 }
 
+// We're assuming the filler will pay out of their own stock, but in reality they may have to
+// produce the funds before executing each leg.
 async function selectOutputs(
   resolvedOrder: ResolvedCrossChainOrder,
   multiProvider: MultiProvider,
 ) {
-  // We're assuming the filler will pay out of their own stock, but in reality they may have to
-  // produce the funds before executing each leg.
-  const results = await Promise.all(
-    resolvedOrder.maxSpent.map(async (output): Promise<boolean> => {
-      const provider = multiProvider.getProvider(output.chainId.toNumber());
-      const fillerAddress = await multiProvider.getSignerAddress(
-        output.chainId.toNumber(),
-      );
-      const token = Erc20__factory.connect(output.token, provider);
-      const balance = await token.balanceOf(fillerAddress);
+  const amountByTokenByChain = resolvedOrder.maxSpent.reduce<{
+    [chainId: number]: { [token: string]: BigNumber };
+  }>((acc, output) => {
+    const chainId = output.chainId.toNumber();
 
-      return balance.gte(output.amount);
-    }),
+    acc[chainId] ||= { [output.token]: BigNumber.from(0) };
+    acc[chainId][output.token] ||= BigNumber.from(0);
+
+    acc[chainId][output.token] = acc[chainId][output.token].add(output.amount);
+
+    return acc;
+  }, {});
+
+  const chainIdsWithEnoughTokens = new Set(
+    Object.keys(
+      (
+        await Promise.all(
+          Object.entries(amountByTokenByChain).map(([chainId, token]) =>
+            checkChainTokens(multiProvider, chainId, token),
+          ),
+        )
+      ).filter(({ chainId }) => chainId),
+    ),
   );
 
-  const outputs = resolvedOrder.maxSpent.filter((_, index) => {
-    results[index];
-  });
+  const fillInstructions = resolvedOrder.fillInstructions.filter((output) =>
+    chainIdsWithEnoughTokens.has(output.destinationChainId.toString()),
+  );
 
-  const fillInstructions = resolvedOrder.fillInstructions.filter((_, index) => {
-    results[index];
-  });
+  return { fillInstructions };
+}
 
-  return { outputs, fillInstructions };
+async function checkChainTokens(
+  multiProvider: MultiProvider,
+  chainId: string,
+  token: { [token: string]: BigNumber },
+) {
+  const provider = multiProvider.getProvider(chainId);
+  const fillerAddress = await multiProvider.getSignerAddress(chainId);
+
+  const hasEnoughTokens = await Promise.all(
+    Object.entries(token).map(checkTokenBalance(provider, fillerAddress)),
+  );
+
+  return { chainId: hasEnoughTokens.every(Boolean) };
+}
+
+function checkTokenBalance(provider: Provider, fillerAddress: string) {
+  return async ([tokenAddress, amount]: [string, BigNumber]) => {
+    let balance: BigNumber;
+
+    if (tokenAddress === AddressZero) {
+      balance = await provider.getBalance(fillerAddress);
+    } else {
+      const token = Erc20__factory.connect(tokenAddress, provider);
+      balance = await token.balanceOf(fillerAddress);
+    }
+
+    return balance.gte(amount);
+  };
 }
 
 async function fill(
   orderId: string,
-  outputs: ResolvedCrossChainOrder["maxSpent"],
   fillInstructions: ResolvedCrossChainOrder["fillInstructions"],
   multiProvider: MultiProvider,
 ): Promise<void> {
   await Promise.all(
-    outputs.map(async (output, index): Promise<void> => {
-      const filler = multiProvider.getSigner(output.chainId.toNumber());
+    fillInstructions.map(async (output) => {
+      const filler = multiProvider.getSigner(output.destinationChainId.toNumber());
 
-      const destinationSettler = fillInstructions[index].destinationSettler;
+      const destinationSettler = output.destinationSettler;
       const destination = new Contract(
         destinationSettler,
         DESTINATION_SETTLER_ABI,
         filler,
       );
 
-      const originData = fillInstructions[index].originData;
+      const originData = output.originData;
       // Depending on the implementation we may call `destination.fill` directly or call some other
       // contract that will produce the funds needed to execute this leg and then in turn call
       // `destination.fill`
