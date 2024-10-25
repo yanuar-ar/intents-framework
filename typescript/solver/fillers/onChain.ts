@@ -1,11 +1,11 @@
 import { Contract } from "@ethersproject/contracts";
 import { Wallet } from "@ethersproject/wallet";
-import { ensure0x } from "@hyperlane-xyz/utils";
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
+import { ensure0x } from "@hyperlane-xyz/utils";
 
-import DESTINATION_SETTLER_ABI from "../abi/destinationSettler";
-import ERC20_ABI from "../abi/erc20";
+import DESTINATION_SETTLER_ABI from "../contracts/abi/destinationSettler";
+import { Erc20__factory } from "../contracts/typechain/factories/ERC20__factory";
 
 import type {
   FillInstruction,
@@ -53,8 +53,10 @@ async function selectOutputs(
   const results = await Promise.all(
     resolvedOrder.maxSpent.map(async (output): Promise<boolean> => {
       const provider = multiProvider.getProvider(output.chainId);
-      const fillerAddress = multiProvider.getSignerAddress(output.chainId);
-      const token = new Contract(output.token, ERC20_ABI, provider);
+      const fillerAddress = await multiProvider.getSignerAddress(
+        output.chainId,
+      );
+      const token = Erc20__factory.connect(output.token, provider);
       const balance = await token.balanceOf(fillerAddress);
 
       return balance.gte(output.amount);
