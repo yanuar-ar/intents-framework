@@ -5,24 +5,15 @@ import { chainMetadata } from '@hyperlane-xyz/registry';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 
 import DESTINATION_SETTLER_ABI from "../abi/destinationSettler";
+import ERC20_ABI from "../abi/erc20";
 
-import type { FillInstruction, OpenEventArgs, Output } from "../types";
+import type { FillInstruction, OpenEventArgs, Output, ResolvedCrossChainOrder } from "../types";
 
 const create = () => {
   const { multiProvider } = setup();
 
   return async function onChain({ orderId, resolvedOrder }: OpenEventArgs) {
-    const { maxSpent: outputs, minReceived: inputs, fillInstructions } = resolvedOrder;
-
-    if (!(await isProfitable(inputs, outputs, multiProvider))) {
-      console.log("Not profitable");
-      return;
-    }
-
-    if (!(await hasEnoughFunds(outputs, multiProvider))) {
-      console.log("Not enough funds");
-      return;
-    }
+    const { outputs, fillInstructions } = await selectOutputs(resolvedOrder, multiProvider);
 
     await fill(orderId, outputs, fillInstructions, multiProvider);
   }
@@ -43,27 +34,20 @@ function setup() {
   return { multiProvider };
 }
 
-async function isProfitable(inputs: Array<Output>, outputs: Array<Output>, multiProvider: MultiProvider): Promise<boolean> {
-  // It's still not clear if there MUST be an input for every output, so maybe it doesn't make any
-  // sense to think about it this way, but we somehow need to decide whether exchanging `inputs` for
-  // `outputs` is a good deal for us.
-  await Promise.all(inputs.map(async (input, index): Promise<void> => {
-    const output = outputs[index];
-    const provider = multiProvider.getProvider(output.chainId);
-    console.log(await provider.getBlockNumber(), input.token, input.amount, output.token, output.amount);
-  }));
-  return true;
-}
-
-async function hasEnoughFunds(outputs: Array<Output>, multiProvider: MultiProvider): Promise<boolean> {
+async function selectOutputs(resolvedOrder: ResolvedCrossChainOrder, multiProvider: MultiProvider) {
   // We're assuming the filler will pay out of their own stock, but in reality they may have to
   // produce the funds before executing each leg.
-  await Promise.all(outputs.map(async (output): Promise<void> => {
-    const filler = multiProvider.getSigner(output.chainId);
-    // Check filler has at least output.amount of output.token available for executing this leg.
-    console.log(await filler.getAddress(), output.token, output.amount);
+  const results = await Promise.all(resolvedOrder.maxSpent.map(async (output): Promise<boolean> => {
+    const provider = multiProvider.getProvider(output.chainId);
+    const fillerAddress = multiProvider.getSignerAddress(output.chainId);
+    const token = new Contract(output.token, ERC20_ABI, provider);
+    const balance = await token.balanceOf(fillerAddress);
+
+    return balance.gte(output.amount);
   }));
-  return true;
+  const outputs = resolvedOrder.maxSpent.filter((_, index) => { results[index] });
+  const fillInstructions = resolvedOrder.fillInstructions.filter((_, index) => { results[index] });
+  return { outputs, fillInstructions };
 }
 
 async function fill(orderId: string, outputs: Array<Output>, fillInstructions: Array<FillInstruction>, multiProvider: MultiProvider): Promise<void> {
