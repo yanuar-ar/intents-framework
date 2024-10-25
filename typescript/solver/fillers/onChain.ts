@@ -7,12 +7,7 @@ import { ensure0x } from "@hyperlane-xyz/utils";
 import DESTINATION_SETTLER_ABI from "../contracts/abi/destinationSettler";
 import { Erc20__factory } from "../contracts/typechain/factories/ERC20__factory";
 
-import type {
-  FillInstruction,
-  OpenEventArgs,
-  Output,
-  ResolvedCrossChainOrder,
-} from "../types";
+import type { OpenEventArgs, ResolvedCrossChainOrder } from "../types";
 
 const create = () => {
   const { multiProvider } = setup();
@@ -52,9 +47,9 @@ async function selectOutputs(
   // produce the funds before executing each leg.
   const results = await Promise.all(
     resolvedOrder.maxSpent.map(async (output): Promise<boolean> => {
-      const provider = multiProvider.getProvider(output.chainId);
+      const provider = multiProvider.getProvider(output.chainId.toNumber());
       const fillerAddress = await multiProvider.getSignerAddress(
-        output.chainId,
+        output.chainId.toNumber(),
       );
       const token = Erc20__factory.connect(output.token, provider);
       const balance = await token.balanceOf(fillerAddress);
@@ -62,24 +57,27 @@ async function selectOutputs(
       return balance.gte(output.amount);
     }),
   );
+
   const outputs = resolvedOrder.maxSpent.filter((_, index) => {
     results[index];
   });
+
   const fillInstructions = resolvedOrder.fillInstructions.filter((_, index) => {
     results[index];
   });
+
   return { outputs, fillInstructions };
 }
 
 async function fill(
   orderId: string,
-  outputs: Array<Output>,
-  fillInstructions: Array<FillInstruction>,
+  outputs: ResolvedCrossChainOrder["maxSpent"],
+  fillInstructions: ResolvedCrossChainOrder["fillInstructions"],
   multiProvider: MultiProvider,
 ): Promise<void> {
   await Promise.all(
     outputs.map(async (output, index): Promise<void> => {
-      const filler = multiProvider.getSigner(output.chainId);
+      const filler = multiProvider.getSigner(output.chainId.toNumber());
 
       const destinationSettler = fillInstructions[index].destinationSettler;
       const destination = new Contract(
