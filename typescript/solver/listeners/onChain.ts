@@ -1,8 +1,8 @@
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 
-import { OriginSettler__factory } from '../contracts/typechain/factories/OriginSettler__factory';
-import type { OpenEventArgs, ResolvedCrossChainOrder } from "../types";
+import { OriginSettler__factory } from "../contracts/typechain/factories/OriginSettler__factory";
+import type { OpenEventArgs } from "../types";
 
 const create = () => {
   const { settlerContract } = setup();
@@ -11,7 +11,7 @@ const create = () => {
     settlerContract.on(settlerContract.filters.Open(), (_from, _to, event) => {
       const { orderId, resolvedOrder } = event.args;
 
-      handler({ orderId, resolvedOrder: resolvedOrder as ResolvedCrossChainOrder });
+      handler({ orderId, resolvedOrder: resolvedOrder });
     });
   };
 };
