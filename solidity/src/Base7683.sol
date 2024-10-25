@@ -24,8 +24,6 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
     // ============ Constants ============
 
-    IPermit2 public immutable PERMIT2;
-
     enum OrderStatus {
         UNFILLED,
         OPENED,
@@ -33,6 +31,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         SETTLED,
         REFUNDED
     }
+
+    IPermit2 public immutable PERMIT2;
 
     bytes32 public constant GASLESS_CROSS_CHAIN_ORDER_TYPEHASH = keccak256(
         "GaslessCrossChainOrder(address originSettler,address user,uint256 nonce,uint64 originChainId,uint32 openDeadline,uint32 fillDeadline,bytes32 orderDataType,bytes orderData)"
@@ -223,10 +223,11 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         orderData.fillDeadline = _fillDeadline;
 
         Output[] memory maxSpent = new Output[](1);
+        // this should be used by the filler to approve the tokens to be spent on destination
         maxSpent[0] = Output({
             token: orderData.outputToken,
             amount: orderData.amountOut,
-            recipient: orderData.recipient,
+            recipient: destinationSettler,
             chainId: orderData.destinationDomain
         });
 

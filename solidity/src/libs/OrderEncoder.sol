@@ -42,48 +42,12 @@ library OrderEncoder {
     }
 
     function encode(OrderData memory order) internal pure returns (bytes memory) {
-        return abi.encode(
-            order.sender,
-            order.recipient,
-            order.inputToken,
-            order.outputToken,
-            order.amountIn,
-            order.amountOut,
-            order.senderNonce,
-            order.originDomain,
-            order.destinationDomain,
-            order.fillDeadline,
-            order.data
-        );
+        return abi.encode(order);
     }
 
     function decode(bytes memory orderBytes) internal pure returns (OrderData memory) {
-        (
-            bytes32 sender,
-            bytes32 recipient,
-            bytes32 inputToken,
-            bytes32 outputToken,
-            uint256 amountIn,
-            uint256 amountOut,
-            uint256 senderNonce,
-            uint32 originDomain,
-            uint32 destinationDomain,
-            uint32 fillDeadline,
-            bytes memory data
-        ) = abi.decode(orderBytes, (bytes32, bytes32, bytes32, bytes32, uint256, uint256, uint256, uint32, uint32, uint32, bytes));
+        (OrderData memory orderData) = abi.decode(orderBytes, (OrderData));
 
-        return OrderData(
-            sender,
-            recipient,
-            inputToken,
-            outputToken,
-            amountIn,
-            amountOut,
-            senderNonce,
-            originDomain,
-            destinationDomain,
-            fillDeadline,
-            data
-        );
+        return orderData;
     }
 }
