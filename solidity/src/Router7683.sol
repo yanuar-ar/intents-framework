@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.25;
 
-import { BaseRouter as Router} from "./BaseRouter.sol";
+import { GasRouter } from "@hyperlane-xyz/client/GasRouter.sol";
 import { Base7683 } from "./Base7683.sol";
 
-contract Router7683 is Router, Base7683 {
+contract Router7683 is GasRouter, Base7683 {
     // ============ Libraries ============
 
     // ============ Constants ============
@@ -23,7 +23,7 @@ contract Router7683 is Router, Base7683 {
 
     // ============ Constructor ============
 
-    constructor(address _mailbox, address _permit2) Router(_mailbox) Base7683(_permit2) { }
+    constructor(address _mailbox, address _permit2) GasRouter(_mailbox) Base7683(_permit2) { }
 
     // ============ Initializers ============
 
@@ -32,18 +32,16 @@ contract Router7683 is Router, Base7683 {
      * @param _customHook used by the Router to set the hook to override with
      * @param _interchainSecurityModule The address of the local ISM contract
      * @param _owner The address with owner privileges
-     * @param _domains The domains of the remote Application Routers
      */
     function initialize(
         address _customHook,
         address _interchainSecurityModule,
-        address _owner,
-        uint32[] calldata _domains
+        address _owner
     )
         external
         initializer
     {
-        _BaseRouter_initialize(_customHook, _interchainSecurityModule, _owner, _domains);
+        _MailboxClient_initialize(_customHook, _interchainSecurityModule, _owner);
     }
 
     // ============ External Functions ============

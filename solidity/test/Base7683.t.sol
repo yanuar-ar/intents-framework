@@ -99,6 +99,37 @@ contract Base7683Test is Test, DeployPermit2 {
         });
     }
 
+    function assertResolvedOrder(
+      ResolvedCrossChainOrder memory resolvedOrder,
+      bytes memory orderData,
+      address _user,
+      uint32 _fillDeadline,
+      uint32 _openDeadline
+    ) internal view {
+        assertEq(resolvedOrder.maxSpent.length, 1);
+        assertEq(resolvedOrder.maxSpent[0].token, TypeCasts.addressToBytes32(address(outputToken)));
+        assertEq(resolvedOrder.maxSpent[0].amount, amount);
+        assertEq(resolvedOrder.maxSpent[0].recipient, TypeCasts.addressToBytes32(karpincho));
+        assertEq(resolvedOrder.maxSpent[0].chainId, destination);
+
+        assertEq(resolvedOrder.minReceived.length, 1);
+        assertEq(resolvedOrder.minReceived[0].token, TypeCasts.addressToBytes32(address(inputToken)));
+        assertEq(resolvedOrder.minReceived[0].amount, amount);
+        assertEq(resolvedOrder.minReceived[0].recipient, bytes32(0));
+        assertEq(resolvedOrder.minReceived[0].chainId, origin);
+
+        assertEq(resolvedOrder.fillInstructions.length, 1);
+        assertEq(resolvedOrder.fillInstructions[0].destinationChainId, destination);
+        assertEq(resolvedOrder.fillInstructions[0].destinationSettler, base.counterpart());
+
+        assertEq(resolvedOrder.fillInstructions[0].originData, orderData);
+
+        assertEq(resolvedOrder.user, _user);
+        assertEq(resolvedOrder.originChainId, base.localDomain());
+        assertEq(resolvedOrder.openDeadline, _openDeadline);
+        assertEq(resolvedOrder.fillDeadline, _fillDeadline);
+    }
+
     // open
 
     // openFor
@@ -111,29 +142,9 @@ contract Base7683Test is Test, DeployPermit2 {
         vm.prank(karpincho);
         ResolvedCrossChainOrder memory resolvedOrder = base.resolve(order);
 
-        assertEq(resolvedOrder.maxSpent.length, 1);
-        assertEq(resolvedOrder.maxSpent[0].token, TypeCasts.addressToBytes32(address(outputToken)));
-        assertEq(resolvedOrder.maxSpent[0].amount, amount);
-        assertEq(resolvedOrder.maxSpent[0].recipient, TypeCasts.addressToBytes32(karpincho));
-        assertEq(resolvedOrder.maxSpent[0].chainId, destination);
-
-        assertEq(resolvedOrder.minReceived.length, 1);
-        assertEq(resolvedOrder.minReceived[0].token, TypeCasts.addressToBytes32(address(inputToken)));
-        assertEq(resolvedOrder.minReceived[0].amount, amount);
-        assertEq(resolvedOrder.minReceived[0].recipient, bytes32(0));
-        assertEq(resolvedOrder.minReceived[0].chainId, origin);
-
-        assertEq(resolvedOrder.fillInstructions.length, 1);
-        assertEq(resolvedOrder.fillInstructions[0].destinationChainId, destination);
-        assertEq(resolvedOrder.fillInstructions[0].destinationSettler, base.counterpart());
-
         orderData.fillDeadline = _fillDeadline;
-        assertEq(resolvedOrder.fillInstructions[0].originData, OrderEncoder.encode(orderData));
 
-        assertEq(resolvedOrder.user, karpincho);
-        assertEq(resolvedOrder.originChainId, base.localDomain());
-        assertEq(resolvedOrder.openDeadline, type(uint32).max);
-        assertEq(resolvedOrder.fillDeadline, _fillDeadline);
+        assertResolvedOrder(resolvedOrder, OrderEncoder.encode(orderData), karpincho, _fillDeadline, type(uint32).max);
     }
 
     // resolveFor
@@ -144,29 +155,9 @@ contract Base7683Test is Test, DeployPermit2 {
         vm.prank(karpincho);
         ResolvedCrossChainOrder memory resolvedOrder = base.resolveFor(order, new bytes(0));
 
-        assertEq(resolvedOrder.maxSpent.length, 1);
-        assertEq(resolvedOrder.maxSpent[0].token, TypeCasts.addressToBytes32(address(outputToken)));
-        assertEq(resolvedOrder.maxSpent[0].amount, amount);
-        assertEq(resolvedOrder.maxSpent[0].recipient, TypeCasts.addressToBytes32(karpincho));
-        assertEq(resolvedOrder.maxSpent[0].chainId, destination);
-
-        assertEq(resolvedOrder.minReceived.length, 1);
-        assertEq(resolvedOrder.minReceived[0].token, TypeCasts.addressToBytes32(address(inputToken)));
-        assertEq(resolvedOrder.minReceived[0].amount, amount);
-        assertEq(resolvedOrder.minReceived[0].recipient, bytes32(0));
-        assertEq(resolvedOrder.minReceived[0].chainId, origin);
-
-        assertEq(resolvedOrder.fillInstructions.length, 1);
-        assertEq(resolvedOrder.fillInstructions[0].destinationChainId, destination);
-        assertEq(resolvedOrder.fillInstructions[0].destinationSettler, base.counterpart());
-
         orderData.fillDeadline = _fillDeadline;
-        assertEq(resolvedOrder.fillInstructions[0].originData, OrderEncoder.encode(orderData));
 
-        assertEq(resolvedOrder.user, kakaroto);
-        assertEq(resolvedOrder.originChainId, base.localDomain());
-        assertEq(resolvedOrder.openDeadline, _openDeadline);
-        assertEq(resolvedOrder.fillDeadline, _fillDeadline);
+        assertResolvedOrder(resolvedOrder, OrderEncoder.encode(orderData), kakaroto, _fillDeadline, _openDeadline);
     }
 
     // fill
