@@ -25,11 +25,11 @@ export interface OpenEventArgs {
   resolvedOrder: ResolvedCrossChainOrder;
 }
 
-export interface OpenEvent extends Omit<Event, 'args'> {
-  args: OpenEventArgs
+export interface OpenEvent extends Omit<Event, "args"> {
+  args: OpenEventArgs;
 }
 
 export type OriginSettlerInfo = {
   address: string;
   chainId: ChainId;
-}
+};

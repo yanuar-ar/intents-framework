@@ -1,9 +1,9 @@
-import { Contract } from '@ethersproject/contracts';
-import { chainMetadata } from '@hyperlane-xyz/registry';
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { Contract } from "@ethersproject/contracts";
+import { chainMetadata } from "@hyperlane-xyz/registry";
+import { MultiProvider } from "@hyperlane-xyz/sdk";
 
-import ORIGIN_SETTLER_ABI from '../abi/originSettler';
-import type { OpenEvent, OpenEventArgs } from '../types';
+import ORIGIN_SETTLER_ABI from "../abi/originSettler";
+import type { OpenEvent, OpenEventArgs } from "../types";
 
 const create = () => {
   const { settlerContract } = setup();
@@ -15,8 +15,8 @@ const create = () => {
 
       handler({ orderId, resolvedOrder });
     });
-  }
-}
+  };
+};
 
 function setup() {
   const address = process.env.ORIGIN_SETTLER_ADDRESS;

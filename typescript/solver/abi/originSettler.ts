@@ -1,6 +1,8 @@
-const Output = "(bytes32 token, uint256 amount, bytes32 recipient, uint64 chainId)";
-const FillInstruction = "(uint64 destinationChainId; bytes32 destinationSettler, bytes originData)";
-const ResolvedCrossChainOrder = `(address user, uint64 originChainId, uint32 openDeadline, uint32 fillDeadline, ${Output}[] maxSpent, ${Output}[] minReceived, ${FillInstruction}[] fillInstructions)`
+const Output =
+  "(bytes32 token, uint256 amount, bytes32 recipient, uint64 chainId)";
+const FillInstruction =
+  "(uint64 destinationChainId; bytes32 destinationSettler, bytes originData)";
+const ResolvedCrossChainOrder = `(address user, uint64 originChainId, uint32 openDeadline, uint32 fillDeadline, ${Output}[] maxSpent, ${Output}[] minReceived, ${FillInstruction}[] fillInstructions)`;
 
 export default [
   `event Open(bytes32 indexed orderId, ${ResolvedCrossChainOrder} resolvedOrder)`,
