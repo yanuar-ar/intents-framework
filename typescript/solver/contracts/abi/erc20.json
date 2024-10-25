@@ -1,0 +1,11 @@
+[
+  {
+    "type": "function",
+    "name": "balanceOf",
+    "constant": true,
+    "stateMutability": "view",
+    "payable": false,
+    "inputs": [{ "type": "address", "name": "account" }],
+    "outputs": [{ "type": "uint256" }]
+  }
+]

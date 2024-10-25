@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "scripts": {
     "prettier:check": "prettier . --check",
-    "prettier:write": "prettier . --write"
+    "prettier:write": "prettier . --write",
+    "contracts:typegen": "typechain --target ethers-v5 --out-dir contracts/typechain contracts/abi/*.json",
+    "postinstall": "yarn contracts:typegen"
   },
   "repository": {
     "type": "git",
@@ -14,7 +16,9 @@
   "license": "Apache-2.0",
   "description": "",
   "devDependencies": {
+    "@typechain/ethers-v5": "^11.1.2",
     "prettier": "^3.3.3",
+    "typechain": "^8.3.2",
     "typescript": "^5.6.3"
   },
   "dependencies": {

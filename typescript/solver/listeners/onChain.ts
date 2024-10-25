@@ -2,7 +2,7 @@ import { Contract } from "@ethersproject/contracts";
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 
-import ORIGIN_SETTLER_ABI from "../abi/originSettler";
+import ORIGIN_SETTLER_ABI from "../contracts/abi/originSettler";
 import type { OpenEvent, OpenEventArgs } from "../types";
 
 const create = () => {
