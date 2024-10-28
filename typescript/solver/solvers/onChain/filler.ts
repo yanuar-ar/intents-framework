@@ -1,10 +1,9 @@
-import { Contract } from "@ethersproject/contracts";
 import { Wallet } from "@ethersproject/wallet";
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 import { ensure0x } from "@hyperlane-xyz/utils";
 
-import DESTINATION_SETTLER_ABI from "../../contracts/abi/destinationSettler";
+import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory";
 import type { OpenEventArgs, ResolvedCrossChainOrder } from "../../types";
 import { getChainIdsWithEnoughTokens } from "./utils";
 
@@ -12,12 +11,12 @@ export const create = () => {
   const { multiProvider } = setup();
 
   return async function onChain({ orderId, resolvedOrder }: OpenEventArgs) {
-    const { fillInstructions } = await selectOutputs(
+    const { fillInstructions, maxSpent } = await selectOutputs(
       resolvedOrder,
       multiProvider,
     );
 
-    await fill(orderId, fillInstructions, multiProvider);
+    await fill(orderId, fillInstructions, maxSpent, multiProvider);
   };
 };
 
@@ -49,36 +48,39 @@ async function selectOutputs(
     multiProvider,
   );
 
-  const fillInstructions = resolvedOrder.fillInstructions.filter((output) =>
-    chainIdsWithEnoughTokens.includes(output.destinationChainId.toString()),
+  const fillInstructions = resolvedOrder.fillInstructions.filter(
+    ({ destinationChainId }) =>
+      chainIdsWithEnoughTokens.includes(destinationChainId.toString()),
   );
 
-  return { fillInstructions };
+  const maxSpent = resolvedOrder.maxSpent.filter(({ chainId }) =>
+    chainIdsWithEnoughTokens.includes(chainId.toString()),
+  );
+
+  return { fillInstructions, maxSpent };
 }
 
 async function fill(
   orderId: string,
   fillInstructions: ResolvedCrossChainOrder["fillInstructions"],
+  maxSpent: ResolvedCrossChainOrder["maxSpent"],
   multiProvider: MultiProvider,
 ): Promise<void> {
   await Promise.all(
-    fillInstructions.map(async (output) => {
-      const filler = multiProvider.getSigner(
-        output.destinationChainId.toNumber(),
-      );
+    fillInstructions.map(
+      async ({ destinationChainId, destinationSettler, originData }) => {
+        const filler = multiProvider.getSigner(destinationChainId.toString());
 
-      const destinationSettler = output.destinationSettler;
-      const destination = new Contract(
-        destinationSettler,
-        DESTINATION_SETTLER_ABI,
-        filler,
-      );
+        const destination = DestinationSettler__factory.connect(
+          destinationSettler,
+          filler,
+        );
 
-      const originData = output.originData;
-      // Depending on the implementation we may call `destination.fill` directly or call some other
-      // contract that will produce the funds needed to execute this leg and then in turn call
-      // `destination.fill`
-      await destination.fill(orderId, originData, "");
-    }),
+        // Depending on the implementation we may call `destination.fill` directly or call some other
+        // contract that will produce the funds needed to execute this leg and then in turn call
+        // `destination.fill`
+        await destination.fill(orderId, originData, "");
+      },
+    ),
   );
 }
