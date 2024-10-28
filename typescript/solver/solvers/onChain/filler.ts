@@ -1,4 +1,3 @@
-import { AddressZero } from "@ethersproject/constants";
 import { Contract } from "@ethersproject/contracts";
 import { Wallet } from "@ethersproject/wallet";
 import { chainMetadata } from "@hyperlane-xyz/registry";
@@ -6,11 +5,8 @@ import { MultiProvider } from "@hyperlane-xyz/sdk";
 import { ensure0x } from "@hyperlane-xyz/utils";
 
 import DESTINATION_SETTLER_ABI from "../../contracts/abi/destinationSettler";
-import { Erc20__factory } from "../../contracts/typechain/factories/ERC20__factory";
-
-import { Provider } from "@ethersproject/abstract-provider";
-import { BigNumber } from "ethers";
 import type { OpenEventArgs, ResolvedCrossChainOrder } from "../../types";
+import { getChainIdsWithEnoughTokens } from "./utils";
 
 export const create = () => {
   const { multiProvider } = setup();
@@ -48,67 +44,16 @@ async function selectOutputs(
   resolvedOrder: ResolvedCrossChainOrder,
   multiProvider: MultiProvider,
 ) {
-  const amountByTokenByChain = resolvedOrder.maxSpent.reduce<{
-    [chainId: number]: { [token: string]: BigNumber };
-  }>((acc, output) => {
-    const chainId = output.chainId.toNumber();
-
-    acc[chainId] ||= { [output.token]: BigNumber.from(0) };
-    acc[chainId][output.token] ||= BigNumber.from(0);
-
-    acc[chainId][output.token] = acc[chainId][output.token].add(output.amount);
-
-    return acc;
-  }, {});
-
-  const _checkedChains = [];
-  for (const chainId in amountByTokenByChain) {
-    _checkedChains.push(
-      checkChainTokens(multiProvider, chainId, amountByTokenByChain[chainId]),
-    );
-  }
-
-  const checkedChains = await Promise.all(_checkedChains);
-
-  const chainIdsWithEnoughTokens = checkedChains
-    .filter(([, hasEnoughTokens]) => hasEnoughTokens)
-    .map(([chainId]) => chainId);
+  const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(
+    resolvedOrder,
+    multiProvider,
+  );
 
   const fillInstructions = resolvedOrder.fillInstructions.filter((output) =>
     chainIdsWithEnoughTokens.includes(output.destinationChainId.toString()),
   );
 
   return { fillInstructions };
-}
-
-async function checkChainTokens(
-  multiProvider: MultiProvider,
-  chainId: string,
-  token: { [token: string]: BigNumber },
-): Promise<[string, boolean]> {
-  const provider = multiProvider.getProvider(chainId);
-  const fillerAddress = await multiProvider.getSignerAddress(chainId);
-
-  const hasEnoughTokens = await Promise.all(
-    Object.entries(token).map(checkTokenBalance(provider, fillerAddress)),
-  );
-
-  return [chainId, hasEnoughTokens.every(Boolean)];
-}
-
-function checkTokenBalance(provider: Provider, fillerAddress: string) {
-  return async ([tokenAddress, amount]: [string, BigNumber]) => {
-    let balance: BigNumber;
-
-    if (tokenAddress === AddressZero) {
-      balance = await provider.getBalance(fillerAddress);
-    } else {
-      const token = Erc20__factory.connect(tokenAddress, provider);
-      balance = await token.balanceOf(fillerAddress);
-    }
-
-    return balance.gte(amount);
-  };
 }
 
 async function fill(

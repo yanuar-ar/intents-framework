@@ -1,0 +1,67 @@
+import { AddressZero, Zero } from "@ethersproject/constants";
+import type { MultiProvider } from "@hyperlane-xyz/sdk";
+import type { BigNumber } from "ethers";
+
+import { Erc20__factory } from "../../contracts/typechain/factories/ERC20__factory";
+
+import type { Provider } from "@ethersproject/abstract-provider";
+import { ResolvedCrossChainOrder } from "../../types";
+
+export async function checkChainTokens(
+  multiProvider: MultiProvider,
+  chainId: string,
+  token: { [token: string]: BigNumber },
+): Promise<[string, boolean]> {
+  const provider = multiProvider.getProvider(chainId);
+  const fillerAddress = await multiProvider.getSignerAddress(chainId);
+
+  const hasEnoughTokens = await Promise.all(
+    Object.entries(token).map(checkTokenBalance(provider, fillerAddress)),
+  );
+
+  return [chainId, hasEnoughTokens.every(Boolean)];
+}
+
+export function checkTokenBalance(provider: Provider, fillerAddress: string) {
+  return async ([tokenAddress, amount]: [string, BigNumber]) => {
+    let balance: BigNumber;
+
+    if (tokenAddress === AddressZero) {
+      balance = await provider.getBalance(fillerAddress);
+    } else {
+      const token = Erc20__factory.connect(tokenAddress, provider);
+      balance = await token.balanceOf(fillerAddress);
+    }
+
+    return balance.gte(amount);
+  };
+}
+
+export async function getChainIdsWithEnoughTokens(
+  resolvedOrder: ResolvedCrossChainOrder,
+  multiProvider: MultiProvider,
+) {
+  const amountByTokenByChain = resolvedOrder.maxSpent.reduce<{
+    [chainId: number]: { [token: string]: BigNumber };
+  }>((acc, output) => {
+    const chainId = output.chainId.toNumber();
+
+    acc[chainId] ||= { [output.token]: Zero };
+    acc[chainId][output.token] ||= Zero;
+
+    acc[chainId][output.token] = acc[chainId][output.token].add(output.amount);
+
+    return acc;
+  }, {});
+
+  const _checkedChains = [];
+  for (const chainId in amountByTokenByChain) {
+    _checkedChains.push(
+      checkChainTokens(multiProvider, chainId, amountByTokenByChain[chainId]),
+    );
+  }
+
+  return (await Promise.all(_checkedChains))
+    .filter(([, hasEnoughTokens]) => hasEnoughTokens)
+    .map(([chainId]) => chainId);
+}
