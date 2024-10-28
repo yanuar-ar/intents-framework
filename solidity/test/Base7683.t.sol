@@ -5,6 +5,8 @@ import { Test, Vm } from "forge-std/Test.sol";
 import { console2 } from "forge-std/console2.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {DeployPermit2} from "@uniswap/permit2/test/utils/DeployPermit2.sol";
+import {ISignatureTransfer} from "@uniswap/permit2/src/interfaces/ISignatureTransfer.sol";
+import {IEIP712} from "@uniswap/permit2/src/interfaces/IEIP712.sol";
 import { TypeCasts } from "@hyperlane-xyz/libs/TypeCasts.sol";
 
 import {
@@ -43,13 +45,17 @@ contract Base7683ForTest is Base7683 {
 
 contract Base7683Test is Test, DeployPermit2 {
     Base7683ForTest internal base;
+    // address permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address permit2;
     ERC20 internal inputToken;
     ERC20 internal outputToken;
 
-    address internal kakaroto = makeAddr("kakaroto");
-    address internal karpincho = makeAddr("karpincho");
-    address internal vegeta = makeAddr("vegeta");
+    address internal kakaroto;
+    uint256 internal kakarotoPK;
+    address internal karpincho;
+    uint256 internal karpinchoPK;
+    address internal vegeta;
+    uint256 internal vegetaPK;
     address internal counterpart = makeAddr("counterpart");
 
     uint32 internal origin = 1;
@@ -58,10 +64,27 @@ contract Base7683Test is Test, DeployPermit2 {
 
     address[] internal users;
 
+    bytes32 DOMAIN_SEPARATOR;
+    bytes32 public constant _TOKEN_PERMISSIONS_TYPEHASH = keccak256("TokenPermissions(address token,uint256 amount)");
+    bytes32 constant FULL_WITNESS_TYPEHASH = keccak256(
+        "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,GaslessCrossChainOrder witness)GaslessCrossChainOrder(address originSettler,address user,uint256 nonce,uint64 originChainId,uint32 openDeadline,uint32 fillDeadline,bytes32 orderDataType,bytes orderData)TokenPermissions(address token,uint256 amount)"
+    );
+
+    uint256 internal forkId;
+
     function setUp() public {
+        // forkId = vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 15986407);
+
+        (kakaroto, kakarotoPK) = makeAddrAndKey("kakaroto");
+        (karpincho, karpinchoPK) = makeAddrAndKey("karpincho");
+        (vegeta, vegetaPK) = makeAddrAndKey("vegeta");
+
         inputToken = new ERC20("Input Token", "IN");
         outputToken = new ERC20("Output Token", "OUT");
+
         permit2 = deployPermit2();
+        DOMAIN_SEPARATOR = IEIP712(permit2).DOMAIN_SEPARATOR();
+
         base = new Base7683ForTest(permit2);
         base.setCounterpart(TypeCasts.addressToBytes32(counterpart));
 
@@ -98,11 +121,11 @@ contract Base7683Test is Test, DeployPermit2 {
         });
     }
 
-    function prepareGaslessOrder(OrderData memory orderData, uint32 openDeadline, uint32 fillDeadline, bytes32 orderDataType) internal returns (GaslessCrossChainOrder memory) {
+    function prepareGaslessOrder(OrderData memory orderData, uint256 permitNonce, uint32 openDeadline, uint32 fillDeadline, bytes32 orderDataType) internal returns (GaslessCrossChainOrder memory) {
         return GaslessCrossChainOrder({
             originSettler: address(base),
             user: kakaroto,
-            nonce: base.senderNonce(kakaroto),
+            nonce: permitNonce,
             originChainId: uint64(origin),
             openDeadline: openDeadline,
             fillDeadline: fillDeadline,
@@ -228,11 +251,9 @@ contract Base7683Test is Test, DeployPermit2 {
     }
 
     // open
-    function test_open_works(uint32 __fillDeadline) public {
+    function test_open_works(uint32 _fillDeadline) public {
         OrderData memory orderData = prepareOrderData();
-        OnchainCrossChainOrder memory order = prepareOnchainOrder(orderData, __fillDeadline, OrderEncoder.orderDataType());
-
-        address[] memory addresses = new address[](2);
+        OnchainCrossChainOrder memory order = prepareOnchainOrder(orderData, _fillDeadline, OrderEncoder.orderDataType());
 
         vm.startPrank(karpincho);
         inputToken.approve(address(base), amount);
@@ -245,14 +266,79 @@ contract Base7683Test is Test, DeployPermit2 {
 
         (bytes32 orderId, ResolvedCrossChainOrder memory resolvedOrder) = getOrderIDFromLogs();
 
-        assertResolvedOrder(resolvedOrder, orderData, karpincho, __fillDeadline, type(uint32).max);
+        assertResolvedOrder(resolvedOrder, orderData, karpincho, _fillDeadline, type(uint32).max);
 
         assertOpenOrder(orderId, karpincho, orderData, balancesBefore, 1, nonceBefore);
 
         vm.stopPrank();
     }
 
+    function getPermitWitnessTransferSignature(
+        ISignatureTransfer.PermitTransferFrom memory permit,
+        uint256 privateKey,
+        bytes32 typehash,
+        bytes32 witness,
+        bytes32 domainSeparator
+    ) internal view returns (bytes memory sig) {
+        bytes32 tokenPermissions = keccak256(abi.encode(_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted));
+
+        bytes32 msgHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                domainSeparator,
+                keccak256(abi.encode(typehash, tokenPermissions, address(base), permit.nonce, permit.deadline, witness))
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
+        return bytes.concat(r, s, bytes1(v));
+    }
+
+    function defaultERC20PermitWitnessTransfer(address token0, uint256 nonce, uint256 amount, uint32 deadline)
+        internal
+        view
+        returns (ISignatureTransfer.PermitTransferFrom memory)
+    {
+        return ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: token0, amount: amount}),
+            nonce: nonce,
+            deadline: deadline
+        });
+    }
+
     // openFor
+    function test_openFor_works(uint32 _fillDeadline, uint32 _openDeadline) public {
+        vm.assume(_openDeadline > block.timestamp);
+        vm.prank(kakaroto);
+        inputToken.approve(permit2, type(uint256).max);
+
+        uint256 permitNonce = 0;
+        OrderData memory orderData = prepareOrderData();
+        GaslessCrossChainOrder memory order = prepareGaslessOrder(orderData, permitNonce, _openDeadline, _fillDeadline, OrderEncoder.orderDataType());
+
+        bytes32 witness = base.witnessHash(order);
+        ISignatureTransfer.PermitTransferFrom memory permit = defaultERC20PermitWitnessTransfer(address(inputToken), permitNonce, amount, _openDeadline);
+        bytes memory sig = getPermitWitnessTransferSignature(
+            permit, kakarotoPK, FULL_WITNESS_TYPEHASH, witness, DOMAIN_SEPARATOR
+        );
+
+        vm.startPrank(karpincho);
+        inputToken.approve(address(base), amount);
+
+        uint256 nonceBefore = base.senderNonce(karpincho);
+        uint256[] memory balancesBefore = balances(inputToken);
+
+        vm.recordLogs();
+        base.openFor(order, sig, new bytes(0));
+
+        (bytes32 orderId, ResolvedCrossChainOrder memory resolvedOrder) = getOrderIDFromLogs();
+
+        assertResolvedOrder(resolvedOrder, orderData, kakaroto, _fillDeadline, _openDeadline);
+
+        assertOpenOrder(orderId, kakaroto, orderData, balancesBefore, 0, nonceBefore);
+
+        vm.stopPrank();
+    }
 
     // resolve
     function test_resolve_works(uint32 _fillDeadline) public {
@@ -268,7 +354,7 @@ contract Base7683Test is Test, DeployPermit2 {
     // resolveFor
     function test_resolveFor_works(uint32 _fillDeadline, uint32 _openDeadline) public {
         OrderData memory orderData = prepareOrderData();
-        GaslessCrossChainOrder memory order = prepareGaslessOrder(orderData, _openDeadline, _fillDeadline, OrderEncoder.orderDataType());
+        GaslessCrossChainOrder memory order = prepareGaslessOrder(orderData, 0, _openDeadline, _fillDeadline, OrderEncoder.orderDataType());
 
         vm.prank(karpincho);
         ResolvedCrossChainOrder memory resolvedOrder = base.resolveFor(order, new bytes(0));

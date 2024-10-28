@@ -93,7 +93,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     )
         external
     {
-        if (order.openDeadline > block.timestamp) revert OrderOpenExpired();
+        if (block.timestamp > order.openDeadline) revert OrderOpenExpired();
 
         (ResolvedCrossChainOrder memory resolvedOrder, OrderData memory orderData) =
             _resolvedOrder(order.orderDataType, order.user, order.orderData, order.openDeadline, order.fillDeadline);
@@ -178,7 +178,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         OrderData memory orderData = OrderEncoder.decode(_originData);
 
         if (_orderId != _getOrderId(orderData)) revert InvalidOrderId();
-        if (orderData.fillDeadline > block.timestamp) revert OrderFillExpired();
+        if (block.timestamp > orderData.fillDeadline) revert OrderFillExpired();
         if (orderData.destinationDomain != _localDomain()) revert InvalidOrderDomain();
         _mustHaveRemoteCounterpart(orderData.originDomain);
         if (orderStatus[_orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
@@ -273,13 +273,13 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
             }),
             ISignatureTransfer.SignatureTransferDetails({to: receiver, requestedAmount: orderData.amountIn}),
             order.user,
-            _witnessHash(order),
+            witnessHash(order),
             witnessTypeString,
             signature
         );
     }
 
-    function _witnessHash(GaslessCrossChainOrder calldata order) internal view returns (bytes32) {
+    function witnessHash(GaslessCrossChainOrder calldata order) public view returns (bytes32) {
         return keccak256(
             abi.encode(
                 GASLESS_CROSS_CHAIN_ORDER_TYPEHASH,
