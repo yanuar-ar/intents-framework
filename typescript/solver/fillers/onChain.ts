@@ -61,20 +61,21 @@ async function selectOutputs(
     return acc;
   }, {});
 
-  const chainIdsWithEnoughTokens = new Set(
-    Object.keys(
-      (
-        await Promise.all(
-          Object.entries(amountByTokenByChain).map(([chainId, token]) =>
-            checkChainTokens(multiProvider, chainId, token),
-          ),
-        )
-      ).filter(({ chainId }) => chainId),
-    ),
-  );
+  const _checkedChains = [];
+  for (const chainId in amountByTokenByChain) {
+    _checkedChains.push(
+      checkChainTokens(multiProvider, chainId, amountByTokenByChain[chainId]),
+    );
+  }
+
+  const checkedChains = await Promise.all(_checkedChains);
+
+  const chainIdsWithEnoughTokens = checkedChains
+    .filter(([, hasEnoughTokens]) => hasEnoughTokens)
+    .map(([chainId]) => chainId);
 
   const fillInstructions = resolvedOrder.fillInstructions.filter((output) =>
-    chainIdsWithEnoughTokens.has(output.destinationChainId.toString()),
+    chainIdsWithEnoughTokens.includes(output.destinationChainId.toString()),
   );
 
   return { fillInstructions };
@@ -84,7 +85,7 @@ async function checkChainTokens(
   multiProvider: MultiProvider,
   chainId: string,
   token: { [token: string]: BigNumber },
-) {
+): Promise<[string, boolean]> {
   const provider = multiProvider.getProvider(chainId);
   const fillerAddress = await multiProvider.getSignerAddress(chainId);
 
@@ -92,7 +93,7 @@ async function checkChainTokens(
     Object.entries(token).map(checkTokenBalance(provider, fillerAddress)),
   );
 
-  return { chainId: hasEnoughTokens.every(Boolean) };
+  return [chainId, hasEnoughTokens.every(Boolean)];
 }
 
 function checkTokenBalance(provider: Provider, fillerAddress: string) {
@@ -117,7 +118,9 @@ async function fill(
 ): Promise<void> {
   await Promise.all(
     fillInstructions.map(async (output) => {
-      const filler = multiProvider.getSigner(output.destinationChainId.toNumber());
+      const filler = multiProvider.getSigner(
+        output.destinationChainId.toNumber(),
+      );
 
       const destinationSettler = output.destinationSettler;
       const destination = new Contract(
