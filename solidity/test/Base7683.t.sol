@@ -238,14 +238,10 @@ contract Base7683Test is Test, DeployPermit2 {
         inputToken.approve(address(base), amount);
 
         uint256 nonceBefore = base.senderNonce(karpincho);
-        console2.log("antess1");
         uint256[] memory balancesBefore = balances(inputToken);
-        console2.log("antess2");
 
         vm.recordLogs();
-        console2.log("antess3");
         base.open(order);
-        console2.log("despues");
 
         (bytes32 orderId, ResolvedCrossChainOrder memory resolvedOrder) = getOrderIDFromLogs();
 

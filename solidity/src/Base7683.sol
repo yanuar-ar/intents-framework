@@ -222,8 +222,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         // enforce fillDeadline into orderData
         orderData.fillDeadline = _fillDeadline;
 
+        // this can be used by the filler to approve the tokens to be spent on destination
         Output[] memory maxSpent = new Output[](1);
-        // this should be used by the filler to approve the tokens to be spent on destination
         maxSpent[0] = Output({
             token: orderData.outputToken,
             amount: orderData.amountOut,
@@ -231,6 +231,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
             chainId: orderData.destinationDomain
         });
 
+        // this can be used by the filler know how much it can expect to receive
         Output[] memory minReceived = new Output[](1);
         minReceived[0] = Output({
             token: orderData.inputToken,
@@ -239,6 +240,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
             chainId: orderData.originDomain
         });
 
+        // this can be user by the filler to know how to fill the order
         FillInstruction[] memory fillInstructions = new FillInstruction[](1);
         fillInstructions[0] = FillInstruction({
             destinationChainId: orderData.destinationDomain,
