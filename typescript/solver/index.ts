@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 
-import * as fillers from "./fillers";
-import * as listeners from "./listeners";
+import * as solvers from "./solvers";
 
 import "./config";
 
 const main = () => {
   // TODO: implement a way to choose different listeners and fillers
-  const listener = listeners["onChain"].create();
-  const filler = fillers["onChain"].create();
+  const listener = solvers["onChain"].listener.create();
+  const filler = solvers["onChain"].filler.create();
 
   listener(filler);
 };

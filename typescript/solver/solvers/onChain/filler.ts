@@ -5,14 +5,14 @@ import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 import { ensure0x } from "@hyperlane-xyz/utils";
 
-import DESTINATION_SETTLER_ABI from "../contracts/abi/destinationSettler";
-import { Erc20__factory } from "../contracts/typechain/factories/ERC20__factory";
+import DESTINATION_SETTLER_ABI from "../../contracts/abi/destinationSettler";
+import { Erc20__factory } from "../../contracts/typechain/factories/ERC20__factory";
 
 import { Provider } from "@ethersproject/abstract-provider";
 import { BigNumber } from "ethers";
-import type { OpenEventArgs, ResolvedCrossChainOrder } from "../types";
+import type { OpenEventArgs, ResolvedCrossChainOrder } from "../../types";
 
-const create = () => {
+export const create = () => {
   const { multiProvider } = setup();
 
   return async function onChain({ orderId, resolvedOrder }: OpenEventArgs) {
@@ -137,5 +137,3 @@ async function fill(
     }),
   );
 }
-
-export const onChain = { create };
