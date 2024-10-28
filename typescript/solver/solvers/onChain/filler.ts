@@ -4,6 +4,7 @@ import { MultiProvider } from "@hyperlane-xyz/sdk";
 import { ensure0x } from "@hyperlane-xyz/utils";
 
 import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory";
+import { Erc20__factory } from "../../contracts/typechain/factories/ERC20__factory";
 import type { OpenEventArgs, ResolvedCrossChainOrder } from "../../types";
 import { getChainIdsWithEnoughTokens } from "./utils";
 
@@ -66,6 +67,13 @@ async function fill(
   maxSpent: ResolvedCrossChainOrder["maxSpent"],
   multiProvider: MultiProvider,
 ): Promise<void> {
+  await Promise.all(
+    maxSpent.map(async ({ chainId, token, amount, recipient }) => {
+      const filler = multiProvider.getSigner(chainId.toString());
+      await Erc20__factory.connect(token, filler).approve(recipient, amount);
+    }),
+  );
+
   await Promise.all(
     fillInstructions.map(
       async ({ destinationChainId, destinationSettler, originData }) => {
