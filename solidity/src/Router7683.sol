@@ -33,14 +33,7 @@ contract Router7683 is GasRouter, Base7683 {
      * @param _interchainSecurityModule The address of the local ISM contract
      * @param _owner The address with owner privileges
      */
-    function initialize(
-        address _customHook,
-        address _interchainSecurityModule,
-        address _owner
-    )
-        external
-        initializer
-    {
+    function initialize(address _customHook, address _interchainSecurityModule, address _owner) external initializer {
         _MailboxClient_initialize(_customHook, _interchainSecurityModule, _owner);
     }
 
@@ -54,7 +47,7 @@ contract Router7683 is GasRouter, Base7683 {
         // TODO - handle settlement
     }
 
-    function _mustHaveRemoteCounterpart(uint32 _domain) internal virtual override view returns (bytes32) {
+    function _mustHaveRemoteCounterpart(uint32 _domain) internal view virtual override returns (bytes32) {
         return _mustHaveRemoteRouter(_domain);
     }
 

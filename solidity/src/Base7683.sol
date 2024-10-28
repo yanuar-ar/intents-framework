@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.25;
 
-
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { TypeCasts } from "@hyperlane-xyz/libs/TypeCasts.sol";
@@ -38,7 +37,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         "GaslessCrossChainOrder(address originSettler,address user,uint256 nonce,uint64 originChainId,uint32 openDeadline,uint32 fillDeadline,bytes32 orderDataType,bytes orderData)"
     );
 
-    string public constant witnessTypeString = "GaslessCrossChainOrder witness)GaslessCrossChainOrder(address originSettler,address user,uint256 nonce,uint64 originChainId,uint32 openDeadline,uint32 fillDeadline,bytes32 orderDataType,bytes orderData)TokenPermissions(address token,uint256 amount)";
+    string public constant witnessTypeString =
+        "GaslessCrossChainOrder witness)GaslessCrossChainOrder(address originSettler,address user,uint256 nonce,uint64 originChainId,uint32 openDeadline,uint32 fillDeadline,bytes32 orderDataType,bytes orderData)TokenPermissions(address token,uint256 amount)";
 
     // ============ Public Storage ============
 
@@ -85,11 +85,11 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     /// @dev This method must emit the Open event
     /// @param order The GaslessCrossChainOrder definition
     /// @param signature The user's signature over the order
-    /// @param originFillerData Any filler-defined data required by the settler
+    /// NOT USED originFillerData Any filler-defined data required by the settler
     function openFor(
         GaslessCrossChainOrder calldata order,
         bytes calldata signature,
-        bytes calldata originFillerData
+        bytes calldata
     )
         external
     {
@@ -259,19 +259,25 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         });
     }
 
-    function _permitTransferFrom(GaslessCrossChainOrder calldata order, bytes calldata signature, address receiver) internal {
+    function _permitTransferFrom(
+        GaslessCrossChainOrder calldata order,
+        bytes calldata signature,
+        address receiver
+    )
+        internal
+    {
         OrderData memory orderData = OrderEncoder.decode(order.orderData);
 
         PERMIT2.permitWitnessTransferFrom(
             ISignatureTransfer.PermitTransferFrom({
                 permitted: ISignatureTransfer.TokenPermissions({
-                  token: TypeCasts.bytes32ToAddress(orderData.inputToken),
-                  amount: orderData.amountIn
+                    token: TypeCasts.bytes32ToAddress(orderData.inputToken),
+                    amount: orderData.amountIn
                 }),
                 nonce: order.nonce,
                 deadline: order.openDeadline
             }),
-            ISignatureTransfer.SignatureTransferDetails({to: receiver, requestedAmount: orderData.amountIn}),
+            ISignatureTransfer.SignatureTransferDetails({ to: receiver, requestedAmount: orderData.amountIn }),
             order.user,
             witnessHash(order),
             witnessTypeString,
@@ -279,7 +285,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         );
     }
 
-    function witnessHash(GaslessCrossChainOrder calldata order) public view returns (bytes32) {
+    function witnessHash(GaslessCrossChainOrder calldata order) public pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 GASLESS_CROSS_CHAIN_ORDER_TYPEHASH,
@@ -295,7 +301,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         );
     }
 
-    function _mustHaveRemoteCounterpart(uint32 _domain) internal virtual view returns (bytes32);
+    function _mustHaveRemoteCounterpart(uint32 _domain) internal view virtual returns (bytes32);
 
-    function _localDomain() internal virtual view returns (uint32);
+    function _localDomain() internal view virtual returns (uint32);
 }
