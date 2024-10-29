@@ -5,6 +5,7 @@ import { GasRouter } from "@hyperlane-xyz/client/GasRouter.sol";
 
 import { Base7683 } from "./Base7683.sol";
 import { OrderData, OrderEncoder } from "./libs/OrderEncoder.sol";
+import { Router7683Message} from "./libs/Route7683Message.sol";
 
 contract Router7683 is GasRouter, Base7683 {
     // ============ Libraries ============
@@ -20,6 +21,8 @@ contract Router7683 is GasRouter, Base7683 {
     // ============ Events ============
 
     // ============ Errors ============
+
+    error InvalidOrderOrigin();
 
     // ============ Modifiers ============
 
@@ -39,19 +42,30 @@ contract Router7683 is GasRouter, Base7683 {
         _MailboxClient_initialize(_customHook, _interchainSecurityModule, _owner);
     }
 
-    // ============ External Functions ============
-
-    // TODO - implement interchain settlement functions
-
     // ============ Internal Functions ============
 
-    function _handle(uint32 _origin, bytes32 _sender, bytes calldata _message) internal virtual override {
-        // TODO - handle settlement
+    function _handle(uint32, bytes32, bytes calldata _message) internal virtual override {
+        (bool _settle, bytes32[] memory _orderIds, bytes32[] memory _receivers) = Router7683Message.decode(_message);
+
+        if (_settle) {
+            _handleSettlement(_orderIds, _receivers);
+        } else {
+            _handleRefund(_orderIds);
+        }
     }
 
-    function _handleSettlement(bytes32[] memory _orderIds, bytes32[] memory _receivers) internal virtual override {}
+    function _handleSettlement(bytes32[] memory _orderIds, bytes32[] memory _receivers) internal virtual override {
+        _dispatchMessage(true, _orderIds, _receivers);
+    }
 
-    function _handleRefund(bytes32[] memory _orderIds) internal virtual override {}
+    function _handleRefund(bytes32[] memory _orderIds) internal virtual override {
+        _dispatchMessage(false, _orderIds, new bytes32[](0));
+    }
+
+    function _dispatchMessage(bool _settle, bytes32[] memory _orderIds, bytes32[] memory _receivers) internal virtual {
+        uint32 originDomain = _mustHaveSameOrigin(_orderIds);
+        _GasRouter_dispatch(originDomain, msg.value, Router7683Message.encode(_settle, _orderIds, _receivers), address(hook));
+    }
 
 
     function _mustHaveRemoteCounterpart(uint32 _domain) internal view virtual override returns (bytes32) {
@@ -60,5 +74,14 @@ contract Router7683 is GasRouter, Base7683 {
 
     function _localDomain() internal view override returns (uint32) {
         return localDomain;
+    }
+
+    function _mustHaveSameOrigin(bytes32[] memory _orderIds) internal view returns (uint32 originDomain) {
+        originDomain = orders[_orderIds[0]].originDomain;
+
+        for (uint256 i = 1; i < _orderIds.length; i += 1) {
+            OrderData memory orderData = orders[_orderIds[i]];
+            if (originDomain != orderData.originDomain) revert InvalidOrderOrigin();
+        }
     }
 }
