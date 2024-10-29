@@ -77,6 +77,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     error OrderFillNotExpired();
     error InvalidDomain();
     error InvalidOrdersLength();
+    error InvalidSender();
 
     // ============ Constructor ============
 
@@ -276,6 +277,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         orderData = OrderEncoder.decode(_orderData);
 
         if (orderData.originDomain != _localDomain()) revert InvalidOriginDomain(orderData.originDomain);
+        if (orderData.sender != TypeCasts.addressToBytes32(_sender)) revert InvalidSender();
         if (orderData.senderNonce != senderNonce[_sender]) revert InvalidSenderNonce();
         bytes32 destinationSettler = _mustHaveRemoteCounterpart(orderData.destinationDomain);
 
