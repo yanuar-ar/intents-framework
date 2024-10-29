@@ -2,7 +2,9 @@
 pragma solidity 0.8.25;
 
 import { GasRouter } from "@hyperlane-xyz/client/GasRouter.sol";
+
 import { Base7683 } from "./Base7683.sol";
+import { OrderData, OrderEncoder } from "./libs/OrderEncoder.sol";
 
 contract Router7683 is GasRouter, Base7683 {
     // ============ Libraries ============
@@ -46,6 +48,11 @@ contract Router7683 is GasRouter, Base7683 {
     function _handle(uint32 _origin, bytes32 _sender, bytes calldata _message) internal virtual override {
         // TODO - handle settlement
     }
+
+    function _handleSettlement(bytes32[] calldata _orderIds, address[] calldata receivers) internal virtual override {}
+
+    function _handleRefund(OrderData[] memory _ordersData) internal virtual override {}
+
 
     function _mustHaveRemoteCounterpart(uint32 _domain) internal view virtual override returns (bytes32) {
         return _mustHaveRemoteRouter(_domain);

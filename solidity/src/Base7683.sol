@@ -57,6 +57,10 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     // ============ Events ============
 
     event Filled(bytes32 orderId, bytes originData, bytes fillerData);
+    event Settle(bytes32[] orderIds, address[] receivers);
+    event Refund(bytes32[] orderIds);
+    event Settled(bytes32 orderId, address receiver);
+    event Refunded(bytes32 orderId, address receiver);
 
     // ============ Errors ============
 
@@ -69,6 +73,10 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     error InvalidOrderDomain();
     error InvalidOrderStatus();
     error InvalidSenderNonce();
+    error InvalidOrderFiller();
+    error OrderFillNotExpired();
+    error InvalidDomain();
+    error InvalidOrdersLength();
 
     // ============ Constructor ============
 
@@ -194,6 +202,58 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         );
     }
 
+    function settle(bytes32[] calldata _orderIds, address[] calldata receivers) external payable {
+        if (_orderIds.length != receivers.length) revert InvalidOrdersLength();
+
+        for (uint256 i = 0; i < _orderIds.length; i += 1) {
+            if (orderStatus[_orderIds[i]] != OrderStatus.FILLED) revert InvalidOrderStatus();
+            if (orderFiller[_orderIds[i]] != msg.sender) revert InvalidOrderFiller();
+
+            orderStatus[_orderIds[i]] = OrderStatus.SETTLED;
+        }
+
+        _handleSettlement(_orderIds, receivers);
+
+        emit Settle(_orderIds, receivers);
+    }
+    function refund(OrderData[] memory _ordersData) external payable {
+        bytes32[] memory orderIds = new bytes32[](_ordersData.length);
+        for (uint256 i = 0; i < _ordersData.length; i += 1) {
+            bytes32 orderId = _getOrderId(_ordersData[i]);
+
+            if (orderStatus[orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
+            if (block.timestamp <= _ordersData[i].fillDeadline) revert OrderFillNotExpired();
+            if (_ordersData[i].destinationDomain != _localDomain()) revert InvalidOrderDomain();
+            _mustHaveRemoteCounterpart(_ordersData[i].originDomain);
+
+            orders[orderId] = _ordersData[i];
+            orderStatus[orderId] = OrderStatus.REFUNDED;
+            orderIds[i] = orderId;
+        }
+
+        _handleRefund(_ordersData);
+
+        emit Refund(orderIds);
+    }
+
+    // ============ Public Functions ============
+
+    function witnessHash(GaslessCrossChainOrder calldata order) public pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                GASLESS_CROSS_CHAIN_ORDER_TYPEHASH,
+                order.originSettler,
+                order.user,
+                order.nonce,
+                order.originChainId,
+                order.openDeadline,
+                order.fillDeadline,
+                order.orderDataType,
+                order.orderData
+            )
+        );
+    }
+
     // ============ Internal Functions ============
 
     function _getOrderId(OrderData memory orderData) internal pure returns (bytes32) {
@@ -285,21 +345,41 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         );
     }
 
-    function witnessHash(GaslessCrossChainOrder calldata order) public pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                GASLESS_CROSS_CHAIN_ORDER_TYPEHASH,
-                order.originSettler,
-                order.user,
-                order.nonce,
-                order.originChainId,
-                order.openDeadline,
-                order.fillDeadline,
-                order.orderDataType,
-                order.orderData
-            )
+    function _settleOrder(bytes32 _orderId, address receiver, uint32 _settlingDomain) internal {
+        OrderData memory orderData = orders[_orderId];
+
+        if (orderData.destinationDomain != _settlingDomain) revert InvalidDomain();
+        if (orderStatus[_orderId] != OrderStatus.OPENED) revert InvalidOrderStatus();
+
+        orderStatus[_orderId] = OrderStatus.SETTLED;
+
+        emit Settled(_orderId, receiver);
+
+        IERC20(TypeCasts.bytes32ToAddress(orderData.inputToken)).safeTransfer(
+            receiver, orderData.amountIn
         );
     }
+
+    function _refundOrder(bytes32 _orderId, uint32 _refundingDomain) internal {
+        OrderData memory orderData = orders[_orderId];
+
+        if (orderData.destinationDomain != _refundingDomain) revert InvalidDomain();
+        if (orderStatus[_orderId] != OrderStatus.OPENED) revert InvalidOrderStatus();
+
+        orderStatus[_orderId] = OrderStatus.REFUNDED;
+
+        address orderSender = TypeCasts.bytes32ToAddress(orderData.sender);
+
+        emit Refunded(_orderId, orderSender);
+
+        IERC20(TypeCasts.bytes32ToAddress(orderData.inputToken)).safeTransfer(
+            orderSender, orderData.amountIn
+        );
+    }
+
+    function _handleSettlement(bytes32[] calldata _orderIds, address[] calldata receivers) internal virtual;
+
+    function _handleRefund(OrderData[] memory _ordersData) internal virtual;
 
     function _mustHaveRemoteCounterpart(uint32 _domain) internal view virtual returns (bytes32);
 
