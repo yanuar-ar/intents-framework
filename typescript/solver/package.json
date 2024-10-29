@@ -3,9 +3,10 @@
   "type": "module",
   "version": "0.1.0",
   "scripts": {
+    "build": "tsc",
     "prettier:check": "prettier . --check",
     "prettier:write": "prettier . --write",
-    "contracts:typegen": "typechain --target ethers-v5 --out-dir contracts/typechain contracts/abi/*.json",
+    "contracts:typegen": "typechain --node16-modules --target ethers-v5 --out-dir contracts/typechain contracts/abi/*.json",
     "postinstall": "yarn contracts:typegen"
   },
   "repository": {

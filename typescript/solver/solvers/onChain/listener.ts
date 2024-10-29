@@ -1,8 +1,8 @@
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 
-import { OriginSettler__factory } from "../../contracts/typechain/factories/OriginSettler__factory";
-import type { OpenEventArgs } from "../../types";
+import { OriginSettler__factory } from "../../contracts/typechain/factories/OriginSettler__factory.js";
+import type { OpenEventArgs } from "../../types.js";
 
 export const create = () => {
   const { settlerContract } = setup();

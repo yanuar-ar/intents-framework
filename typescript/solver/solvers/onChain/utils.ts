@@ -2,10 +2,10 @@ import { AddressZero, Zero } from "@ethersproject/constants";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import type { BigNumber } from "ethers";
 
-import { Erc20__factory } from "../../contracts/typechain/factories/ERC20__factory";
+import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__factory.js";
 
 import type { Provider } from "@ethersproject/abstract-provider";
-import { ResolvedCrossChainOrder } from "../../types";
+import { ResolvedCrossChainOrder } from "../../types.js";
 
 export async function checkChainTokens(
   multiProvider: MultiProvider,
@@ -54,7 +54,7 @@ export async function getChainIdsWithEnoughTokens(
     return acc;
   }, {});
 
-  const _checkedChains = [];
+  const _checkedChains: Array<Promise<[string, boolean]>> = [];
   for (const chainId in amountByTokenByChain) {
     _checkedChains.push(
       checkChainTokens(multiProvider, chainId, amountByTokenByChain[chainId]),

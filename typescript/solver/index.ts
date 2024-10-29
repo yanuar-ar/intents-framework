@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
-import * as solvers from "./solvers";
-
-import "./config";
+import * as solvers from "./solvers/index.js";
 
 const main = () => {
   // TODO: implement a way to choose different listeners and fillers

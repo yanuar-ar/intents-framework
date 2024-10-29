@@ -3,10 +3,10 @@ import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 import { ensure0x } from "@hyperlane-xyz/utils";
 
-import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory";
-import { Erc20__factory } from "../../contracts/typechain/factories/ERC20__factory";
-import type { OpenEventArgs, ResolvedCrossChainOrder } from "../../types";
-import { getChainIdsWithEnoughTokens } from "./utils";
+import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory.js";
+import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__factory.js";
+import type { OpenEventArgs, ResolvedCrossChainOrder } from "../../types.js";
+import { getChainIdsWithEnoughTokens } from "./utils.js";
 
 export const create = () => {
   const { multiProvider } = setup();

@@ -1,5 +1,5 @@
-import { BigNumber } from "ethers";
-import { OpenEventObject } from "./contracts/typechain/OriginSettler";
+import type { BigNumber } from "ethers";
+import type { OpenEventObject } from "./contracts/typechain/OriginSettler.js";
 
 export type ExtractStruct<T, K extends object> = T extends (infer U & K)[]
   ? U[]
