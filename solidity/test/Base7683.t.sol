@@ -24,17 +24,38 @@ event Open(bytes32 indexed orderId, ResolvedCrossChainOrder resolvedOrder);
 contract Base7683ForTest is Base7683 {
     bytes32 public counterpart;
 
+    bytes public refundedOrders;
+    bytes32[] public settledOrderIds;
+    address[] public settledReceivers;
+
     constructor(address _permit2) Base7683(_permit2) { }
 
     function setCounterpart(bytes32 _counterpart) public {
         counterpart = _counterpart;
     }
 
-    function _mustHaveRemoteCounterpart(uint32) internal view virtual override returns (bytes32) {
+    function settleOrder(bytes32 _orderId, address receiver, uint32 _settlingDomain) external {
+        _settleOrder(_orderId, receiver, _settlingDomain);
+    }
+
+    function refundOrder(bytes32 _orderId, uint32 _refundingDomain) external {
+        _refundOrder(_orderId, _refundingDomain);
+    }
+
+    function _handleSettlement(bytes32[] calldata _orderIds, address[] calldata receivers) internal override {
+        settledOrderIds = _orderIds;
+        settledReceivers = receivers;
+    }
+
+    function _handleRefund(OrderData[] memory _ordersData) internal override {
+        refundedOrders = abi.encode(_ordersData);
+    }
+
+    function _mustHaveRemoteCounterpart(uint32) internal view override returns (bytes32) {
         return counterpart;
     }
 
-    function _localDomain() internal view virtual override returns (uint32) {
+    function _localDomain() internal view override returns (uint32) {
         return 1;
     }
 
@@ -441,4 +462,57 @@ contract Base7683Test is Test, DeployPermit2 {
 
         vm.stopPrank();
     }
+
+    // settle
+    function test_settle_works() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.originDomain = destination;
+        orderData.destinationDomain = origin;
+
+        bytes32 orderId = OrderEncoder.id(orderData);
+
+        vm.startPrank(vegeta);
+        outputToken.approve(address(base), amount);
+        base.fill(orderId, OrderEncoder.encode(orderData), new bytes(0));
+
+        bytes32[] memory orderIds = new bytes32[](1);
+        orderIds[0] = orderId;
+        address[] memory receivers = new address[](1);
+        receivers[0] = karpincho;
+
+        base.settle(orderIds, receivers);
+
+        assertTrue(base.orderStatus(orderId) == Base7683.OrderStatus.SETTLED);
+        assertEq(base.settledOrderIds(0), orderId);
+        assertEq(base.settledReceivers(0), karpincho);
+
+        vm.stopPrank();
+    }
+
+    // refund
+    function test_refund_works() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.originDomain = destination;
+        orderData.destinationDomain = origin;
+
+        bytes32 orderId = OrderEncoder.id(orderData);
+        vm.warp(orderData.fillDeadline + 1);
+
+        OrderData[] memory ordersData = new OrderData[](1);
+        ordersData[0] = orderData;
+
+        base.refund(ordersData);
+
+
+
+        assertTrue(base.orderStatus(orderId) == Base7683.OrderStatus.REFUNDED);
+        assertEq(OrderEncoder.encode(orderDataById(orderId)), OrderEncoder.encode(orderData));
+
+        OrderData[] memory refundedOrders = abi.decode(base.refundedOrders(), (OrderData[]));
+        assertEq(OrderEncoder.encode(refundedOrders[0]), OrderEncoder.encode(orderData));
+    }
+
+    // _settleOrder
+
+    // _refundOrder
 }
