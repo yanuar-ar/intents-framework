@@ -3,7 +3,9 @@
   "type": "module",
   "version": "0.1.0",
   "scripts": {
+    "solver": "node ./dist/index.js",
     "build": "tsc",
+    "dev": "tsc -w",
     "prettier:check": "prettier . --check",
     "prettier:write": "prettier . --write",
     "contracts:typegen": "typechain --node16-modules --target ethers-v5 --out-dir contracts/typechain contracts/abi/*.json",
@@ -13,7 +15,7 @@
     "type": "git",
     "url": "https://github.com/BootNodeDev/intents-framework/typescript/solver"
   },
-  "author": "",
+  "author": "bootnode.dev",
   "license": "Apache-2.0",
   "description": "",
   "devDependencies": {
