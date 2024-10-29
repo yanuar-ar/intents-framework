@@ -2,6 +2,7 @@ import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 
 import { OriginSettler__factory } from "../../contracts/typechain/factories/OriginSettler__factory.js";
+import { logGreen } from "../../logger.js";
 import type { OpenEventArgs } from "../../types.js";
 
 export const create = () => {
@@ -14,6 +15,8 @@ export const create = () => {
         handler({ orderId, resolvedOrder });
       },
     );
+
+    logGreen("Started listening for Open events");
   };
 };
 

@@ -5,6 +5,7 @@ import { ensure0x } from "@hyperlane-xyz/utils";
 
 import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory.js";
 import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__factory.js";
+import { logDebug, logGreen } from "../../logger.js";
 import type { OpenEventArgs, ResolvedCrossChainOrder } from "../../types.js";
 import { getChainIdsWithEnoughTokens } from "./utils.js";
 
@@ -12,12 +13,16 @@ export const create = () => {
   const { multiProvider } = setup();
 
   return async function onChain({ orderId, resolvedOrder }: OpenEventArgs) {
+    logGreen("Received Order:", orderId);
+
     const { fillInstructions, maxSpent } = await selectOutputs(
       resolvedOrder,
       multiProvider,
     );
 
     await fill(orderId, fillInstructions, maxSpent, multiProvider);
+
+    logGreen(`Filled ${fillInstructions.length} legs for:`, orderId);
   };
 };
 
@@ -48,15 +53,18 @@ async function selectOutputs(
     resolvedOrder,
     multiProvider,
   );
+  logDebug("Chain IDs with enough tokens:", chainIdsWithEnoughTokens);
 
   const fillInstructions = resolvedOrder.fillInstructions.filter(
     ({ destinationChainId }) =>
       chainIdsWithEnoughTokens.includes(destinationChainId.toString()),
   );
+  logDebug("fillInstructions:", JSON.stringify(fillInstructions));
 
   const maxSpent = resolvedOrder.maxSpent.filter(({ chainId }) =>
     chainIdsWithEnoughTokens.includes(chainId.toString()),
   );
+  logDebug("maxSpent:", JSON.stringify(maxSpent));
 
   return { fillInstructions, maxSpent };
 }
@@ -67,10 +75,14 @@ async function fill(
   maxSpent: ResolvedCrossChainOrder["maxSpent"],
   multiProvider: MultiProvider,
 ): Promise<void> {
+  logGreen("About to fill", fillInstructions.length, "legs for", orderId);
+
   await Promise.all(
     maxSpent.map(async ({ chainId, token, amount, recipient }) => {
       const filler = multiProvider.getSigner(chainId.toString());
       await Erc20__factory.connect(token, filler).approve(recipient, amount);
+
+      logDebug("Approved", amount, "of", token, "to", recipient, "on", chainId);
     }),
   );
 
@@ -88,6 +100,8 @@ async function fill(
         // contract that will produce the funds needed to execute this leg and then in turn call
         // `destination.fill`
         await destination.fill(orderId, originData, "");
+
+        logDebug("Filled leg on", destinationChainId, "with data", originData);
       },
     ),
   );
