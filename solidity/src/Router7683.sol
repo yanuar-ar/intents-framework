@@ -49,9 +49,9 @@ contract Router7683 is GasRouter, Base7683 {
         // TODO - handle settlement
     }
 
-    function _handleSettlement(bytes32[] calldata _orderIds, address[] calldata receivers) internal virtual override {}
+    function _handleSettlement(bytes32[] memory _orderIds, bytes32[] memory _receivers) internal virtual override {}
 
-    function _handleRefund(OrderData[] memory _ordersData) internal virtual override {}
+    function _handleRefund(bytes32[] memory _orderIds) internal virtual override {}
 
 
     function _mustHaveRemoteCounterpart(uint32 _domain) internal view virtual override returns (bytes32) {

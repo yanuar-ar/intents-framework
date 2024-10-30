@@ -21,7 +21,7 @@ import { Base7683 } from "../src/Router7683.sol";
 
 event Open(bytes32 indexed orderId, ResolvedCrossChainOrder resolvedOrder);
 event Filled(bytes32 orderId, bytes originData, bytes fillerData);
-event Settle(bytes32[] orderIds, address[] receivers);
+event Settle(bytes32[] orderIds, bytes32[] receivers);
 event Refund(bytes32[] orderIds);
 event Settled(bytes32 orderId, address receiver);
 event Refunded(bytes32 orderId, address receiver);
@@ -29,9 +29,9 @@ event Refunded(bytes32 orderId, address receiver);
 contract Base7683ForTest is Base7683 {
     bytes32 public counterpart;
 
-    bytes public refundedOrders;
+    bytes32[] public refundedOrderIds;
     bytes32[] public settledOrderIds;
-    address[] public settledReceivers;
+    bytes32[] public settledReceivers;
 
     uint32 internal immutable _origin;
     uint32 internal immutable _destination;
@@ -46,20 +46,20 @@ contract Base7683ForTest is Base7683 {
     }
 
     function settleOrder(bytes32 _orderId) external {
-        _settleOrder(_orderId, msg.sender, _destination);
+        _settleOrder(_orderId, TypeCasts.addressToBytes32(msg.sender), _destination);
     }
 
     function refundOrder(bytes32 _orderId) external {
         _refundOrder(_orderId, _destination);
     }
 
-    function _handleSettlement(bytes32[] calldata _orderIds, address[] calldata receivers) internal override {
+    function _handleSettlement(bytes32[] memory _orderIds, bytes32[] memory receivers) internal override {
         settledOrderIds = _orderIds;
         settledReceivers = receivers;
     }
 
-    function _handleRefund(OrderData[] memory _ordersData) internal override {
-        refundedOrders = abi.encode(_ordersData);
+    function _handleRefund(bytes32[] memory _orderIds) internal override {
+        refundedOrderIds = _orderIds;
     }
 
     function _mustHaveRemoteCounterpart(uint32) internal view override returns (bytes32) {
@@ -487,8 +487,8 @@ contract Base7683Test is Test, DeployPermit2 {
 
         bytes32[] memory orderIds = new bytes32[](1);
         orderIds[0] = orderId;
-        address[] memory receivers = new address[](1);
-        receivers[0] = karpincho;
+        bytes32[] memory receivers = new bytes32[](1);
+        receivers[0] = TypeCasts.addressToBytes32(karpincho);
 
         vm.expectEmit(false, false, false, true);
         emit Settle(orderIds, receivers);
@@ -497,9 +497,7 @@ contract Base7683Test is Test, DeployPermit2 {
 
         assertTrue(base.orderStatus(orderId) == Base7683.OrderStatus.SETTLED);
         assertEq(base.settledOrderIds(0), orderId);
-        assertEq(base.settledReceivers(0), karpincho);
-
-        // TODO - assert event
+        assertEq(base.settledReceivers(0), TypeCasts.addressToBytes32(karpincho));
 
         vm.stopPrank();
     }
@@ -526,9 +524,7 @@ contract Base7683Test is Test, DeployPermit2 {
 
         assertTrue(base.orderStatus(orderId) == Base7683.OrderStatus.REFUNDED);
         assertEq(OrderEncoder.encode(orderDataById(orderId)), OrderEncoder.encode(orderData));
-
-        OrderData[] memory refundedOrders = abi.decode(base.refundedOrders(), (OrderData[]));
-        assertEq(OrderEncoder.encode(refundedOrders[0]), OrderEncoder.encode(orderData));
+        assertEq(base.refundedOrderIds(0), orderId);
     }
 
     // _settleOrder
@@ -543,7 +539,7 @@ contract Base7683Test is Test, DeployPermit2 {
         vm.recordLogs();
         base.open(order);
 
-        (bytes32 orderId, ResolvedCrossChainOrder memory resolvedOrder) = getOrderIDFromLogs();
+        (bytes32 orderId,) = getOrderIDFromLogs();
 
         vm.stopPrank();
 
@@ -574,7 +570,7 @@ contract Base7683Test is Test, DeployPermit2 {
         vm.recordLogs();
         base.open(order);
 
-        (bytes32 orderId, ResolvedCrossChainOrder memory resolvedOrder) = getOrderIDFromLogs();
+        (bytes32 orderId,) = getOrderIDFromLogs();
 
         vm.stopPrank();
 
@@ -594,5 +590,4 @@ contract Base7683Test is Test, DeployPermit2 {
         assertEq(balancesBefore[balanceId[address(base)]] - amount, balancesAfter[balanceId[address(base)]]);
         assertEq(balancesBefore[balanceId[kakaroto]] + amount, balancesAfter[balanceId[kakaroto]]);
     }
-
 }

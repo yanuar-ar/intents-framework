@@ -57,7 +57,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     // ============ Events ============
 
     event Filled(bytes32 orderId, bytes originData, bytes fillerData);
-    event Settle(bytes32[] orderIds, address[] receivers);
+    event Settle(bytes32[] orderIds, bytes32[] receivers);
     event Refund(bytes32[] orderIds);
     event Settled(bytes32 orderId, address receiver);
     event Refunded(bytes32 orderId, address receiver);
@@ -203,19 +203,21 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         );
     }
 
-    function settle(bytes32[] calldata _orderIds, address[] calldata receivers) external payable {
-        if (_orderIds.length != receivers.length) revert InvalidOrdersLength();
+    function settle(bytes32[] calldata _orderIds, bytes32[] calldata _receivers) external payable {
+        if (_orderIds.length != _receivers.length) revert InvalidOrdersLength();
 
         for (uint256 i = 0; i < _orderIds.length; i += 1) {
             if (orderStatus[_orderIds[i]] != OrderStatus.FILLED) revert InvalidOrderStatus();
             if (orderFiller[_orderIds[i]] != msg.sender) revert InvalidOrderFiller();
 
+            // not necessary to check the localDomain and counterpart since the fill function already did it
+
             orderStatus[_orderIds[i]] = OrderStatus.SETTLED;
         }
 
-        _handleSettlement(_orderIds, receivers);
+        _handleSettlement(_orderIds, _receivers);
 
-        emit Settle(_orderIds, receivers);
+        emit Settle(_orderIds, _receivers);
     }
     function refund(OrderData[] memory _ordersData) external payable {
         bytes32[] memory orderIds = new bytes32[](_ordersData.length);
@@ -224,6 +226,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
             if (orderStatus[orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
             if (block.timestamp <= _ordersData[i].fillDeadline) revert OrderFillNotExpired();
+
+            // we need to check the domain and counterpart here since the fill function was not called
             if (_ordersData[i].destinationDomain != _localDomain()) revert InvalidOrderDomain();
             _mustHaveRemoteCounterpart(_ordersData[i].originDomain);
 
@@ -232,7 +236,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
             orderIds[i] = orderId;
         }
 
-        _handleRefund(_ordersData);
+        _handleRefund(orderIds);
 
         emit Refund(orderIds);
     }
@@ -347,17 +351,15 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         );
     }
 
-    /**
-     * @dev This function is meant to be called by the inheriting contract when receiving a settle cross-chain message
-     * from a remote domain counterpart
-    */
-    function _settleOrder(bytes32 _orderId, address receiver, uint32 _settlingDomain) internal {
+    function _settleOrder(bytes32 _orderId, bytes32 _receiver, uint32 _settlingDomain) internal {
         OrderData memory orderData = orders[_orderId];
 
         if (orderData.destinationDomain != _settlingDomain) revert InvalidDomain();
         if (orderStatus[_orderId] != OrderStatus.OPENED) revert InvalidOrderStatus();
 
         orderStatus[_orderId] = OrderStatus.SETTLED;
+
+        address receiver = TypeCasts.bytes32ToAddress(_receiver);
 
         emit Settled(_orderId, receiver);
 
@@ -366,10 +368,6 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         );
     }
 
-    /**
-     * @dev This function is meant to be called by the inheriting contract when receiving a refund cross-chain message
-     * from a remote domain counterpart
-    */
     function _refundOrder(bytes32 _orderId, uint32 _refundingDomain) internal {
         OrderData memory orderData = orders[_orderId];
 
@@ -391,13 +389,13 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
      * @dev This function is called during `settle` to handle the settlement of the orders, it is meant to be
      * implemented by the inheriting contract with specific settlement logic. i.e. sending a cross-chain message
     */
-    function _handleSettlement(bytes32[] calldata _orderIds, address[] calldata receivers) internal virtual;
+    function _handleSettlement(bytes32[] memory _orderIds, bytes32[] memory _receivers) internal virtual;
 
     /**
      * @dev This function is called during `settle` to handle the settlement of the orders, it is meant to be
      * implemented by the inheriting contract with specific settlement logic. i.e. sending a cross-chain message
     */
-    function _handleRefund(OrderData[] memory _ordersData) internal virtual;
+    function _handleRefund(bytes32[] memory _orderIds) internal virtual;
 
     /**
      * @dev To be implemented by the inheriting contract with specific logic, the address of its remote counterpart and
