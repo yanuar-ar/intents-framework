@@ -5,7 +5,8 @@ import type { BigNumber } from "ethers";
 import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__factory.js";
 
 import type { Provider } from "@ethersproject/abstract-provider";
-import { bytes32ToAddress } from "@hyperlane-xyz/utils";
+import { addressToBytes32, bytes32ToAddress } from "@hyperlane-xyz/utils";
+import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory.js";
 import { ResolvedCrossChainOrder } from "../../types.js";
 
 export async function checkChainTokens(
@@ -66,4 +67,51 @@ export async function getChainIdsWithEnoughTokens(
   return (await Promise.all(_checkedChains))
     .filter(([, hasEnoughTokens]) => hasEnoughTokens)
     .map(([chainId]) => chainId);
+}
+
+export async function settleOrder(
+  fillInstructions: ResolvedCrossChainOrder["fillInstructions"],
+  orderId: string,
+  multiProvider: MultiProvider,
+) {
+  const destinationSettlers = fillInstructions.reduce<
+    Record<string, Array<string>>
+  >((acc, fillInstruction) => {
+    const destinationChain = fillInstruction.destinationChainId.toString();
+    const destinationSettler = bytes32ToAddress(
+      fillInstruction.destinationSettler,
+    );
+
+    acc[destinationChain] ||= [];
+    acc[destinationChain].push(destinationSettler);
+
+    return acc;
+  }, {});
+
+  await Promise.all(
+    Object.entries(destinationSettlers).map(
+      async ([destinationChain, settlers]) => {
+        const uniqueSettlers = [...new Set(settlers)];
+        const filler = multiProvider.getSigner(destinationChain);
+        const fillerAddress = await filler.getAddress();
+
+        return Promise.all(
+          uniqueSettlers.map(async (destinationSettler) => {
+            const destination = DestinationSettler__factory.connect(
+              destinationSettler,
+              filler,
+            );
+
+            const receipt = await destination.settle(
+              [orderId],
+              [addressToBytes32(fillerAddress)],
+              { value: await destination.quoteGasPayment(destinationChain) },
+            );
+
+            await receipt.wait();
+          }),
+        );
+      },
+    ),
+  );
 }

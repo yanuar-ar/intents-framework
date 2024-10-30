@@ -7,7 +7,7 @@ import { DestinationSettler__factory } from "../../contracts/typechain/factories
 import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__factory.js";
 import { logDebug, logGreen } from "../../logger.js";
 import type { OpenEventArgs, ResolvedCrossChainOrder } from "../../types.js";
-import { getChainIdsWithEnoughTokens } from "./utils.js";
+import { getChainIdsWithEnoughTokens, settleOrder } from "./utils.js";
 
 export const create = () => {
   const { multiProvider } = setup();
@@ -130,4 +130,7 @@ async function fill(
       },
     ),
   );
+
+  // This section is only an example for the settlement process
+  await settleOrder(fillInstructions, orderId, multiProvider);
 }
