@@ -83,8 +83,12 @@ async function fill(
       recipient = bytes32ToAddress(recipient);
 
       const filler = multiProvider.getSigner(chainId.toString());
-      await Erc20__factory.connect(token, filler).approve(recipient, amount);
+      const receipt = await Erc20__factory.connect(token, filler).approve(
+        recipient,
+        amount,
+      );
 
+      await receipt.wait();
 
       logDebug(
         "Approved",
@@ -113,7 +117,9 @@ async function fill(
         // Depending on the implementation we may call `destination.fill` directly or call some other
         // contract that will produce the funds needed to execute this leg and then in turn call
         // `destination.fill`
-        await destination.fill(orderId, originData, "");
+        const receipt = await destination.fill(orderId, originData, "0x");
+
+        await receipt.wait();
 
         logDebug(
           "Filled leg on",
