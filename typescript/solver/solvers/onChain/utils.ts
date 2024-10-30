@@ -5,6 +5,7 @@ import type { BigNumber } from "ethers";
 import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__factory.js";
 
 import type { Provider } from "@ethersproject/abstract-provider";
+import { bytes32ToAddress } from "@hyperlane-xyz/utils";
 import { ResolvedCrossChainOrder } from "../../types.js";
 
 export async function checkChainTokens(
@@ -43,13 +44,14 @@ export async function getChainIdsWithEnoughTokens(
 ) {
   const amountByTokenByChain = resolvedOrder.maxSpent.reduce<{
     [chainId: number]: { [token: string]: BigNumber };
-  }>((acc, output) => {
+  }>((acc, { token, ...output }) => {
+    token = bytes32ToAddress(token);
     const chainId = output.chainId.toNumber();
 
-    acc[chainId] ||= { [output.token]: Zero };
-    acc[chainId][output.token] ||= Zero;
+    acc[chainId] ||= { [token]: Zero };
+    acc[chainId][token] ||= Zero;
 
-    acc[chainId][output.token] = acc[chainId][output.token].add(output.amount);
+    acc[chainId][token] = acc[chainId][token].add(output.amount);
 
     return acc;
   }, {});

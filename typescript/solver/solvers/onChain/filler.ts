@@ -1,7 +1,7 @@
 import { Wallet } from "@ethersproject/wallet";
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
-import { ensure0x } from "@hyperlane-xyz/utils";
+import { bytes32ToAddress, ensure0x } from "@hyperlane-xyz/utils";
 
 import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory.js";
 import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__factory.js";
@@ -79,16 +79,30 @@ async function fill(
 
   await Promise.all(
     maxSpent.map(async ({ chainId, token, amount, recipient }) => {
+      token = bytes32ToAddress(token);
+      recipient = bytes32ToAddress(recipient);
+
       const filler = multiProvider.getSigner(chainId.toString());
       await Erc20__factory.connect(token, filler).approve(recipient, amount);
 
-      logDebug("Approved", amount, "of", token, "to", recipient, "on", chainId);
+
+      logDebug(
+        "Approved",
+        amount.toString(),
+        "of",
+        token,
+        "to",
+        recipient,
+        "on",
+        chainId.toString(),
+      );
     }),
   );
 
   await Promise.all(
     fillInstructions.map(
       async ({ destinationChainId, destinationSettler, originData }) => {
+        destinationSettler = bytes32ToAddress(destinationSettler);
         const filler = multiProvider.getSigner(destinationChainId.toString());
 
         const destination = DestinationSettler__factory.connect(
@@ -101,7 +115,12 @@ async function fill(
         // `destination.fill`
         await destination.fill(orderId, originData, "");
 
-        logDebug("Filled leg on", destinationChainId, "with data", originData);
+        logDebug(
+          "Filled leg on",
+          destinationChainId.toString(),
+          "with data",
+          originData,
+        );
       },
     ),
   );
