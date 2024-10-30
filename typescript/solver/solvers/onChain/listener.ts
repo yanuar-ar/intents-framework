@@ -16,7 +16,14 @@ export const create = () => {
       },
     );
 
-    logGreen("Started listening for Open events");
+    settlerContract.provider.getNetwork().then((network) => {
+      logGreen(
+        "Started listening for Open events on",
+        Object.values(chainMetadata).find(
+          (metadata) => metadata.chainId === network.chainId,
+        )?.displayName,
+      );
+    });
   };
 };
 
