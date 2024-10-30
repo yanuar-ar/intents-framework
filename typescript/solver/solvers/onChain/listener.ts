@@ -16,6 +16,20 @@ export const create = () => {
       },
     );
 
+    // Query past events
+    //   const fromBlock = 19250837;
+    //   const toBlock = 19250839;
+    //   settlerContract
+    //     .queryFilter(settlerContract.filters.Open(), fromBlock, toBlock)
+    //     .then((events) => {
+    //       events.forEach((event) => {
+    //         handler({
+    //           orderId: event.args.orderId,
+    //           resolvedOrder: event.args.resolvedOrder,
+    //         });
+    //       });
+    //     });
+
     settlerContract.provider.getNetwork().then((network) => {
       logGreen(
         "Started listening for Open events on",
