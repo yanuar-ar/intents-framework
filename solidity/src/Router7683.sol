@@ -48,9 +48,13 @@ contract Router7683 is GasRouter, Base7683 {
         (bool _settle, bytes32[] memory _orderIds, bytes32[] memory _receivers) = Router7683Message.decode(_message);
 
         if (_settle) {
-            _settleOrder(_orderIds, _receivers, _origin);
+            for (uint i = 0; i < _orderIds.length; i++) {
+                _settleOrder(_orderIds[i], _receivers[i], _origin);
+            }
         } else {
-            _handleRefund(_orderIds, _origin);
+            for (uint i = 0; i < _orderIds.length; i++) {
+                _refundOrder(_orderIds[i], _origin);
+            }
         }
     }
 

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import { Test } from "forge-std/Test.sol";
+import { Test, Vm } from "forge-std/Test.sol";
 import { console2 } from "forge-std/console2.sol";
 
 import { TransparentUpgradeableProxy } from
 "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import { StandardHookMetadata } from "@hyperlane-xyz/hooks/libs/StandardHookMetadata.sol";
 import { MockMailbox } from "@hyperlane-xyz/mock/MockMailbox.sol";
@@ -19,6 +20,24 @@ import { InterchainGasPaymaster } from "@hyperlane-xyz/hooks/igp/InterchainGasPa
 import {DeployPermit2} from "@uniswap/permit2/test/utils/DeployPermit2.sol";
 
 import { Router7683 } from "../src/Router7683.sol";
+
+import {
+    GaslessCrossChainOrder,
+    OnchainCrossChainOrder,
+    ResolvedCrossChainOrder,
+    Output,
+    FillInstruction
+} from "../src/ERC7683/IERC7683.sol";
+import { OrderData, OrderEncoder } from "../src/libs/OrderEncoder.sol";
+import { Base7683 } from "../src/Router7683.sol";
+
+event Open(bytes32 indexed orderId, ResolvedCrossChainOrder resolvedOrder);
+event Filled(bytes32 orderId, bytes originData, bytes fillerData);
+event Settle(bytes32[] orderIds, bytes32[] receivers);
+event Refund(bytes32[] orderIds);
+event Settled(bytes32 orderId, address receiver);
+event Refunded(bytes32 orderId, address receiver);
+
 
 contract TestInterchainGasPaymaster is InterchainGasPaymaster {
     uint256 public gasPrice = 10;
@@ -77,6 +96,21 @@ contract Router7683BaseTest is Test, DeployPermit2 {
     address internal owner = makeAddr("owner");
     address internal sender = makeAddr("sender");
 
+    ERC20 internal inputToken;
+    ERC20 internal outputToken;
+
+    address internal kakaroto;
+    uint256 internal kakarotoPK;
+    address internal karpincho;
+    uint256 internal karpinchoPK;
+    address internal vegeta;
+    uint256 internal vegetaPK;
+    address internal counterpart = makeAddr("counterpart");
+
+    uint256 internal amount = 100;
+
+    mapping(address => uint256) internal balanceId;
+
     function deployProxiedRouter(
         uint32[] memory _domains,
         MockMailbox _mailbox,
@@ -130,6 +164,28 @@ IInterchainSecurityModule(address(0)), owner);
         originRouterB32 = TypeCasts.addressToBytes32(address(originRouter));
         destinationRouterB32 = TypeCasts.addressToBytes32(address(destinationRouter));
         testIsmB32 = TypeCasts.addressToBytes32(address(testIsm));
+
+        (kakaroto, kakarotoPK) = makeAddrAndKey("kakaroto");
+        (karpincho, karpinchoPK) = makeAddrAndKey("karpincho");
+        (vegeta, vegetaPK) = makeAddrAndKey("vegeta");
+
+        inputToken = new ERC20("Input Token", "IN");
+        outputToken = new ERC20("Output Token", "OUT");
+
+        deal(address(inputToken), kakaroto, 1_000_000, true);
+        deal(address(inputToken), karpincho, 1_000_000, true);
+        deal(address(inputToken), vegeta, 1_000_000, true);
+        deal(address(outputToken), kakaroto, 1_000_000, true);
+        deal(address(outputToken), karpincho, 1_000_000, true);
+        deal(address(outputToken), vegeta, 1_000_000, true);
+
+        balanceId[kakaroto] = 0;
+        balanceId[karpincho] = 1;
+        balanceId[vegeta] = 2;
+        balanceId[counterpart] = 3;
+        balanceId[address(originRouter)] = 4;
+        balanceId[address(destinationRouter)] = 5;
+        balanceId[address(igp)] = 6;
     }
 
     receive() external payable { }
@@ -181,6 +237,186 @@ contract Router7683Test is Router7683BaseTest {
             assertEq(actualRouter, routers[i]);
             assertEq(actualDomains[i], domains[i]);
         }
+    }
+
+    function assertIgpPayment(uint256 _balanceBefore, uint256 _balanceAfter, uint256 _gasLimit) private view {
+        assertIgpPaymentOverrides(igp, _balanceBefore, _balanceAfter, _gasLimit);
+    }
+
+    function assertIgpPaymentOverrides(
+        TestInterchainGasPaymaster _igp,
+        uint256 _balanceBefore,
+        uint256 _balanceAfter,
+        uint256 _gasLimit
+    )
+        private
+        view
+    {
+        uint256 expectedGasPayment = _gasLimit * _igp.gasPrice();
+        assertEq(_balanceBefore - _balanceAfter, expectedGasPayment);
+        assertEq(address(_igp).balance, expectedGasPayment);
+    }
+
+        function prepareOrderData() internal view returns (OrderData memory) {
+        return OrderData({
+            sender: TypeCasts.addressToBytes32(kakaroto),
+            recipient: TypeCasts.addressToBytes32(karpincho),
+            inputToken: TypeCasts.addressToBytes32(address(inputToken)),
+            outputToken: TypeCasts.addressToBytes32(address(outputToken)),
+            amountIn: amount,
+            amountOut: amount,
+            senderNonce: originRouter.senderNonce(kakaroto),
+            originDomain: origin,
+            destinationDomain: destination,
+            fillDeadline: uint32(block.timestamp + 100),
+            data: new bytes(0)
+        });
+    }
+
+    function prepareOnchainOrder(
+        OrderData memory orderData,
+        uint32 fillDeadline,
+        bytes32 orderDataType
+    )
+        internal
+        pure
+        returns (OnchainCrossChainOrder memory)
+    {
+        return OnchainCrossChainOrder({
+            fillDeadline: fillDeadline,
+            orderDataType: orderDataType,
+            orderData: OrderEncoder.encode(orderData)
+        });
+    }
+
+    function getOrderIDFromLogs() internal returns (bytes32, ResolvedCrossChainOrder memory) {
+        Vm.Log[] memory _logs = vm.getRecordedLogs();
+
+        ResolvedCrossChainOrder memory resolvedOrder;
+        bytes32 orderID;
+
+        for (uint256 i = 0; i < _logs.length; i++) {
+            Vm.Log memory _log = _logs[i];
+            // // Open(bytes32 indexed orderId, ResolvedCrossChainOrder resolvedOrder)
+
+            if (_log.topics[0] != Open.selector) {
+                continue;
+            }
+            orderID = _log.topics[1];
+
+            (resolvedOrder) = abi.decode(_log.data, (ResolvedCrossChainOrder));
+        }
+        return (orderID, resolvedOrder);
+    }
+
+    function balances(ERC20 token) internal view returns (uint256[] memory) {
+        uint256[] memory _balances = new uint256[](7);
+        _balances[0] = token.balanceOf(kakaroto);
+        _balances[1] = token.balanceOf(karpincho);
+        _balances[2] = token.balanceOf(vegeta);
+        _balances[3] = token.balanceOf(counterpart);
+        _balances[4] = token.balanceOf(address(originRouter));
+        _balances[5] = token.balanceOf(address(destinationRouter));
+        _balances[6] = token.balanceOf(address(igp));
+
+        return _balances;
+    }
+
+    function test_settle_work() public enrollRouters {
+        OrderData memory orderData = prepareOrderData();
+        OnchainCrossChainOrder memory order =
+            prepareOnchainOrder(orderData, orderData.fillDeadline, OrderEncoder.orderDataType());
+
+        vm.startPrank(kakaroto);
+        inputToken.approve(address(originRouter), amount);
+
+        vm.recordLogs();
+        originRouter.open(order);
+
+        (bytes32 orderId, ResolvedCrossChainOrder memory resolvedOrder) = getOrderIDFromLogs();
+
+        vm.stopPrank();
+
+        vm.startPrank(vegeta);
+        outputToken.approve(address(destinationRouter), amount);
+        destinationRouter.fill(orderId, OrderEncoder.encode(orderData), new bytes(0));
+
+        bytes32[] memory orderIds = new bytes32[](1);
+        orderIds[0] = orderId;
+        bytes32[] memory receivers = new bytes32[](1);
+        receivers[0] = TypeCasts.addressToBytes32(vegeta);
+
+        uint256[] memory balancesBefore = balances(inputToken);
+
+        vm.expectEmit(false, false, false, true, address(destinationRouter));
+        emit Settle(orderIds, receivers);
+
+        // TODO - send value to exercise the Ig payment
+        destinationRouter.settle(orderIds, receivers);
+
+        vm.expectEmit(false, false, false, true, address(originRouter));
+        emit Settled(orderId, vegeta);
+
+        environment.processNextPendingMessageFromDestination();
+
+        uint256[] memory balancesAfter = balances(inputToken);
+
+        assertTrue(originRouter.orderStatus(orderId) == Base7683.OrderStatus.SETTLED);
+        assertTrue(destinationRouter.orderStatus(orderId) == Base7683.OrderStatus.SETTLED);
+
+        assertEq(balancesBefore[balanceId[address(originRouter)]] - amount, balancesAfter[balanceId[address(originRouter)]]);
+        assertEq(balancesBefore[balanceId[vegeta]] + amount, balancesAfter[balanceId[vegeta]]);
+
+        // TODO - assertIgpPayment
+
+        vm.stopPrank();
+    }
+
+    function test_refund_work() public enrollRouters {
+        OrderData memory orderData = prepareOrderData();
+        OnchainCrossChainOrder memory order =
+            prepareOnchainOrder(orderData, orderData.fillDeadline, OrderEncoder.orderDataType());
+
+        vm.startPrank(kakaroto);
+        inputToken.approve(address(originRouter), amount);
+
+        vm.recordLogs();
+        originRouter.open(order);
+
+        (bytes32 orderId, ResolvedCrossChainOrder memory resolvedOrder) = getOrderIDFromLogs();
+
+        vm.warp(orderData.fillDeadline + 1);
+
+        OrderData[] memory ordersData = new OrderData[](1);
+        ordersData[0] = orderData;
+
+        bytes32[] memory orderIds = new bytes32[](1);
+        orderIds[0] = orderId;
+
+        uint256[] memory balancesBefore = balances(inputToken);
+
+        vm.expectEmit(false, false, false, true, address(destinationRouter));
+        emit Refund(orderIds);
+
+        // TODO - send value to exercise the Ig payment
+        destinationRouter.refund(ordersData);
+
+        vm.expectEmit(false, false, false, true, address(originRouter));
+        emit Refunded(orderId, kakaroto);
+
+        environment.processNextPendingMessageFromDestination();
+
+        uint256[] memory balancesAfter = balances(inputToken);
+
+        assertTrue(originRouter.orderStatus(orderId) == Base7683.OrderStatus.REFUNDED);
+        assertTrue(destinationRouter.orderStatus(orderId) == Base7683.OrderStatus.REFUNDED);
+
+        assertEq(balancesBefore[balanceId[address(originRouter)]] - amount, balancesAfter[balanceId[address(originRouter)]]);
+        assertEq(balancesBefore[balanceId[kakaroto]] + amount, balancesAfter[balanceId[kakaroto]]);
+
+        // TODO - assertIgpPayment
+
+        vm.stopPrank();
     }
 
     // function test_quoteGasPayment() public enrollRouters {
