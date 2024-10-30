@@ -44,13 +44,13 @@ contract Router7683 is GasRouter, Base7683 {
 
     // ============ Internal Functions ============
 
-    function _handle(uint32, bytes32, bytes calldata _message) internal virtual override {
+    function _handle(uint32 _origin, bytes32, bytes calldata _message) internal virtual override {
         (bool _settle, bytes32[] memory _orderIds, bytes32[] memory _receivers) = Router7683Message.decode(_message);
 
         if (_settle) {
-            _handleSettlement(_orderIds, _receivers);
+            _settleOrder(_orderIds, _receivers, _origin);
         } else {
-            _handleRefund(_orderIds);
+            _handleRefund(_orderIds, _origin);
         }
     }
 
