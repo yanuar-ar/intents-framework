@@ -1,6 +1,6 @@
 # ERC7683 Router
 
-An ERC7683 implementation for using as an Hyperlane application
+A reference ERC7683 implementation
 
 TODO - add some more description
 

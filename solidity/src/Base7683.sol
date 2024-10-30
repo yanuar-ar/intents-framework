@@ -347,6 +347,10 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         );
     }
 
+    /**
+     * @dev This function is meant to be called by the inheriting contract when receiving a settle cross-chain message
+     * from a remote domain counterpart
+    */
     function _settleOrder(bytes32 _orderId, address receiver, uint32 _settlingDomain) internal {
         OrderData memory orderData = orders[_orderId];
 
@@ -362,6 +366,10 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         );
     }
 
+    /**
+     * @dev This function is meant to be called by the inheriting contract when receiving a refund cross-chain message
+     * from a remote domain counterpart
+    */
     function _refundOrder(bytes32 _orderId, uint32 _refundingDomain) internal {
         OrderData memory orderData = orders[_orderId];
 
@@ -379,11 +387,26 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         );
     }
 
+    /**
+     * @dev This function is called during `settle` to handle the settlement of the orders, it is meant to be
+     * implemented by the inheriting contract with specific settlement logic. i.e. sending a cross-chain message
+    */
     function _handleSettlement(bytes32[] calldata _orderIds, address[] calldata receivers) internal virtual;
 
+    /**
+     * @dev This function is called during `settle` to handle the settlement of the orders, it is meant to be
+     * implemented by the inheriting contract with specific settlement logic. i.e. sending a cross-chain message
+    */
     function _handleRefund(OrderData[] memory _ordersData) internal virtual;
 
+    /**
+     * @dev To be implemented by the inheriting contract with specific logic, the address of its remote counterpart and
+     * revert if it does not exist
+    */
     function _mustHaveRemoteCounterpart(uint32 _domain) internal view virtual returns (bytes32);
 
+    /**
+     * @dev To be implemented by the inheriting contract with specific logic, should return the local domain
+    */
     function _localDomain() internal view virtual returns (uint32);
 }
