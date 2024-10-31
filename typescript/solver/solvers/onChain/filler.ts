@@ -23,7 +23,7 @@ export const create = () => {
 
     await fill(orderId, fillInstructions, maxSpent, multiProvider);
 
-    logGreen(`Filled ${fillInstructions.length} legs for:`, orderId);
+    logGreen(`Filled ${fillInstructions.length} leg(s) for:`, orderId);
   };
 };
 
@@ -73,7 +73,7 @@ async function fill(
   maxSpent: ResolvedCrossChainOrder["maxSpent"],
   multiProvider: MultiProvider,
 ): Promise<void> {
-  logGreen("About to fill", fillInstructions.length, "legs for", orderId);
+  logGreen("About to fill", fillInstructions.length, "leg(s) for", orderId);
 
   await Promise.all(
     maxSpent.map(async ({ chainId, token, amount, recipient }) => {

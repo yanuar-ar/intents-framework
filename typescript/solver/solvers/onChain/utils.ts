@@ -7,6 +7,7 @@ import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__facto
 import type { Provider } from "@ethersproject/abstract-provider";
 import { addressToBytes32, bytes32ToAddress } from "@hyperlane-xyz/utils";
 import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory.js";
+import { logGreen } from "../../logger.js";
 import { ResolvedCrossChainOrder } from "../../types.js";
 
 export async function checkChainTokens(
@@ -74,6 +75,8 @@ export async function settleOrder(
   orderId: string,
   multiProvider: MultiProvider,
 ) {
+  logGreen("About to settle", fillInstructions.length, "leg(s) for", orderId);
+
   const destinationSettlers = fillInstructions.reduce<
     Record<string, Array<string>>
   >((acc, fillInstruction) => {
@@ -109,6 +112,8 @@ export async function settleOrder(
             );
 
             await receipt.wait();
+
+            logGreen("Settled order", orderId, "on chain", destinationChain.toString());
           }),
         );
       },
