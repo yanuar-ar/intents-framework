@@ -3,6 +3,7 @@ import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 import { bytes32ToAddress, ensure0x } from "@hyperlane-xyz/utils";
 
+import { MNEMONIC, PRIVATE_KEY } from "../../config.js";
 import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory.js";
 import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__factory.js";
 import { logDebug, logGreen } from "../../logger.js";
@@ -27,17 +28,14 @@ export const create = () => {
 };
 
 function setup() {
-  const privateKey = process.env.PRIVATE_KEY;
-  const mnemonic = process.env.MNEMONIC;
-
-  if (!privateKey && !mnemonic) {
+  if (!PRIVATE_KEY && !MNEMONIC) {
     throw new Error("Either a private key or mnemonic must be provided");
   }
 
   const multiProvider = new MultiProvider(chainMetadata);
-  const wallet = privateKey
-    ? new Wallet(ensure0x(privateKey))
-    : Wallet.fromMnemonic(mnemonic!);
+  const wallet = PRIVATE_KEY
+    ? new Wallet(ensure0x(PRIVATE_KEY))
+    : Wallet.fromMnemonic(MNEMONIC!);
   multiProvider.setSharedSigner(wallet);
 
   return { multiProvider };
