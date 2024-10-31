@@ -59,18 +59,14 @@ contract Router7683 is GasRouter, Base7683 {
     }
 
     function _handleSettlement(bytes32[] memory _orderIds, bytes32[] memory _receivers) internal virtual override {
-        _dispatchMessage(true, _orderIds, _receivers);
+        uint32 originDomain = _mustHaveSameOrigin(_orderIds);
+        _GasRouter_dispatch(originDomain, msg.value, Router7683Message.encodeSettle(_orderIds, _receivers), address(hook));
     }
 
     function _handleRefund(bytes32[] memory _orderIds) internal virtual override {
-        _dispatchMessage(false, _orderIds, new bytes32[](0));
-    }
-
-    function _dispatchMessage(bool _settle, bytes32[] memory _orderIds, bytes32[] memory _receivers) internal virtual {
         uint32 originDomain = _mustHaveSameOrigin(_orderIds);
-        _GasRouter_dispatch(originDomain, msg.value, Router7683Message.encode(_settle, _orderIds, _receivers), address(hook));
+        _GasRouter_dispatch(originDomain, msg.value, Router7683Message.encodeRefund(_orderIds), address(hook));
     }
-
 
     function _mustHaveRemoteCounterpart(uint32 _domain) internal view virtual override returns (bytes32) {
         return _mustHaveRemoteRouter(_domain);
