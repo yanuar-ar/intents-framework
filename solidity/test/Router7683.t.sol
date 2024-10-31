@@ -90,7 +90,7 @@ contract Router7683BaseTest is Test, DeployPermit2 {
 
     uint256 gasPaymentQuote;
     uint256 gasPaymentQuoteOverride;
-    uint256 internal constant GAS_LIMIT_OVERRIDE = 60_000;
+    uint256 internal constant GAS_LIMIT = 60_000;
 
     address internal admin = makeAddr("admin");
     address internal owner = makeAddr("owner");
@@ -112,10 +112,7 @@ contract Router7683BaseTest is Test, DeployPermit2 {
     mapping(address => uint256) internal balanceId;
 
     function deployProxiedRouter(
-        uint32[] memory _domains,
         MockMailbox _mailbox,
-        IPostDispatchHook _customHook,
-        IInterchainSecurityModule _ism,
         address _owner
     )
         public
@@ -128,10 +125,9 @@ contract Router7683BaseTest is Test, DeployPermit2 {
             admin,
             abi.encodeWithSelector(
                 Router7683.initialize.selector,
-                address(_customHook),
-                address(_ism),
-                _owner,
-                _domains
+                address(0),
+                address(0),
+                _owner
             )
         );
 
@@ -145,21 +141,24 @@ contract Router7683BaseTest is Test, DeployPermit2 {
 
         igp = new TestInterchainGasPaymaster();
 
-        gasPaymentQuote = igp.quoteGasPayment(destination, igp.getDefaultGasUsage());
+        gasPaymentQuote = igp.quoteGasPayment(destination, GAS_LIMIT);
 
         testIsm = new TestIsm();
 
         uint32[] memory domains = new uint32[](0);
 
-        originRouter =
-            deployProxiedRouter(domains, environment.mailboxes(origin), environment.igps(origin),
-IInterchainSecurityModule(address(0)), owner);
+        originRouter = deployProxiedRouter(
+            environment.mailboxes(origin),
+            owner
+        );
 
-        destinationRouter =
-            deployProxiedRouter(domains, environment.mailboxes(destination), environment.igps(destination),
-IInterchainSecurityModule(address(0)), owner);
+        destinationRouter = deployProxiedRouter(
+            environment.mailboxes(destination),
+            owner
+        );
 
         environment.mailboxes(origin).setDefaultHook(address(igp));
+        environment.mailboxes(destination).setDefaultHook(address(igp));
 
         originRouterB32 = TypeCasts.addressToBytes32(address(originRouter));
         destinationRouterB32 = TypeCasts.addressToBytes32(address(destinationRouter));
@@ -197,8 +196,10 @@ contract Router7683Test is Router7683BaseTest {
     modifier enrollRouters() {
         vm.startPrank(owner);
         originRouter.enrollRemoteRouter(destination, destinationRouterB32);
+        originRouter.setDestinationGas(destination, GAS_LIMIT);
 
         destinationRouter.enrollRemoteRouter(origin, originRouterB32);
+        destinationRouter.setDestinationGas(origin, GAS_LIMIT);
 
         vm.stopPrank();
         _;
@@ -239,25 +240,13 @@ contract Router7683Test is Router7683BaseTest {
         }
     }
 
-    function assertIgpPayment(uint256 _balanceBefore, uint256 _balanceAfter, uint256 _gasLimit) private view {
-        assertIgpPaymentOverrides(igp, _balanceBefore, _balanceAfter, _gasLimit);
-    }
-
-    function assertIgpPaymentOverrides(
-        TestInterchainGasPaymaster _igp,
-        uint256 _balanceBefore,
-        uint256 _balanceAfter,
-        uint256 _gasLimit
-    )
-        private
-        view
-    {
-        uint256 expectedGasPayment = _gasLimit * _igp.gasPrice();
+    function assertIgpPayment(uint256 _balanceBefore, uint256 _balanceAfter) private view {
+        uint256 expectedGasPayment = GAS_LIMIT * igp.gasPrice();
         assertEq(_balanceBefore - _balanceAfter, expectedGasPayment);
-        assertEq(address(_igp).balance, expectedGasPayment);
+        assertEq(address(igp).balance, expectedGasPayment);
     }
 
-        function prepareOrderData() internal view returns (OrderData memory) {
+    function prepareOrderData() internal view returns (OrderData memory) {
         return OrderData({
             sender: TypeCasts.addressToBytes32(kakaroto),
             recipient: TypeCasts.addressToBytes32(karpincho),
@@ -351,8 +340,10 @@ contract Router7683Test is Router7683BaseTest {
         vm.expectEmit(false, false, false, true, address(destinationRouter));
         emit Settle(orderIds, receivers);
 
-        // TODO - send value to exercise the Ig payment
-        destinationRouter.settle(orderIds, receivers);
+        vm.deal(vegeta, gasPaymentQuote);
+        uint256 balanceBefore = address(vegeta).balance;
+
+        destinationRouter.settle{value: gasPaymentQuote}(orderIds, receivers);
 
         vm.expectEmit(false, false, false, true, address(originRouter));
         emit Settled(orderId, vegeta);
@@ -367,7 +358,8 @@ contract Router7683Test is Router7683BaseTest {
         assertEq(balancesBefore[balanceId[address(originRouter)]] - amount, balancesAfter[balanceId[address(originRouter)]]);
         assertEq(balancesBefore[balanceId[vegeta]] + amount, balancesAfter[balanceId[vegeta]]);
 
-        // TODO - assertIgpPayment
+        uint256 balanceAfter = address(vegeta).balance;
+        assertIgpPayment(balanceBefore, balanceAfter);
 
         vm.stopPrank();
     }
@@ -398,8 +390,10 @@ contract Router7683Test is Router7683BaseTest {
         vm.expectEmit(false, false, false, true, address(destinationRouter));
         emit Refund(orderIds);
 
-        // TODO - send value to exercise the Ig payment
-        destinationRouter.refund(ordersData);
+        vm.deal(kakaroto, gasPaymentQuote);
+        uint256 balanceBefore = address(kakaroto).balance;
+
+        destinationRouter.refund{value: gasPaymentQuote}(ordersData);
 
         vm.expectEmit(false, false, false, true, address(originRouter));
         emit Refunded(orderId, kakaroto);
@@ -414,34 +408,9 @@ contract Router7683Test is Router7683BaseTest {
         assertEq(balancesBefore[balanceId[address(originRouter)]] - amount, balancesAfter[balanceId[address(originRouter)]]);
         assertEq(balancesBefore[balanceId[kakaroto]] + amount, balancesAfter[balanceId[kakaroto]]);
 
-        // TODO - assertIgpPayment
+        uint256 balanceAfter = address(kakaroto).balance;
+        assertIgpPayment(balanceBefore, balanceAfter);
 
         vm.stopPrank();
     }
-
-    // function test_quoteGasPayment() public enrollRouters {
-    //     // arrange
-    //     bytes memory messageBody = InterchainCreate2FactoryMessage.encode(
-    //         address(1), TypeCasts.addressToBytes32(address(0)), "", new bytes(0), new bytes(0)
-    //     );
-
-    //     // assert
-    //     assertEq(originRouter.quoteGasPayment(destination, messageBody, new bytes(0)), gasPaymentQuote);
-    // }
-
-    // function test_quoteGasPayment_gasLimitOverride() public enrollRouters {
-    //     // arrange
-    //     bytes memory messageBody = InterchainCreate2FactoryMessage.encode(
-    //         address(1), TypeCasts.addressToBytes32(address(0)), "", new bytes(0), new bytes(0)
-    //     );
-
-    //     bytes memory hookMetadata = StandardHookMetadata.overrideGasLimit(GAS_LIMIT_OVERRIDE);
-
-    //     // assert
-    //     assertEq(
-    //         originRouter.quoteGasPayment(destination, messageBody, hookMetadata),
-    //         igp.quoteGasPayment(destination, GAS_LIMIT_OVERRIDE)
-    //     );
-    // }
-
 }
