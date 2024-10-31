@@ -47,24 +47,26 @@ contract Router7683 is GasRouter, Base7683 {
     function _handle(uint32 _origin, bytes32, bytes calldata _message) internal virtual override {
         (bool _settle, bytes32[] memory _orderIds, bytes32[] memory _receivers) = Router7683Message.decode(_message);
 
-        if (_settle) {
-            for (uint i = 0; i < _orderIds.length; i++) {
+        for (uint i = 0; i < _orderIds.length; i++) {
+            // check if the order is opened to ensure it belongs to this domain, skip otherwise
+            if (orderStatus[_orderIds[i]] != OrderStatus.OPENED) continue;
+
+            if (_settle) {
                 _settleOrder(_orderIds[i], _receivers[i], _origin);
-            }
-        } else {
-            for (uint i = 0; i < _orderIds.length; i++) {
+            } else {
                 _refundOrder(_orderIds[i], _origin);
+
             }
         }
     }
 
     function _handleSettlement(bytes32[] memory _orderIds, bytes32[] memory _receivers) internal virtual override {
-        uint32 originDomain = _mustHaveSameOrigin(_orderIds);
+        uint32 originDomain = orders[_orderIds[0]].originDomain;
         _GasRouter_dispatch(originDomain, msg.value, Router7683Message.encodeSettle(_orderIds, _receivers), address(hook));
     }
 
     function _handleRefund(bytes32[] memory _orderIds) internal virtual override {
-        uint32 originDomain = _mustHaveSameOrigin(_orderIds);
+        uint32 originDomain = orders[_orderIds[0]].originDomain;
         _GasRouter_dispatch(originDomain, msg.value, Router7683Message.encodeRefund(_orderIds), address(hook));
     }
 
@@ -74,14 +76,5 @@ contract Router7683 is GasRouter, Base7683 {
 
     function _localDomain() internal view override returns (uint32) {
         return localDomain;
-    }
-
-    function _mustHaveSameOrigin(bytes32[] memory _orderIds) internal view returns (uint32 originDomain) {
-        originDomain = orders[_orderIds[0]].originDomain;
-
-        for (uint256 i = 1; i < _orderIds.length; i += 1) {
-            OrderData memory orderData = orders[_orderIds[i]];
-            if (originDomain != orderData.originDomain) revert InvalidOrderOrigin();
-        }
     }
 }
