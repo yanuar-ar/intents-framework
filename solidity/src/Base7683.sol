@@ -351,6 +351,10 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         );
     }
 
+    /**
+     * @dev This function is meant to be called by the inheriting contract when receiving a settle cross-chain message
+     * from a remote domain counterpart
+    */
     function _settleOrder(bytes32 _orderId, bytes32 _receiver, uint32 _settlingDomain) internal {
         OrderData memory orderData = orders[_orderId];
 
@@ -368,6 +372,10 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         );
     }
 
+    /**
+     * @dev This function is meant to be called by the inheriting contract when receiving a refund cross-chain message
+     * from a remote domain counterpart
+    */
     function _refundOrder(bytes32 _orderId, uint32 _refundingDomain) internal {
         OrderData memory orderData = orders[_orderId];
 
@@ -392,8 +400,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     function _handleSettlement(bytes32[] memory _orderIds, bytes32[] memory _receivers) internal virtual;
 
     /**
-     * @dev This function is called during `settle` to handle the settlement of the orders, it is meant to be
-     * implemented by the inheriting contract with specific settlement logic. i.e. sending a cross-chain message
+     * @dev This function is called during `refund` to handle the refund of the orders, it is meant to be
+     * implemented by the inheriting contract with specific refund logic. i.e. sending a cross-chain message
     */
     function _handleRefund(bytes32[] memory _orderIds) internal virtual;
 
