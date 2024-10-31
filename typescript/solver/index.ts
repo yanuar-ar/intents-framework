@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import "./patch-bigint-buffer-warn.js";
+
 import { LogFormat, LogLevel } from "@hyperlane-xyz/utils";
 
 import { configureLogger, logBlue, logBoldBlue } from "./logger.js";
