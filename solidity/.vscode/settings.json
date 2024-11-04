@@ -1,0 +1,16 @@
+{
+  "[solidity]": {
+    "editor.defaultFormatter": "NomicFoundation.hardhat-solidity"
+  },
+  "[toml]": {
+    "editor.defaultFormatter": "tamasfe.even-better-toml"
+  },
+  "solidity.formatter": "forge",
+  "solidity.remappingsUnix": [
+    "@openzeppelin/=../node_modules/@openzeppelin/",
+    "forge-std/=../node_modules/forge-std/src/",
+    "@hyperlane-xyz/=../node_modules/@hyperlane-xyz/core/contracts/",
+    "contracts/=../node_modules/@hyperlane-xyz/core/contracts/",
+    "@uniswap/=../node_modules/@uniswap/",
+  ]
+}
