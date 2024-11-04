@@ -46,7 +46,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
     mapping(bytes32 orderId => OrderData orderData) public orders;
 
-    mapping(bytes32 orderId => address filler) public orderFiller;
+    mapping(bytes32 orderId => bytes fillerData) public orderFillerData;
 
     mapping(bytes32 orderId => OrderStatus status) public orderStatus;
 
@@ -73,10 +73,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     error InvalidOrderDomain();
     error InvalidOrderStatus();
     error InvalidSenderNonce();
-    error InvalidOrderFiller();
     error OrderFillNotExpired();
     error InvalidDomain();
-    error InvalidOrdersLength();
     error InvalidSender();
 
     // ============ Constructor ============
@@ -182,8 +180,9 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     /// @notice Fills a single leg of a particular order on the destination chain
     /// @param _orderId Unique order identifier for this order
     /// @param _originData Data emitted on the origin to parameterize the fill
-    /// NOT USED fillerData Data provided by the filler to inform the fill or express their preferences
-    function fill(bytes32 _orderId, bytes calldata _originData, bytes calldata) external virtual {
+    /// @param _fillerData Data provided by the filler to inform the fill or express their preferences. It should
+    /// contain the bytes32 encoded address of the receiver which is the used at settlement time
+    function fill(bytes32 _orderId, bytes calldata _originData, bytes calldata _fillerData) external virtual {
         OrderData memory orderData = OrderEncoder.decode(_originData);
 
         if (_orderId != _getOrderId(orderData)) revert InvalidOrderId();
@@ -194,30 +193,29 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
         orders[_orderId] = orderData;
         orderStatus[_orderId] = OrderStatus.FILLED;
-        orderFiller[_orderId] = msg.sender;
+        orderFillerData[_orderId] = _fillerData;
 
-        emit Filled(_orderId, _originData, new bytes(0));
+        emit Filled(_orderId, _originData, _fillerData);
 
         IERC20(TypeCasts.bytes32ToAddress(orderData.outputToken)).safeTransferFrom(
             msg.sender, TypeCasts.bytes32ToAddress(orderData.recipient), orderData.amountOut
         );
     }
 
-    function settle(bytes32[] calldata _orderIds, bytes32[] calldata _receivers) external payable {
-        if (_orderIds.length != _receivers.length) revert InvalidOrdersLength();
-
+    function settle(bytes32[] calldata _orderIds) external payable {
+        bytes32[] memory receivers = new bytes32[](_orderIds.length);
         for (uint256 i = 0; i < _orderIds.length; i += 1) {
             if (orderStatus[_orderIds[i]] != OrderStatus.FILLED) revert InvalidOrderStatus();
-            if (orderFiller[_orderIds[i]] != msg.sender) revert InvalidOrderFiller();
 
             // not necessary to check the localDomain and counterpart since the fill function already did it
 
             orderStatus[_orderIds[i]] = OrderStatus.SETTLED;
+            receivers[i] = abi.decode(orderFillerData[_orderIds[i]], (bytes32));
         }
 
-        _handleSettlement(_orderIds, _receivers);
+        _handleSettlement(_orderIds, receivers);
 
-        emit Settle(_orderIds, _receivers);
+        emit Settle(_orderIds, receivers);
     }
     function refund(OrderData[] memory _ordersData) external payable {
         bytes32[] memory orderIds = new bytes32[](_ordersData.length);

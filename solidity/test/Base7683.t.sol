@@ -462,13 +462,15 @@ contract Base7683Test is Test, DeployPermit2 {
         vm.startPrank(vegeta);
         outputToken.approve(address(base), amount);
 
-        vm.expectEmit(false, false, false, true);
-        emit Filled(orderId, OrderEncoder.encode(orderData), new bytes(0));
+        bytes memory fillerData = abi.encode(TypeCasts.addressToBytes32(vegeta));
 
-        base.fill(orderId, OrderEncoder.encode(orderData), new bytes(0));
+        vm.expectEmit(false, false, false, true);
+        emit Filled(orderId, OrderEncoder.encode(orderData), fillerData);
+
+        base.fill(orderId, OrderEncoder.encode(orderData), fillerData);
 
         assertOrder(orderId, orderData, balancesBefore, outputToken, vegeta, karpincho, Base7683.OrderStatus.FILLED);
-        assertEq(base.orderFiller(orderId), vegeta);
+        assertEq(base.orderFillerData(orderId), fillerData);
 
         vm.stopPrank();
     }
@@ -481,9 +483,11 @@ contract Base7683Test is Test, DeployPermit2 {
 
         bytes32 orderId = OrderEncoder.id(orderData);
 
+        bytes memory fillerData = abi.encode(TypeCasts.addressToBytes32(karpincho));
+
         vm.startPrank(vegeta);
         outputToken.approve(address(base), amount);
-        base.fill(orderId, OrderEncoder.encode(orderData), new bytes(0));
+        base.fill(orderId, OrderEncoder.encode(orderData), fillerData);
 
         bytes32[] memory orderIds = new bytes32[](1);
         orderIds[0] = orderId;
@@ -493,7 +497,7 @@ contract Base7683Test is Test, DeployPermit2 {
         vm.expectEmit(false, false, false, true);
         emit Settle(orderIds, receivers);
 
-        base.settle(orderIds, receivers);
+        base.settle(orderIds);
 
         assertTrue(base.orderStatus(orderId) == Base7683.OrderStatus.SETTLED);
         assertEq(base.settledOrderIds(0), orderId);
