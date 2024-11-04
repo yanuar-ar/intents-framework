@@ -36,4 +36,25 @@ library Router7683Message {
     {
         return abi.decode(_message, (bool, bytes32[], bytes32[]));
     }
+
+    function encodeSettle(
+        bytes32[] memory _orderIds,
+        bytes32[] memory _receivers
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return encode(true, _orderIds, _receivers);
+    }
+
+    function encodeRefund(
+        bytes32[] memory _orderIds
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return encode(false, _orderIds, new bytes32[](0));
+    }
 }
