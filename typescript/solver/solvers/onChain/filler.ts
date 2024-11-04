@@ -10,7 +10,7 @@ import { logDebug, logError, logGreen } from "../../logger.js";
 import type { OpenEventArgs, ResolvedCrossChainOrder } from "../../types.js";
 import { getChainIdsWithEnoughTokens, settleOrder } from "./utils.js";
 
-type OutputsData = {
+type IntentData = {
   fillInstructions: ResolvedCrossChainOrder["fillInstructions"];
   maxSpent: ResolvedCrossChainOrder["maxSpent"];
 };
@@ -21,10 +21,10 @@ export const create = () => {
   return async function onChain({ orderId, resolvedOrder }: OpenEventArgs) {
     logGreen("Received Order:", orderId);
 
-    const result = await selectOutputs(resolvedOrder, multiProvider);
+    const result = await prepareIntent(resolvedOrder, multiProvider);
 
     if (!result.success) {
-      logError("Failed to select outputs:", result.error);
+      logError("Failed to gather the information for the intent:", result.error);
       return;
     }
 
@@ -52,10 +52,10 @@ function setup() {
 
 // We're assuming the filler will pay out of their own stock, but in reality they may have to
 // produce the funds before executing each leg.
-async function selectOutputs(
+async function prepareIntent(
   resolvedOrder: ResolvedCrossChainOrder,
   multiProvider: MultiProvider,
-): Promise<Result<OutputsData>> {
+): Promise<Result<IntentData>> {
   try {
     const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(
       resolvedOrder,
