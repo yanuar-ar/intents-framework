@@ -7,6 +7,7 @@ import { console2 } from "forge-std/console2.sol";
 import { TypeCasts } from "@hyperlane-xyz/libs/TypeCasts.sol";
 import { GasRouter } from "@hyperlane-xyz/client/GasRouter.sol";
 import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
 import { Router7683 } from "../src/Router7683.sol";
 
@@ -18,19 +19,27 @@ contract DeployRouter7683 is Script {
         string memory ROUTER_SALT = vm.envString("ROUTER7683_SALT");
         address mailbox = vm.envAddress("MAILBOX");
         address permit2 = vm.envAddress("PERMIT2");
-        address admin = vm.envAddress("PROXY_ADMIN");
+        address proxyAdminOwner = vm.envOr("PROXY_ADMIN_OWNER", address(0));
         address owner = vm.envAddress("ROUTER_OWNER");
         uint256[] memory domains = vm.envUint("DOMAINS", ",");
         uint32[] memory _domains = new uint32[](domains.length);
         bytes32[] memory routers = new bytes32[](domains.length);
         GasRouter.GasRouterConfig[] memory gasConfigs = new GasRouter.GasRouterConfig[](domains.length);
 
+        address deployerAddress = vm.addr(deployerPrivateKey);
+
         vm.startBroadcast(deployerPrivateKey);
+
+        ProxyAdmin proxyAdmin = address(new ProxyAdmin());
+
+        if (proxyAdminOwner != address(0) && proxyAdminOwner != owner) {
+            proxyAdmin.transferOwnership(proxyAdminOwner);
+        }
 
         address routerImpl = address(new Router7683{salt: keccak256(abi.encode(ROUTER_SALT))}(mailbox, permit2));
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy{salt: keccak256(abi.encode(ROUTER_SALT))}(
           routerImpl,
-          admin,
+          address(proxyAdmin),
           abi.encodeWithSelector(Router7683.initialize.selector, address(0), address(0), owner)
         );
 
@@ -48,7 +57,8 @@ contract DeployRouter7683 is Script {
         vm.stopBroadcast();
 
         // solhint-disable-next-line no-console
-        console2.log("Proxy:", address(proxy));
+        console2.log("Router Proxy:", address(proxy));
         console2.log("Implementation:", routerImpl);
+        console2.log("ProxyAdmin:", address(proxyAdmin));
     }
 }
