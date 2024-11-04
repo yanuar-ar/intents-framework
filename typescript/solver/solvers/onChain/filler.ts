@@ -97,14 +97,23 @@ async function fill(
     maxSpent.map(async ({ chainId, token, amount, recipient }) => {
       token = bytes32ToAddress(token);
       recipient = bytes32ToAddress(recipient);
+      const _chainId = chainId.toString();
 
-      const filler = multiProvider.getSigner(chainId.toString());
-      const receipt = await Erc20__factory.connect(token, filler).approve(
+      const filler = multiProvider.getSigner(_chainId);
+      const tx = await Erc20__factory.connect(token, filler).approve(
         recipient,
         amount,
       );
 
-      await receipt.wait();
+      const receipt = await tx.wait();
+      const baseUrl =
+        multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
+
+      if (baseUrl) {
+        logGreen(`Approval Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
+      } else {
+        logGreen("Approval Tx:", receipt.transactionHash);
+      }
 
       logDebug(
         "Approved",
@@ -114,7 +123,7 @@ async function fill(
         "to",
         recipient,
         "on",
-        chainId.toString(),
+        _chainId,
       );
     }),
   );
@@ -123,8 +132,9 @@ async function fill(
     fillInstructions.map(
       async ({ destinationChainId, destinationSettler, originData }) => {
         destinationSettler = bytes32ToAddress(destinationSettler);
-        const filler = multiProvider.getSigner(destinationChainId.toString());
+        const _chainId = destinationChainId.toString();
 
+        const filler = multiProvider.getSigner(_chainId);
         const destination = DestinationSettler__factory.connect(
           destinationSettler,
           filler,
@@ -133,16 +143,19 @@ async function fill(
         // Depending on the implementation we may call `destination.fill` directly or call some other
         // contract that will produce the funds needed to execute this leg and then in turn call
         // `destination.fill`
-        const receipt = await destination.fill(orderId, originData, "0x");
+        const tx = await destination.fill(orderId, originData, "0x");
 
-        await receipt.wait();
+        const receipt = await tx.wait();
+        const baseUrl =
+          multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
 
-        logDebug(
-          "Filled leg on",
-          destinationChainId.toString(),
-          "with data",
-          originData,
-        );
+        if (baseUrl) {
+          logGreen(`Fill Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
+        } else {
+          logGreen("Fill Tx:", receipt.transactionHash);
+        }
+
+        logDebug("Filled leg on", _chainId, "with data", originData);
       },
     ),
   );
