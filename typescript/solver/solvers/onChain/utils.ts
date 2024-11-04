@@ -113,7 +113,12 @@ export async function settleOrder(
 
             await receipt.wait();
 
-            logGreen("Settled order", orderId, "on chain", destinationChain.toString());
+            logGreen(
+              "Settled order",
+              orderId,
+              "on chain",
+              destinationChain.toString(),
+            );
           }),
         );
       },
