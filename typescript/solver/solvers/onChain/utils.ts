@@ -2,12 +2,12 @@ import { AddressZero, Zero } from "@ethersproject/constants";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import type { BigNumber } from "ethers";
 
-import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__factory.js";
+import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 
 import type { Provider } from "@ethersproject/abstract-provider";
 import { addressToBytes32, bytes32ToAddress } from "@hyperlane-xyz/utils";
-import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory.js";
 import { logGreen } from "../../logger.js";
+import { DestinationSettler__factory } from "../../typechain/factories/onChain/contracts/DestinationSettler__factory.js";
 import { ResolvedCrossChainOrder } from "../../types.js";
 
 export async function checkChainTokens(

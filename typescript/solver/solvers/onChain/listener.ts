@@ -5,8 +5,8 @@ import {
   ORIGIN_SETTLER_ADDRESS,
   ORIGIN_SETTLER_CHAIN_ID,
 } from "../../config.js";
-import { OriginSettler__factory } from "../../contracts/typechain/factories/OriginSettler__factory.js";
 import { logGreen } from "../../logger.js";
+import { OriginSettler__factory } from "../../typechain/factories/onChain/contracts/OriginSettler__factory.js";
 import type { OpenEventArgs } from "../../types.js";
 
 export const create = () => {

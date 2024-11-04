@@ -4,9 +4,9 @@ import { MultiProvider } from "@hyperlane-xyz/sdk";
 import { bytes32ToAddress, ensure0x, type Result } from "@hyperlane-xyz/utils";
 
 import { MNEMONIC, PRIVATE_KEY } from "../../config.js";
-import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory.js";
-import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__factory.js";
 import { logDebug, logError, logGreen } from "../../logger.js";
+import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
+import { DestinationSettler__factory } from "../../typechain/factories/onChain/contracts/DestinationSettler__factory.js";
 import type { OpenEventArgs, ResolvedCrossChainOrder } from "../../types.js";
 import { getChainIdsWithEnoughTokens, settleOrder } from "./utils.js";
 
@@ -24,7 +24,10 @@ export const create = () => {
     const result = await prepareIntent(resolvedOrder, multiProvider);
 
     if (!result.success) {
-      logError("Failed to gather the information for the intent:", result.error);
+      logError(
+        "Failed to gather the information for the intent:",
+        result.error,
+      );
       return;
     }
 
