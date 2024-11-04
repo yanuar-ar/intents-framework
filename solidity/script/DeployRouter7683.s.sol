@@ -26,11 +26,9 @@ contract DeployRouter7683 is Script {
         bytes32[] memory routers = new bytes32[](domains.length);
         GasRouter.GasRouterConfig[] memory gasConfigs = new GasRouter.GasRouterConfig[](domains.length);
 
-        address deployerAddress = vm.addr(deployerPrivateKey);
-
         vm.startBroadcast(deployerPrivateKey);
 
-        ProxyAdmin proxyAdmin = address(new ProxyAdmin());
+        ProxyAdmin proxyAdmin = new ProxyAdmin();
 
         if (proxyAdminOwner != address(0) && proxyAdminOwner != owner) {
             proxyAdmin.transferOwnership(proxyAdminOwner);
