@@ -1,14 +1,19 @@
 import { Wallet } from "@ethersproject/wallet";
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
-import { bytes32ToAddress, ensure0x } from "@hyperlane-xyz/utils";
+import { bytes32ToAddress, ensure0x, type Result } from "@hyperlane-xyz/utils";
 
 import { MNEMONIC, PRIVATE_KEY } from "../../config.js";
 import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory.js";
 import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__factory.js";
-import { logDebug, logGreen } from "../../logger.js";
+import { logDebug, logError, logGreen } from "../../logger.js";
 import type { OpenEventArgs, ResolvedCrossChainOrder } from "../../types.js";
 import { getChainIdsWithEnoughTokens, settleOrder } from "./utils.js";
+
+type OutputsData = {
+  fillInstructions: ResolvedCrossChainOrder["fillInstructions"];
+  maxSpent: ResolvedCrossChainOrder["maxSpent"];
+};
 
 export const create = () => {
   const { multiProvider } = setup();
@@ -16,10 +21,14 @@ export const create = () => {
   return async function onChain({ orderId, resolvedOrder }: OpenEventArgs) {
     logGreen("Received Order:", orderId);
 
-    const { fillInstructions, maxSpent } = await selectOutputs(
-      resolvedOrder,
-      multiProvider,
-    );
+    const result = await selectOutputs(resolvedOrder, multiProvider);
+
+    if (!result.success) {
+      logError("Failed to select outputs:", result.error);
+      return;
+    }
+
+    const { fillInstructions, maxSpent } = result.data;
 
     await fill(orderId, fillInstructions, maxSpent, multiProvider);
 
@@ -46,25 +55,34 @@ function setup() {
 async function selectOutputs(
   resolvedOrder: ResolvedCrossChainOrder,
   multiProvider: MultiProvider,
-) {
-  const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(
-    resolvedOrder,
-    multiProvider,
-  );
-  logDebug("Chain IDs with enough tokens:", chainIdsWithEnoughTokens);
+): Promise<Result<OutputsData>> {
+  try {
+    const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(
+      resolvedOrder,
+      multiProvider,
+    );
 
-  const fillInstructions = resolvedOrder.fillInstructions.filter(
-    ({ destinationChainId }) =>
-      chainIdsWithEnoughTokens.includes(destinationChainId.toString()),
-  );
-  logDebug("fillInstructions:", JSON.stringify(fillInstructions));
+    logDebug("Chain IDs with enough tokens:", chainIdsWithEnoughTokens);
 
-  const maxSpent = resolvedOrder.maxSpent.filter(({ chainId }) =>
-    chainIdsWithEnoughTokens.includes(chainId.toString()),
-  );
-  logDebug("maxSpent:", JSON.stringify(maxSpent));
+    const fillInstructions = resolvedOrder.fillInstructions.filter(
+      ({ destinationChainId }) =>
+        chainIdsWithEnoughTokens.includes(destinationChainId.toString()),
+    );
+    logDebug("fillInstructions:", JSON.stringify(fillInstructions));
 
-  return { fillInstructions, maxSpent };
+    const maxSpent = resolvedOrder.maxSpent.filter(({ chainId }) =>
+      chainIdsWithEnoughTokens.includes(chainId.toString()),
+    );
+    logDebug("maxSpent:", JSON.stringify(maxSpent));
+
+    return { data: { fillInstructions, maxSpent }, success: true };
+  } catch (error: any) {
+    return {
+      error:
+        error.message ?? "Failed find chain IDs with enough tokens to fill.",
+      success: false,
+    };
+  }
 }
 
 async function fill(
