@@ -21,7 +21,7 @@ import { Base7683 } from "../src/Router7683.sol";
 
 event Open(bytes32 indexed orderId, ResolvedCrossChainOrder resolvedOrder);
 event Filled(bytes32 orderId, bytes originData, bytes fillerData);
-event Settle(bytes32[] orderIds, bytes32[] receivers);
+event Settle(bytes32[] orderIds, bytes[] ordersFillerData);
 event Refund(bytes32[] orderIds);
 event Settled(bytes32 orderId, address receiver);
 event Refunded(bytes32 orderId, address receiver);
@@ -31,7 +31,7 @@ contract Base7683ForTest is Base7683 {
 
     bytes32[] public refundedOrderIds;
     bytes32[] public settledOrderIds;
-    bytes32[] public settledReceivers;
+    bytes[] public settledReceivers;
 
     uint32 internal immutable _origin;
     uint32 internal immutable _destination;
@@ -53,7 +53,7 @@ contract Base7683ForTest is Base7683 {
         _refundOrder(_orderId, _destination);
     }
 
-    function _handleSettlement(bytes32[] memory _orderIds, bytes32[] memory receivers) internal override {
+    function _handleSettlement(bytes32[] memory _orderIds, bytes[] memory receivers) internal override {
         settledOrderIds = _orderIds;
         settledReceivers = receivers;
     }
@@ -491,17 +491,17 @@ contract Base7683Test is Test, DeployPermit2 {
 
         bytes32[] memory orderIds = new bytes32[](1);
         orderIds[0] = orderId;
-        bytes32[] memory receivers = new bytes32[](1);
-        receivers[0] = TypeCasts.addressToBytes32(karpincho);
+        bytes[] memory ordersFillerData = new bytes[](1);
+        ordersFillerData[0] = fillerData;
 
         vm.expectEmit(false, false, false, true);
-        emit Settle(orderIds, receivers);
+        emit Settle(orderIds, ordersFillerData);
 
         base.settle(orderIds);
 
         assertTrue(base.orderStatus(orderId) == Base7683.OrderStatus.SETTLED);
         assertEq(base.settledOrderIds(0), orderId);
-        assertEq(base.settledReceivers(0), TypeCasts.addressToBytes32(karpincho));
+        assertEq(base.settledReceivers(0), fillerData);
 
         vm.stopPrank();
     }

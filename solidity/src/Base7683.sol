@@ -57,7 +57,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     // ============ Events ============
 
     event Filled(bytes32 orderId, bytes originData, bytes fillerData);
-    event Settle(bytes32[] orderIds, bytes32[] receivers);
+    event Settle(bytes32[] orderIds, bytes[] ordersFillerData);
     event Refund(bytes32[] orderIds);
     event Settled(bytes32 orderId, address receiver);
     event Refunded(bytes32 orderId, address receiver);
@@ -203,19 +203,19 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     }
 
     function settle(bytes32[] calldata _orderIds) external payable {
-        bytes32[] memory receivers = new bytes32[](_orderIds.length);
+        bytes[] memory ordersFillerData = new bytes[](_orderIds.length);
         for (uint256 i = 0; i < _orderIds.length; i += 1) {
             if (orderStatus[_orderIds[i]] != OrderStatus.FILLED) revert InvalidOrderStatus();
 
             // not necessary to check the localDomain and counterpart since the fill function already did it
 
             orderStatus[_orderIds[i]] = OrderStatus.SETTLED;
-            receivers[i] = abi.decode(orderFillerData[_orderIds[i]], (bytes32));
+            ordersFillerData[i] = orderFillerData[_orderIds[i]];
         }
 
-        _handleSettlement(_orderIds, receivers);
+        _handleSettlement(_orderIds, ordersFillerData);
 
-        emit Settle(_orderIds, receivers);
+        emit Settle(_orderIds, ordersFillerData);
     }
     function refund(OrderData[] memory _ordersData) external payable {
         bytes32[] memory orderIds = new bytes32[](_ordersData.length);
@@ -395,7 +395,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
      * @dev This function is called during `settle` to handle the settlement of the orders, it is meant to be
      * implemented by the inheriting contract with specific settlement logic. i.e. sending a cross-chain message
     */
-    function _handleSettlement(bytes32[] memory _orderIds, bytes32[] memory _receivers) internal virtual;
+    function _handleSettlement(bytes32[] memory _orderIds, bytes[] memory _ordersFillerData) internal virtual;
 
     /**
      * @dev This function is called during `refund` to handle the refund of the orders, it is meant to be

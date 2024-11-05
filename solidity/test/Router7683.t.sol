@@ -33,7 +33,7 @@ import { Base7683 } from "../src/Router7683.sol";
 
 event Open(bytes32 indexed orderId, ResolvedCrossChainOrder resolvedOrder);
 event Filled(bytes32 orderId, bytes originData, bytes fillerData);
-event Settle(bytes32[] orderIds, bytes32[] receivers);
+event Settle(bytes32[] orderIds, bytes[] ordersFillerData);
 event Refund(bytes32[] orderIds);
 event Settled(bytes32 orderId, address receiver);
 event Refunded(bytes32 orderId, address receiver);
@@ -332,13 +332,13 @@ contract Router7683Test is Router7683BaseTest {
 
         bytes32[] memory orderIds = new bytes32[](1);
         orderIds[0] = orderId;
-        bytes32[] memory receivers = new bytes32[](1);
-        receivers[0] = TypeCasts.addressToBytes32(vegeta);
+        bytes[] memory ordersFillerData = new bytes[](1);
+        ordersFillerData[0] = fillerData;
 
         uint256[] memory balancesBefore = balances(inputToken);
 
         vm.expectEmit(false, false, false, true, address(destinationRouter));
-        emit Settle(orderIds, receivers);
+        emit Settle(orderIds, ordersFillerData);
 
         vm.deal(vegeta, gasPaymentQuote);
         uint256 balanceBefore = address(vegeta).balance;
