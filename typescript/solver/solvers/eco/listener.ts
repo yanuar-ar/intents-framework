@@ -12,7 +12,9 @@ import { IntentSource__factory } from "../../typechain/factories/eco/contracts/I
 export const create = () => {
   const { settlerContract } = setup();
 
-  return function onChain(handler: (intentCreatedEvent: IntentCreatedEventObject) => void) {
+  return function onChain(
+    handler: (intentCreatedEvent: IntentCreatedEventObject) => void,
+  ) {
     settlerContract.on(
       settlerContract.filters.IntentCreated(),
       (
@@ -37,7 +39,7 @@ export const create = () => {
           _rewardAmounts,
           _expiryTime,
           nonce,
-          _prover
+          _prover,
         });
       },
     );

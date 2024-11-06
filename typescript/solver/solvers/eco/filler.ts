@@ -1,39 +1,32 @@
 import { Wallet } from "@ethersproject/wallet";
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
-import { bytes32ToAddress, ensure0x, type Result } from "@hyperlane-xyz/utils";
+import { ensure0x, type Result } from "@hyperlane-xyz/utils";
 
-import { MNEMONIC, PRIVATE_KEY } from "../../config.js";
+import { Zero } from "@ethersproject/constants";
+
+import { type BigNumber } from "ethers";
+import {
+  ECO_ADAPTER_ADDRESS,
+  MNEMONIC,
+  ORIGIN_SETTLER_CHAIN_ID,
+  PRIVATE_KEY,
+} from "../../config.js";
 import { logDebug, logError, logGreen } from "../../logger.js";
 import { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
-import type { ResolvedCrossChainOrder } from "../../types.js";
-import { getChainIdsWithEnoughTokens, settleOrder } from "./utils.js";
+import { EcoAdapter__factory } from "../../typechain/factories/eco/contracts/EcoAdapter__factory.js";
 
-type IntentData = {
-  fillInstructions: ResolvedCrossChainOrder["fillInstructions"];
-  maxSpent: ResolvedCrossChainOrder["maxSpent"];
-};
+type IntentData = { [targetAddress: string]: BigNumber };
 
 export const create = () => {
-  const { multiProvider } = setup();
+  const { ECO_ADAPTER_ADDRESS, multiProvider, ORIGIN_SETTLER_CHAIN_ID } =
+    setup();
 
-  return async function onChain({
-          _hash,
-          _creator,
-          _destinationChain,
-          _targets,
-          _data,
-          _rewardTokens,
-          _rewardAmounts,
-          _expiryTime,
-          nonce,
-          _prover
-  }: IntentCreatedEventObject) {
-    const orderId = _hash;
-    logGreen("Received Order:", orderId);
+  return async function onChain(intent: IntentCreatedEventObject) {
+    logGreen("Received Intent:", intent._hash);
 
-    const result = await prepareIntent(resolvedOrder, multiProvider);
+    const result = await prepareIntent(intent, multiProvider);
 
     if (!result.success) {
       logError(
@@ -43,11 +36,14 @@ export const create = () => {
       return;
     }
 
-    const { fillInstructions, maxSpent } = result.data;
+    await fill(
+      intent,
+      ECO_ADAPTER_ADDRESS,
+      ORIGIN_SETTLER_CHAIN_ID,
+      multiProvider,
+    );
 
-    await fill(orderId, fillInstructions, maxSpent, multiProvider);
-
-    logGreen(`Filled ${fillInstructions.length} leg(s) for:`, orderId);
+    logGreen(`Fulfilled intent:`, intent._hash);
   };
 };
 
@@ -56,41 +52,70 @@ function setup() {
     throw new Error("Either a private key or mnemonic must be provided");
   }
 
+  if (!ECO_ADAPTER_ADDRESS) {
+    throw new Error("Eco adapter address must be provided");
+  }
+
+  if (!ORIGIN_SETTLER_CHAIN_ID) {
+    throw new Error("Origin settler chain ID must be provided");
+  }
+
   const multiProvider = new MultiProvider(chainMetadata);
   const wallet = PRIVATE_KEY
     ? new Wallet(ensure0x(PRIVATE_KEY))
     : Wallet.fromMnemonic(MNEMONIC!);
   multiProvider.setSharedSigner(wallet);
 
-  return { multiProvider };
+  return { ECO_ADAPTER_ADDRESS, multiProvider, ORIGIN_SETTLER_CHAIN_ID };
 }
 
 // We're assuming the filler will pay out of their own stock, but in reality they may have to
 // produce the funds before executing each leg.
 async function prepareIntent(
-  resolvedOrder: ResolvedCrossChainOrder,
+  intent: IntentCreatedEventObject,
   multiProvider: MultiProvider,
 ): Promise<Result<IntentData>> {
   try {
-    const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(
-      resolvedOrder,
-      multiProvider,
+    const provider = multiProvider.getProvider(
+      intent._destinationChain.toString(),
+    );
+    const erc20Interface = Erc20__factory.createInterface();
+
+    const requiredAmountsByTarget = intent._targets.reduce<IntentData>(
+      (acc, target, index) => {
+        const [, amount] = erc20Interface.decodeFunctionData(
+          "transfer",
+          intent._data[index],
+        ) as [string, BigNumber];
+
+        acc[target] ||= Zero;
+        acc[target] = acc[target].add(amount);
+
+        return acc;
+      },
+      {},
     );
 
-    logDebug("Chain IDs with enough tokens:", chainIdsWithEnoughTokens);
-
-    const fillInstructions = resolvedOrder.fillInstructions.filter(
-      ({ destinationChainId }) =>
-        chainIdsWithEnoughTokens.includes(destinationChainId.toString()),
+    const fillerAddress = await multiProvider.getSignerAddress(
+      intent._destinationChain.toString(),
     );
-    logDebug("fillInstructions:", JSON.stringify(fillInstructions));
 
-    const maxSpent = resolvedOrder.maxSpent.filter(({ chainId }) =>
-      chainIdsWithEnoughTokens.includes(chainId.toString()),
+    const areTargetFundsAvailable = await Promise.all(
+      Object.entries(requiredAmountsByTarget).map(
+        async ([target, requiredAmount]) => {
+          const erc20 = Erc20__factory.connect(target, provider);
+
+          const balance = await erc20.balanceOf(fillerAddress);
+          return balance.gte(requiredAmount);
+        },
+      ),
     );
-    logDebug("maxSpent:", JSON.stringify(maxSpent));
 
-    return { data: { fillInstructions, maxSpent }, success: true };
+    if (!areTargetFundsAvailable.every(Boolean)) {
+      return { error: "Not enough tokens", success: false };
+    }
+
+    return { data: requiredAmountsByTarget, success: true };
   } catch (error: any) {
     return {
       error:
@@ -101,80 +126,41 @@ async function prepareIntent(
 }
 
 async function fill(
-  orderId: string,
-  fillInstructions: ResolvedCrossChainOrder["fillInstructions"],
-  maxSpent: ResolvedCrossChainOrder["maxSpent"],
+  intent: IntentCreatedEventObject,
+  adapterAddress: string,
+  originChainId: string,
   multiProvider: MultiProvider,
 ): Promise<void> {
-  logGreen("About to fill", fillInstructions.length, "leg(s) for", orderId);
+  logGreen("About to fulfill intent", intent._hash);
+  const _chainId = intent._destinationChain.toString();
 
-  await Promise.all(
-    maxSpent.map(async ({ chainId, token, amount, recipient }) => {
-      token = bytes32ToAddress(token);
-      recipient = bytes32ToAddress(recipient);
-      const _chainId = chainId.toString();
+  const filler = multiProvider.getSigner(_chainId);
+  const adapter = EcoAdapter__factory.connect(adapterAddress, filler);
 
-      const filler = multiProvider.getSigner(_chainId);
-      const tx = await Erc20__factory.connect(token, filler).approve(
-        recipient,
-        amount,
-      );
+  const claimant = multiProvider.getSigner(originChainId);
+  const claimantAddress = await claimant.getAddress();
 
-      const receipt = await tx.wait();
-      const baseUrl =
-        multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
-
-      if (baseUrl) {
-        logGreen(`Approval Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
-      } else {
-        logGreen("Approval Tx:", receipt.transactionHash);
-      }
-
-      logDebug(
-        "Approved",
-        amount.toString(),
-        "of",
-        token,
-        "to",
-        recipient,
-        "on",
-        _chainId,
-      );
-    }),
+  const { _targets, _data, _expiryTime, nonce, _hash, _prover } = intent;
+  const tx = await adapter.fulfillHyperInstant(
+    originChainId,
+    _targets,
+    _data,
+    _expiryTime,
+    nonce,
+    claimantAddress,
+    _hash,
+    _prover,
   );
 
-  await Promise.all(
-    fillInstructions.map(
-      async ({ destinationChainId, destinationSettler, originData }) => {
-        destinationSettler = bytes32ToAddress(destinationSettler);
-        const _chainId = destinationChainId.toString();
+  const receipt = await tx.wait();
+  const baseUrl =
+    multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
 
-        const filler = multiProvider.getSigner(_chainId);
-        const destination = DestinationSettler__factory.connect(
-          destinationSettler,
-          filler,
-        );
+  if (baseUrl) {
+    logGreen(`Fulfill Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
+  } else {
+    logGreen("Fulfill Tx:", receipt.transactionHash);
+  }
 
-        // Depending on the implementation we may call `destination.fill` directly or call some other
-        // contract that will produce the funds needed to execute this leg and then in turn call
-        // `destination.fill`
-        const tx = await destination.fill(orderId, originData, "0x");
-
-        const receipt = await tx.wait();
-        const baseUrl =
-          multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
-
-        if (baseUrl) {
-          logGreen(`Fill Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
-        } else {
-          logGreen("Fill Tx:", receipt.transactionHash);
-        }
-
-        logDebug("Filled leg on", _chainId, "with data", originData);
-      },
-    ),
-  );
-
-  // This section is only an example for the settlement process
-  await settleOrder(fillInstructions, orderId, multiProvider);
+  logDebug("Fulfilled intent on", _chainId, "with data", _data);
 }
