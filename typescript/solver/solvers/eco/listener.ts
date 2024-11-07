@@ -15,70 +15,34 @@ export const create = () => {
   return function onChain(
     handler: (intentCreatedEvent: IntentCreatedEventObject) => void,
   ) {
-    // Query past events
-    const fromBlock = 19592513;
-    const toBlock = fromBlock + 2;
-    settlerContract
-      .queryFilter(settlerContract.filters.IntentCreated(), fromBlock, toBlock)
-      .then((events) => {
-        events.forEach(
-          ({
-            args: {
-              _hash,
-              _creator,
-              _destinationChain,
-              _targets,
-              _data,
-              _rewardTokens,
-              _rewardAmounts,
-              _expiryTime,
-              nonce,
-              _prover,
-            },
-          }) => {
-            handler({
-              _hash,
-              _creator,
-              _destinationChain,
-              _targets,
-              _data,
-              _rewardTokens,
-              _rewardAmounts,
-              _expiryTime,
-              nonce,
-              _prover,
-            });
-          },
-        );
-      });
-    // settlerContract.on(
-    //   settlerContract.filters.IntentCreated(),
-    //   (
-    //     _hash,
-    //     _creator,
-    //     _destinationChain,
-    //     _targets,
-    //     _data,
-    //     _rewardTokens,
-    //     _rewardAmounts,
-    //     _expiryTime,
-    //     nonce,
-    //     _prover,
-    //   ) => {
-    //     handler({
-    //       _hash,
-    //       _creator,
-    //       _destinationChain,
-    //       _targets,
-    //       _data,
-    //       _rewardTokens,
-    //       _rewardAmounts,
-    //       _expiryTime,
-    //       nonce,
-    //       _prover,
-    //     });
-    //   },
-    // );
+    settlerContract.on(
+      settlerContract.filters.IntentCreated(),
+      (
+        _hash,
+        _creator,
+        _destinationChain,
+        _targets,
+        _data,
+        _rewardTokens,
+        _rewardAmounts,
+        _expiryTime,
+        nonce,
+        _prover,
+      ) => {
+        handler({
+          _hash,
+          _creator,
+          _destinationChain,
+          _targets,
+          _data,
+          _rewardTokens,
+          _rewardAmounts,
+          _expiryTime,
+          nonce,
+          _prover,
+        });
+      },
+    );
 
     settlerContract.provider.getNetwork().then((network) => {
       logGreen(
