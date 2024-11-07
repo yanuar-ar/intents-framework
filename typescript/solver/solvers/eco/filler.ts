@@ -9,6 +9,7 @@ import { type BigNumber } from "ethers";
 import {
   ECO_ADAPTER_ADDRESS,
   MNEMONIC,
+  ORIGIN_SETTLER_ADDRESS,
   ORIGIN_SETTLER_CHAIN_ID,
   PRIVATE_KEY,
 } from "../../config.js";
@@ -16,12 +17,18 @@ import { logDebug, logError, logGreen } from "../../logger.js";
 import { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { EcoAdapter__factory } from "../../typechain/factories/eco/contracts/EcoAdapter__factory.js";
+import { HyperProver__factory } from "../../typechain/factories/eco/contracts/HyperProver__factory.js";
+import { IntentSource__factory } from "../../typechain/factories/eco/contracts/IntentSource__factory.js";
 
 type IntentData = { [targetAddress: string]: BigNumber };
 
 export const create = () => {
-  const { ECO_ADAPTER_ADDRESS, multiProvider, ORIGIN_SETTLER_CHAIN_ID } =
-    setup();
+  const {
+    ECO_ADAPTER_ADDRESS,
+    multiProvider,
+    ORIGIN_SETTLER_ADDRESS,
+    ORIGIN_SETTLER_CHAIN_ID,
+  } = setup();
 
   return async function onChain(intent: IntentCreatedEventObject) {
     logGreen("Received Intent:", intent._hash);
@@ -48,6 +55,15 @@ export const create = () => {
     );
 
     logGreen(`Fulfilled intent:`, intent._hash);
+
+    await withdrawRewards(
+      intent,
+      ORIGIN_SETTLER_ADDRESS,
+      ORIGIN_SETTLER_CHAIN_ID,
+      multiProvider,
+    );
+
+    logGreen(`Withdrew rewards for intent:`, intent._hash);
   };
 };
 
@@ -64,13 +80,22 @@ function setup() {
     throw new Error("Origin settler chain ID must be provided");
   }
 
+  if (!ORIGIN_SETTLER_ADDRESS) {
+    throw new Error("Origin settler address must be provided");
+  }
+
   const multiProvider = new MultiProvider(chainMetadata);
   const wallet = PRIVATE_KEY
     ? new Wallet(ensure0x(PRIVATE_KEY))
     : Wallet.fromMnemonic(MNEMONIC!);
   multiProvider.setSharedSigner(wallet);
 
-  return { ECO_ADAPTER_ADDRESS, multiProvider, ORIGIN_SETTLER_CHAIN_ID };
+  return {
+    ECO_ADAPTER_ADDRESS,
+    multiProvider,
+    ORIGIN_SETTLER_ADDRESS,
+    ORIGIN_SETTLER_CHAIN_ID,
+  };
 }
 
 // We're assuming the filler will pay out of their own stock, but in reality they may have to
@@ -184,4 +209,51 @@ async function fill(
   }
 
   logDebug("Fulfilled intent on", _chainId, "with data", _data);
+}
+
+async function withdrawRewards(
+  intent: IntentCreatedEventObject,
+  originSettlerAddress: string,
+  originChainId: string,
+  multiProvider: MultiProvider,
+) {
+  const { _hash, _prover } = intent;
+
+  logGreen("Waiting for `IntentProven` event on origin chain");
+  const signer = multiProvider.getSigner(originChainId);
+  const claimantAddress = await signer.getAddress();
+  const prover = HyperProver__factory.connect(_prover, signer);
+
+  await new Promise((resolve) =>
+    prover.once(
+      prover.filters.IntentProven(_hash, claimantAddress),
+      async () => {
+        logDebug("Intent proven:", _hash);
+
+        logGreen("About to claim rewards");
+        const settler = IntentSource__factory.connect(
+          originSettlerAddress,
+          signer,
+        );
+        const tx = await settler.withdrawRewards(_hash);
+
+        const receipt = await tx.wait();
+
+        const baseUrl =
+          multiProvider.getChainMetadata(originChainId).blockExplorers?.[0].url;
+
+        if (baseUrl) {
+          logGreen(
+            `Withdraw Rewards Tx: ${baseUrl}/tx/${receipt.transactionHash}`,
+          );
+        } else {
+          logGreen("Withdraw Rewards Tx:", receipt.transactionHash);
+        }
+
+        logDebug("Reward withdrawn on", originChainId, "for intent", _hash);
+
+        resolve(_hash);
+      },
+    ),
+  );
 }
