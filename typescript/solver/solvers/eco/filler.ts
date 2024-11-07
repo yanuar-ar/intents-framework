@@ -26,7 +26,11 @@ export const create = () => {
   return async function onChain(intent: IntentCreatedEventObject) {
     logGreen("Received Intent:", intent._hash);
 
-    const result = await prepareIntent(intent, multiProvider);
+    const result = await prepareIntent(
+      intent,
+      ECO_ADAPTER_ADDRESS,
+      multiProvider,
+    );
 
     if (!result.success) {
       logError(
@@ -73,12 +77,11 @@ function setup() {
 // produce the funds before executing each leg.
 async function prepareIntent(
   intent: IntentCreatedEventObject,
+  ecoAdapterAddress: string,
   multiProvider: MultiProvider,
 ): Promise<Result<IntentData>> {
   try {
-    const provider = multiProvider.getProvider(
-      intent._destinationChain.toString(),
-    );
+    const signer = multiProvider.getSigner(intent._destinationChain.toString());
     const erc20Interface = Erc20__factory.createInterface();
 
     const requiredAmountsByTarget = intent._targets.reduce<IntentData>(
@@ -103,7 +106,7 @@ async function prepareIntent(
     const areTargetFundsAvailable = await Promise.all(
       Object.entries(requiredAmountsByTarget).map(
         async ([target, requiredAmount]) => {
-          const erc20 = Erc20__factory.connect(target, provider);
+          const erc20 = Erc20__factory.connect(target, signer);
 
           const balance = await erc20.balanceOf(fillerAddress);
           return balance.gte(requiredAmount);
@@ -114,6 +117,18 @@ async function prepareIntent(
     if (!areTargetFundsAvailable.every(Boolean)) {
       return { error: "Not enough tokens", success: false };
     }
+
+    logGreen("Approving tokens for:", ecoAdapterAddress);
+    await Promise.all(
+      Object.entries(requiredAmountsByTarget).map(
+        async ([target, requiredAmount]) => {
+          const erc20 = Erc20__factory.connect(target, signer);
+
+          const tx = await erc20.approve(ecoAdapterAddress, requiredAmount);
+          await tx.wait();
+        },
+      ),
+    );
 
     return { data: requiredAmountsByTarget, success: true };
   } catch (error: any) {
@@ -137,10 +152,15 @@ async function fill(
   const filler = multiProvider.getSigner(_chainId);
   const adapter = EcoAdapter__factory.connect(adapterAddress, filler);
 
-  const claimant = multiProvider.getSigner(originChainId);
-  const claimantAddress = await claimant.getAddress();
+  const claimantAddress = await multiProvider.getSignerAddress(originChainId);
 
   const { _targets, _data, _expiryTime, nonce, _hash, _prover } = intent;
+  const value = await adapter.fetchFee(
+    originChainId,
+    [_hash],
+    [claimantAddress],
+    _prover,
+  );
   const tx = await adapter.fulfillHyperInstant(
     originChainId,
     _targets,
@@ -150,6 +170,7 @@ async function fill(
     claimantAddress,
     _hash,
     _prover,
+    { value },
   );
 
   const receipt = await tx.wait();

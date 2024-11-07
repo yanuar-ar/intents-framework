@@ -15,8 +15,8 @@ const main = () => {
   logBlue("Starting solver...");
 
   // TODO: implement a way to choose different listeners and fillers
-  const listener = solvers["onChain"].listener.create();
-  const filler = solvers["onChain"].filler.create();
+  const listener = solvers["eco"].listener.create();
+  const filler = solvers["eco"].filler.create();
 
   listener(filler);
 };
