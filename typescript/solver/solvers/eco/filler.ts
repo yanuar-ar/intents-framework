@@ -1,42 +1,26 @@
+import { Zero } from "@ethersproject/constants";
 import { Wallet } from "@ethersproject/wallet";
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 import { ensure0x, type Result } from "@hyperlane-xyz/utils";
 
-import { Zero } from "@ethersproject/constants";
-
 import { type BigNumber } from "ethers";
-import {
-  ECO_ADAPTER_ADDRESS,
-  MNEMONIC,
-  ORIGIN_SETTLER_ADDRESS,
-  ORIGIN_SETTLER_CHAIN_ID,
-  PRIVATE_KEY,
-} from "../../config.js";
+
+import { MNEMONIC, PRIVATE_KEY } from "../../config.js";
 import { logDebug, logError, logGreen } from "../../logger.js";
-import { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
+import type { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { EcoAdapter__factory } from "../../typechain/factories/eco/contracts/EcoAdapter__factory.js";
-import { withdrawRewards } from "./utils.js";
-
-type IntentData = { [targetAddress: string]: BigNumber };
+import type { EcoMetadata, IntentData } from "./types.js";
+import { getMetadata, withdrawRewards } from "./utils.js";
 
 export const create = () => {
-  const {
-    ECO_ADAPTER_ADDRESS,
-    multiProvider,
-    ORIGIN_SETTLER_ADDRESS,
-    ORIGIN_SETTLER_CHAIN_ID,
-  } = setup();
+  const { adapters, intentSource, multiProvider } = setup();
 
   return async function eco(intent: IntentCreatedEventObject) {
     logGreen("Received Intent:", intent._hash);
 
-    const result = await prepareIntent(
-      intent,
-      ECO_ADAPTER_ADDRESS,
-      multiProvider,
-    );
+    const result = await prepareIntent(intent, adapters, multiProvider);
 
     if (!result.success) {
       logError(
@@ -46,21 +30,11 @@ export const create = () => {
       return;
     }
 
-    await fill(
-      intent,
-      ECO_ADAPTER_ADDRESS,
-      ORIGIN_SETTLER_CHAIN_ID,
-      multiProvider,
-    );
+    await fill(intent, result.data.adapter, intentSource, multiProvider);
 
     logGreen(`Fulfilled intent:`, intent._hash);
 
-    await withdrawRewards(
-      intent,
-      ORIGIN_SETTLER_ADDRESS,
-      ORIGIN_SETTLER_CHAIN_ID,
-      multiProvider,
-    );
+    await withdrawRewards(intent, intentSource, multiProvider);
 
     logGreen(`Withdrew rewards for intent:`, intent._hash);
   };
@@ -71,16 +45,18 @@ function setup() {
     throw new Error("Either a private key or mnemonic must be provided");
   }
 
-  if (!ECO_ADAPTER_ADDRESS) {
-    throw new Error("Eco adapter address must be provided");
+  const metadata = getMetadata();
+
+  if (!metadata.adapters.every(({ address }) => address)) {
+    throw new Error("EcoAdapter address must be provided");
   }
 
-  if (!ORIGIN_SETTLER_CHAIN_ID) {
-    throw new Error("Origin settler chain ID must be provided");
+  if (!metadata.intentSource.chainId) {
+    throw new Error("IntentSource chain ID must be provided");
   }
 
-  if (!ORIGIN_SETTLER_ADDRESS) {
-    throw new Error("Origin settler address must be provided");
+  if (!metadata.intentSource.address) {
+    throw new Error("IntentSource address must be provided");
   }
 
   const multiProvider = new MultiProvider(chainMetadata);
@@ -90,10 +66,8 @@ function setup() {
   multiProvider.setSharedSigner(wallet);
 
   return {
-    ECO_ADAPTER_ADDRESS,
     multiProvider,
-    ORIGIN_SETTLER_ADDRESS,
-    ORIGIN_SETTLER_CHAIN_ID,
+    ...metadata,
   };
 }
 
@@ -101,31 +75,41 @@ function setup() {
 // produce the funds before executing each leg.
 async function prepareIntent(
   intent: IntentCreatedEventObject,
-  ecoAdapterAddress: string,
+  adapters: EcoMetadata["adapters"],
   multiProvider: MultiProvider,
 ): Promise<Result<IntentData>> {
   try {
-    const signer = multiProvider.getSigner(intent._destinationChain.toString());
+    const destinationChainId = intent._destinationChain.toNumber();
+    const adapter = adapters.find(
+      ({ chainId }) => chainId === destinationChainId,
+    );
+
+    if (!adapter) {
+      return {
+        error: "No adapter found for destination chain",
+        success: false,
+      };
+    }
+
+    const signer = multiProvider.getSigner(destinationChainId);
     const erc20Interface = Erc20__factory.createInterface();
 
-    const requiredAmountsByTarget = intent._targets.reduce<IntentData>(
-      (acc, target, index) => {
-        const [, amount] = erc20Interface.decodeFunctionData(
-          "transfer",
-          intent._data[index],
-        ) as [string, BigNumber];
+    const requiredAmountsByTarget = intent._targets.reduce<{
+      [tokenAddress: string]: BigNumber;
+    }>((acc, target, index) => {
+      const [, amount] = erc20Interface.decodeFunctionData(
+        "transfer",
+        intent._data[index],
+      ) as [string, BigNumber];
 
-        acc[target] ||= Zero;
-        acc[target] = acc[target].add(amount);
+      acc[target] ||= Zero;
+      acc[target] = acc[target].add(amount);
 
-        return acc;
-      },
-      {},
-    );
+      return acc;
+    }, {});
 
-    const fillerAddress = await multiProvider.getSignerAddress(
-      intent._destinationChain.toString(),
-    );
+    const fillerAddress =
+      await multiProvider.getSignerAddress(destinationChainId);
 
     const areTargetFundsAvailable = await Promise.all(
       Object.entries(requiredAmountsByTarget).map(
@@ -142,23 +126,22 @@ async function prepareIntent(
       return { error: "Not enough tokens", success: false };
     }
 
-    logGreen("Approving tokens for:", ecoAdapterAddress);
+    logGreen("Approving tokens for:", adapter.address);
     await Promise.all(
       Object.entries(requiredAmountsByTarget).map(
         async ([target, requiredAmount]) => {
           const erc20 = Erc20__factory.connect(target, signer);
 
-          const tx = await erc20.approve(ecoAdapterAddress, requiredAmount);
+          const tx = await erc20.approve(adapter.address, requiredAmount);
           await tx.wait();
         },
       ),
     );
 
-    return { data: requiredAmountsByTarget, success: true };
+    return { data: { adapter }, success: true };
   } catch (error: any) {
     return {
-      error:
-        error.message ?? "Failed find chain IDs with enough tokens to fill.",
+      error: error.message ?? "Failed to prepare Eco Intent.",
       success: false,
     };
   }
@@ -166,27 +149,29 @@ async function prepareIntent(
 
 async function fill(
   intent: IntentCreatedEventObject,
-  adapterAddress: string,
-  originChainId: string,
+  adapter: EcoMetadata["adapters"][number],
+  intentSource: EcoMetadata["intentSource"],
   multiProvider: MultiProvider,
 ): Promise<void> {
   logGreen("About to fulfill intent", intent._hash);
   const _chainId = intent._destinationChain.toString();
 
   const filler = multiProvider.getSigner(_chainId);
-  const adapter = EcoAdapter__factory.connect(adapterAddress, filler);
+  const ecoAdapter = EcoAdapter__factory.connect(adapter.address, filler);
 
-  const claimantAddress = await multiProvider.getSignerAddress(originChainId);
+  const claimantAddress = await multiProvider.getSignerAddress(
+    intentSource.chainId,
+  );
 
   const { _targets, _data, _expiryTime, nonce, _hash, _prover } = intent;
-  const value = await adapter.fetchFee(
-    originChainId,
+  const value = await ecoAdapter.fetchFee(
+    intentSource.chainId,
     [_hash],
     [claimantAddress],
     _prover,
   );
-  const tx = await adapter.fulfillHyperInstant(
-    originChainId,
+  const tx = await ecoAdapter.fulfillHyperInstant(
+    intentSource.chainId,
     _targets,
     _data,
     _expiryTime,

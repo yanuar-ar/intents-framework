@@ -12,6 +12,7 @@ __metadata:
     "@hyperlane-xyz/core": "npm:^5.4.1"
     "@openzeppelin/contracts": "npm:^4.9.6"
     "@uniswap/permit2": "github:Uniswap/permit2"
+    dotenv-run-script: "npm:^0.4.1"
     forge-std: "github:foundry-rs/forge-std#v1.8.1"
     prettier: "npm:^3.0.0"
     solhint: "npm:^3.6.2"
@@ -4251,6 +4252,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"dotenv-expand@npm:^10.0.0":
+  version: 10.0.0
+  resolution: "dotenv-expand@npm:10.0.0"
+  checksum: 10/b41eb278bc96b92cbf3037ca5f3d21e8845bf165dc06b6f9a0a03d278c2bd5a01c0cfbb3528ae3a60301ba1a8a9cace30e748c54b460753bc00d4c014b675597
+  languageName: node
+  linkType: hard
+
 "dotenv-flow@npm:^4.1.0":
   version: 4.1.0
   resolution: "dotenv-flow@npm:4.1.0"
@@ -4260,7 +4268,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dotenv@npm:^16.0.0":
+"dotenv-run-script@npm:^0.4.1":
+  version: 0.4.1
+  resolution: "dotenv-run-script@npm:0.4.1"
+  dependencies:
+    dotenv: "npm:^16.3.1"
+    dotenv-expand: "npm:^10.0.0"
+  bin:
+    dotenv-run-script: bin/dotenv-run-script
+  checksum: 10/dc0ec2b3bfbc5d01c32c937c24e6a6e4e910b6c95119dfd57d206a8c77f389a5f0512d68d4ec6e716e5afd3f1f799cc7d2e4a944b0334df781510f8aed0e5bd0
+  languageName: node
+  linkType: hard
+
+"dotenv@npm:^16.0.0, dotenv@npm:^16.3.1":
   version: 16.4.5
   resolution: "dotenv@npm:16.4.5"
   checksum: 10/55a3134601115194ae0f924e54473459ed0d9fc340ae610b676e248cca45aa7c680d86365318ea964e6da4e2ea80c4514c1adab5adb43d6867fb57ff068f95c8
@@ -7595,6 +7615,7 @@ __metadata:
     tsx: "npm:^4.19.2"
     typechain: "npm:^8.3.2"
     typescript: "npm:^5.6.3"
+    yaml: "npm:^2.6.0"
   languageName: unknown
   linkType: soft
 
@@ -8839,6 +8860,15 @@ __metadata:
   version: 1.10.2
   resolution: "yaml@npm:1.10.2"
   checksum: 10/e088b37b4d4885b70b50c9fa1b7e54bd2e27f5c87205f9deaffd1fb293ab263d9c964feadb9817a7b129a5bf30a06582cb08750f810568ecc14f3cdbabb79cb3
+  languageName: node
+  linkType: hard
+
+"yaml@npm:^2.6.0":
+  version: 2.6.0
+  resolution: "yaml@npm:2.6.0"
+  bin:
+    yaml: bin.mjs
+  checksum: 10/f4369f667c7626c216ea81b5840fe9b530cdae4cff2d84d166ec1239e54bf332dbfac4a71bf60d121f8e85e175364a4e280a520292269b6cf9d074368309adf9
   languageName: node
   linkType: hard
 
