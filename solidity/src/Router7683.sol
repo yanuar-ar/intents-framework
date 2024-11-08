@@ -45,14 +45,14 @@ contract Router7683 is GasRouter, Base7683 {
     // ============ Internal Functions ============
 
     function _handle(uint32 _origin, bytes32, bytes calldata _message) internal virtual override {
-        (bool _settle, bytes32[] memory _orderIds, bytes32[] memory _receivers) = Router7683Message.decode(_message);
+        (bool _settle, bytes32[] memory _orderIds, bytes[] memory _ordersFillerData) = Router7683Message.decode(_message);
 
         for (uint i = 0; i < _orderIds.length; i++) {
             // check if the order is opened to ensure it belongs to this domain, skip otherwise
             if (orderStatus[_orderIds[i]] != OrderStatus.OPENED) continue;
 
             if (_settle) {
-                _settleOrder(_orderIds[i], _receivers[i], _origin);
+                _settleOrder(_orderIds[i], abi.decode(_ordersFillerData[i], (bytes32)), _origin);
             } else {
                 _refundOrder(_orderIds[i], _origin);
 
@@ -60,9 +60,9 @@ contract Router7683 is GasRouter, Base7683 {
         }
     }
 
-    function _handleSettlement(bytes32[] memory _orderIds, bytes32[] memory _receivers) internal virtual override {
+    function _handleSettlement(bytes32[] memory _orderIds, bytes[] memory _ordersFillerData) internal virtual override {
         uint32 originDomain = orders[_orderIds[0]].originDomain;
-        _GasRouter_dispatch(originDomain, msg.value, Router7683Message.encodeSettle(_orderIds, _receivers), address(hook));
+        _GasRouter_dispatch(originDomain, msg.value, Router7683Message.encodeSettle(_orderIds, _ordersFillerData), address(hook));
     }
 
     function _handleRefund(bytes32[] memory _orderIds) internal virtual override {

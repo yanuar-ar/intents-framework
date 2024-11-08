@@ -33,7 +33,7 @@ import { Base7683 } from "../src/Router7683.sol";
 
 event Open(bytes32 indexed orderId, ResolvedCrossChainOrder resolvedOrder);
 event Filled(bytes32 orderId, bytes originData, bytes fillerData);
-event Settle(bytes32[] orderIds, bytes32[] receivers);
+event Settle(bytes32[] orderIds, bytes[] ordersFillerData);
 event Refund(bytes32[] orderIds);
 event Settled(bytes32 orderId, address receiver);
 event Refunded(bytes32 orderId, address receiver);
@@ -144,8 +144,6 @@ contract Router7683BaseTest is Test, DeployPermit2 {
         gasPaymentQuote = igp.quoteGasPayment(destination, GAS_LIMIT);
 
         testIsm = new TestIsm();
-
-        uint32[] memory domains = new uint32[](0);
 
         originRouter = deployProxiedRouter(
             environment.mailboxes(origin),
@@ -322,28 +320,30 @@ contract Router7683Test is Router7683BaseTest {
         vm.recordLogs();
         originRouter.open(order);
 
-        (bytes32 orderId, ResolvedCrossChainOrder memory resolvedOrder) = getOrderIDFromLogs();
+        (bytes32 orderId,) = getOrderIDFromLogs();
 
         vm.stopPrank();
 
+        bytes memory fillerData = abi.encode(TypeCasts.addressToBytes32(vegeta));
+
         vm.startPrank(vegeta);
         outputToken.approve(address(destinationRouter), amount);
-        destinationRouter.fill(orderId, OrderEncoder.encode(orderData), new bytes(0));
+        destinationRouter.fill(orderId, OrderEncoder.encode(orderData), fillerData);
 
         bytes32[] memory orderIds = new bytes32[](1);
         orderIds[0] = orderId;
-        bytes32[] memory receivers = new bytes32[](1);
-        receivers[0] = TypeCasts.addressToBytes32(vegeta);
+        bytes[] memory ordersFillerData = new bytes[](1);
+        ordersFillerData[0] = fillerData;
 
         uint256[] memory balancesBefore = balances(inputToken);
 
         vm.expectEmit(false, false, false, true, address(destinationRouter));
-        emit Settle(orderIds, receivers);
+        emit Settle(orderIds, ordersFillerData);
 
         vm.deal(vegeta, gasPaymentQuote);
         uint256 balanceBefore = address(vegeta).balance;
 
-        destinationRouter.settle{value: gasPaymentQuote}(orderIds, receivers);
+        destinationRouter.settle{value: gasPaymentQuote}(orderIds);
 
         vm.expectEmit(false, false, false, true, address(originRouter));
         emit Settled(orderId, vegeta);
@@ -375,7 +375,7 @@ contract Router7683Test is Router7683BaseTest {
         vm.recordLogs();
         originRouter.open(order);
 
-        (bytes32 orderId, ResolvedCrossChainOrder memory resolvedOrder) = getOrderIDFromLogs();
+        (bytes32 orderId,) = getOrderIDFromLogs();
 
         vm.warp(orderData.fillDeadline + 1);
 
