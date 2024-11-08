@@ -8,7 +8,8 @@
   "dependencies": {
     "@hyperlane-xyz/core": "^5.4.1",
     "@openzeppelin/contracts": "^4.9.6",
-    "@uniswap/permit2": "github:Uniswap/permit2"
+    "@uniswap/permit2": "github:Uniswap/permit2",
+    "dotenv-run-script": "^0.4.1"
   },
   "devDependencies": {
     "forge-std": "github:foundry-rs/forge-std#v1.8.1",
@@ -25,8 +26,14 @@
     "sol:fmt": "forge fmt",
     "prettier:check": "prettier --check \"**/*.{json,md,yml}\" --ignore-path \".prettierignore\"",
     "prettier:write": "prettier --write \"**/*.{json,md,yml}\" --ignore-path \".prettierignore\"",
-    "test": "forge test -vvvv",
+    "test": "forge test -vvv",
     "test:coverage": "forge coverage",
-    "test:coverage:report": "forge coverage --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage"
+    "test:coverage:report": "forge coverage --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage",
+    "deployRouter7683": "forge script script/DeployRouter7683.s.sol:DeployRouter7683 -f $NETWORK --broadcast --verify --slow -vvv",
+    "run:deployRouter7683": "dotenv-run-script deployRouter7683",
+    "deployToken": "forge script script/DeployToken.s.sol:DeployToken -f $NETWORK --broadcast --verify --slow -vvv",
+    "run:deployToken": "dotenv-run-script deployToken",
+    "openOrder": "forge script script/OpenOrder.s.sol:OpenOrder -f $NETWORK --broadcast --verify --slow -vvv",
+    "run:openOrder": "dotenv-run-script openOrder"
   }
 }
