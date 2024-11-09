@@ -1,10 +1,9 @@
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 
-import { logGreen } from "../../logger.js";
 import { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
 import { IntentSource__factory } from "../../typechain/factories/eco/contracts/IntentSource__factory.js";
-import { getMetadata } from "./utils.js";
+import { getMetadata, log } from "./utils.js";
 
 export const create = () => {
   const { settlerContract } = setup();
@@ -42,7 +41,7 @@ export const create = () => {
     );
 
     settlerContract.provider.getNetwork().then((network) => {
-      logGreen(
+      log.green(
         "Started listening for IntentCreated events on",
         Object.values(chainMetadata).find(
           (metadata) => metadata.chainId === network.chainId,

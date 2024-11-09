@@ -1,10 +1,9 @@
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 
-import { logGreen } from "../../logger.js";
 import { OriginSettler__factory } from "../../typechain/factories/onChain/contracts/OriginSettler__factory.js";
 import type { OpenEventArgs } from "./types.js";
-import { getMetadata } from "./utils.js";
+import { getMetadata, log } from "./utils.js";
 
 export const create = () => {
   const { settlerContract } = setup();
@@ -18,7 +17,7 @@ export const create = () => {
     );
 
     settlerContract.provider.getNetwork().then((network) => {
-      logGreen(
+      log.green(
         "Started listening for Open events on",
         Object.values(chainMetadata).find(
           (metadata) => metadata.chainId === network.chainId,

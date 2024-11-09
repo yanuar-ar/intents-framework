@@ -3,11 +3,13 @@ import fs from "node:fs";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import { parse } from "yaml";
 
-import { logDebug, logGreen } from "../../logger.js";
+import { LogFormat, Logger, LogLevel } from "../../logger.js";
 import type { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
 import { HyperProver__factory } from "../../typechain/factories/eco/contracts/HyperProver__factory.js";
 import { IntentSource__factory } from "../../typechain/factories/eco/contracts/IntentSource__factory.js";
 import type { EcoMetadata } from "./types.js";
+
+export const log = new Logger(LogFormat.Pretty, LogLevel.Info, "Eco");
 
 export async function withdrawRewards(
   intent: IntentCreatedEventObject,
@@ -16,7 +18,7 @@ export async function withdrawRewards(
 ) {
   const { _hash, _prover } = intent;
 
-  logGreen("Waiting for `IntentProven` event on origin chain");
+  log.green("Waiting for `IntentProven` event on origin chain");
   const signer = multiProvider.getSigner(intentSource.chainId);
 
   const claimantAddress = await signer.getAddress();
@@ -26,9 +28,9 @@ export async function withdrawRewards(
     prover.once(
       prover.filters.IntentProven(_hash, claimantAddress),
       async () => {
-        logDebug("Intent proven:", _hash);
+        log.debug("Intent proven:", _hash);
 
-        logGreen("About to claim rewards");
+        log.green("About to claim rewards");
         const settler = IntentSource__factory.connect(
           intentSource.address,
           signer,
@@ -41,14 +43,14 @@ export async function withdrawRewards(
           .blockExplorers?.[0].url;
 
         if (baseUrl) {
-          logGreen(
+          log.green(
             `Withdraw Rewards Tx: ${baseUrl}/tx/${receipt.transactionHash}`,
           );
         } else {
-          logGreen("Withdraw Rewards Tx:", receipt.transactionHash);
+          log.green("Withdraw Rewards Tx:", receipt.transactionHash);
         }
 
-        logDebug(
+        log.debug(
           "Reward withdrawn on",
           intentSource.chainId,
           "for intent",
@@ -62,12 +64,12 @@ export async function withdrawRewards(
 }
 
 export function getMetadata(): EcoMetadata {
-  logGreen("Reading metadata from metadata.yaml");
+  log.debug("Reading metadata from metadata.yaml");
   // TODO: make it generic, so it can be used for other solvers
   const data = fs.readFileSync("solvers/eco/metadata.yaml", "utf8");
   const metadata = parse(data) as EcoMetadata;
 
-  logDebug("Metadata read:", JSON.stringify(metadata, null, 2));
+  log.debug("Metadata read:", JSON.stringify(metadata, null, 2));
 
   return metadata;
 }

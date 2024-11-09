@@ -2,23 +2,26 @@
 
 import "./patch-bigint-buffer-warn.js";
 
-import { LogFormat, LogLevel } from "@hyperlane-xyz/utils";
-
-import { configureLogger, logBlue, logBoldBlue } from "./logger.js";
+import { LogFormat, Logger, LogLevel } from "./logger.js";
 import * as solvers from "./solvers/index.js";
 
-configureLogger(LogFormat.Pretty, LogLevel.Debug);
+const log = new Logger(LogFormat.Pretty, LogLevel.Info);
 
-logBoldBlue("🙍 Intent Solver 📝");
+log.boldBlue("🙍 Intent Solver 📝");
 
 const main = () => {
-  logBlue("Starting solver...");
+  log.blue("Starting...", "\n");
 
   // TODO: implement a way to choose different listeners and fillers
-  const listener = solvers["eco"].listener.create();
-  const filler = solvers["eco"].filler.create();
+  const ecoListener = solvers["eco"].listener.create();
+  const ecoFiller = solvers["eco"].filler.create();
 
-  listener(filler);
+  ecoListener(ecoFiller);
+
+  const onChainListener = solvers["onChain"].listener.create();
+  const onChainFiller = solvers["onChain"].filler.create();
+
+  onChainListener(onChainFiller);
 };
 
 main();

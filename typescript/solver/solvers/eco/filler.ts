@@ -7,23 +7,22 @@ import { ensure0x, type Result } from "@hyperlane-xyz/utils";
 import { type BigNumber } from "ethers";
 
 import { MNEMONIC, PRIVATE_KEY } from "../../config.js";
-import { logDebug, logError, logGreen } from "../../logger.js";
 import type { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { EcoAdapter__factory } from "../../typechain/factories/eco/contracts/EcoAdapter__factory.js";
 import type { EcoMetadata, IntentData } from "./types.js";
-import { getMetadata, withdrawRewards } from "./utils.js";
+import { getMetadata, log, withdrawRewards } from "./utils.js";
 
 export const create = () => {
   const { adapters, intentSource, multiProvider } = setup();
 
   return async function eco(intent: IntentCreatedEventObject) {
-    logGreen("Received Intent:", intent._hash);
+    log.green("Received Intent:", intent._hash);
 
     const result = await prepareIntent(intent, adapters, multiProvider);
 
     if (!result.success) {
-      logError(
+      log.error(
         "Failed to gather the information for the intent:",
         result.error,
       );
@@ -32,11 +31,11 @@ export const create = () => {
 
     await fill(intent, result.data.adapter, intentSource, multiProvider);
 
-    logGreen(`Fulfilled intent:`, intent._hash);
+    log.green(`Fulfilled intent:`, intent._hash);
 
     await withdrawRewards(intent, intentSource, multiProvider);
 
-    logGreen(`Withdrew rewards for intent:`, intent._hash);
+    log.green(`Withdrew rewards for intent:`, intent._hash);
   };
 };
 
@@ -126,7 +125,7 @@ async function prepareIntent(
       return { error: "Not enough tokens", success: false };
     }
 
-    logGreen("Approving tokens for:", adapter.address);
+    log.green("Approving tokens for:", adapter.address);
     await Promise.all(
       Object.entries(requiredAmountsByTarget).map(
         async ([target, requiredAmount]) => {
@@ -153,7 +152,7 @@ async function fill(
   intentSource: EcoMetadata["intentSource"],
   multiProvider: MultiProvider,
 ): Promise<void> {
-  logGreen("About to fulfill intent", intent._hash);
+  log.green("About to fulfill intent", intent._hash);
   const _chainId = intent._destinationChain.toString();
 
   const filler = multiProvider.getSigner(_chainId);
@@ -187,10 +186,10 @@ async function fill(
     multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
 
   if (baseUrl) {
-    logGreen(`Fulfill Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
+    log.green(`Fulfill Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
   } else {
-    logGreen("Fulfill Tx:", receipt.transactionHash);
+    log.green("Fulfill Tx:", receipt.transactionHash);
   }
 
-  logDebug("Fulfilled intent on", _chainId, "with data", _data);
+  log.debug("Fulfilled intent on", _chainId, "with data", _data);
 }

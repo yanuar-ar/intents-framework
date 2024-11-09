@@ -8,10 +8,17 @@ import { parse } from "yaml";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 
 import type { Provider } from "@ethersproject/abstract-provider";
-import { addressToBytes32, bytes32ToAddress } from "@hyperlane-xyz/utils";
-import { logDebug, logGreen } from "../../logger.js";
+import {
+  addressToBytes32,
+  bytes32ToAddress,
+  LogFormat,
+  LogLevel,
+} from "@hyperlane-xyz/utils";
+import { Logger } from "../../logger.js";
 import { DestinationSettler__factory } from "../../typechain/factories/onChain/contracts/DestinationSettler__factory.js";
 import type { OnChainMetadata, ResolvedCrossChainOrder } from "./types.js";
+
+export const log = new Logger(LogFormat.Pretty, LogLevel.Info, "ERC7683");
 
 export async function checkChainTokens(
   multiProvider: MultiProvider,
@@ -78,7 +85,7 @@ export async function settleOrder(
   orderId: string,
   multiProvider: MultiProvider,
 ) {
-  logGreen("About to settle", fillInstructions.length, "leg(s) for", orderId);
+  log.green("About to settle", fillInstructions.length, "leg(s) for", orderId);
 
   const destinationSettlers = fillInstructions.reduce<
     Record<string, Array<string>>
@@ -116,7 +123,7 @@ export async function settleOrder(
 
             await receipt.wait();
 
-            logGreen(
+            log.green(
               "Settled order",
               orderId,
               "on chain",
@@ -130,12 +137,12 @@ export async function settleOrder(
 }
 
 export function getMetadata(): OnChainMetadata {
-  logGreen("Reading metadata from metadata.yaml");
+  log.debug("Reading metadata from metadata.yaml");
   // TODO: make it generic, so it can be used for other solvers
   const data = fs.readFileSync("solvers/onChain/metadata.yaml", "utf8");
   const metadata = parse(data) as OnChainMetadata;
 
-  logDebug("Metadata read:", JSON.stringify(metadata, null, 2));
+  log.debug("Metadata read:", JSON.stringify(metadata, null, 2));
 
   return metadata;
 }

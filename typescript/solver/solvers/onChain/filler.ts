@@ -4,7 +4,6 @@ import { MultiProvider } from "@hyperlane-xyz/sdk";
 import { bytes32ToAddress, ensure0x, type Result } from "@hyperlane-xyz/utils";
 
 import { MNEMONIC, PRIVATE_KEY } from "../../config.js";
-import { logDebug, logError, logGreen } from "../../logger.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { DestinationSettler__factory } from "../../typechain/factories/onChain/contracts/DestinationSettler__factory.js";
 import type {
@@ -12,18 +11,18 @@ import type {
   OpenEventArgs,
   ResolvedCrossChainOrder,
 } from "./types.js";
-import { getChainIdsWithEnoughTokens, settleOrder } from "./utils.js";
+import { getChainIdsWithEnoughTokens, log, settleOrder } from "./utils.js";
 
 export const create = () => {
   const { multiProvider } = setup();
 
   return async function onChain({ orderId, resolvedOrder }: OpenEventArgs) {
-    logGreen("Received Order:", orderId);
+    log.green("Received Order:", orderId);
 
     const result = await prepareIntent(resolvedOrder, multiProvider);
 
     if (!result.success) {
-      logError(
+      log.error(
         "Failed to gather the information for the intent:",
         result.error,
       );
@@ -34,7 +33,7 @@ export const create = () => {
 
     await fill(orderId, fillInstructions, maxSpent, multiProvider);
 
-    logGreen(`Filled ${fillInstructions.length} leg(s) for:`, orderId);
+    log.green(`Filled ${fillInstructions.length} leg(s) for:`, orderId);
   };
 };
 
@@ -64,18 +63,18 @@ async function prepareIntent(
       multiProvider,
     );
 
-    logDebug("Chain IDs with enough tokens:", chainIdsWithEnoughTokens);
+    log.debug("Chain IDs with enough tokens:", chainIdsWithEnoughTokens);
 
     const fillInstructions = resolvedOrder.fillInstructions.filter(
       ({ destinationChainId }) =>
         chainIdsWithEnoughTokens.includes(destinationChainId.toString()),
     );
-    logDebug("fillInstructions:", JSON.stringify(fillInstructions));
+    log.debug("fillInstructions:", JSON.stringify(fillInstructions));
 
     const maxSpent = resolvedOrder.maxSpent.filter(({ chainId }) =>
       chainIdsWithEnoughTokens.includes(chainId.toString()),
     );
-    logDebug("maxSpent:", JSON.stringify(maxSpent));
+    log.debug("maxSpent:", JSON.stringify(maxSpent));
 
     return { data: { fillInstructions, maxSpent }, success: true };
   } catch (error: any) {
@@ -93,7 +92,7 @@ async function fill(
   maxSpent: ResolvedCrossChainOrder["maxSpent"],
   multiProvider: MultiProvider,
 ): Promise<void> {
-  logGreen("About to fill", fillInstructions.length, "leg(s) for", orderId);
+  log.green("About to fill", fillInstructions.length, "leg(s) for", orderId);
 
   await Promise.all(
     maxSpent.map(async ({ chainId, token, amount, recipient }) => {
@@ -112,12 +111,12 @@ async function fill(
         multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
 
       if (baseUrl) {
-        logGreen(`Approval Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
+        log.green(`Approval Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
       } else {
-        logGreen("Approval Tx:", receipt.transactionHash);
+        log.green("Approval Tx:", receipt.transactionHash);
       }
 
-      logDebug(
+      log.debug(
         "Approved",
         amount.toString(),
         "of",
@@ -152,12 +151,12 @@ async function fill(
           multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
 
         if (baseUrl) {
-          logGreen(`Fill Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
+          log.green(`Fill Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
         } else {
-          logGreen("Fill Tx:", receipt.transactionHash);
+          log.green("Fill Tx:", receipt.transactionHash);
         }
 
-        logDebug("Filled leg on", _chainId, "with data", originData);
+        log.debug("Filled leg on", _chainId, "with data", originData);
       },
     ),
   );
