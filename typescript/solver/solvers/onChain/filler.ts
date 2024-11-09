@@ -7,13 +7,12 @@ import { MNEMONIC, PRIVATE_KEY } from "../../config.js";
 import { logDebug, logError, logGreen } from "../../logger.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { DestinationSettler__factory } from "../../typechain/factories/onChain/contracts/DestinationSettler__factory.js";
-import type { OpenEventArgs, ResolvedCrossChainOrder } from "../../types.js";
+import type {
+  IntentData,
+  OpenEventArgs,
+  ResolvedCrossChainOrder,
+} from "./types.js";
 import { getChainIdsWithEnoughTokens, settleOrder } from "./utils.js";
-
-type IntentData = {
-  fillInstructions: ResolvedCrossChainOrder["fillInstructions"];
-  maxSpent: ResolvedCrossChainOrder["maxSpent"];
-};
 
 export const create = () => {
   const { multiProvider } = setup();

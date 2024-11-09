@@ -1,13 +1,10 @@
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 
-import {
-  ORIGIN_SETTLER_ADDRESS,
-  ORIGIN_SETTLER_CHAIN_ID,
-} from "../../config.js";
 import { logGreen } from "../../logger.js";
 import { OriginSettler__factory } from "../../typechain/factories/onChain/contracts/OriginSettler__factory.js";
-import type { OpenEventArgs } from "../../types.js";
+import type { OpenEventArgs } from "./types.js";
+import { getMetadata } from "./utils.js";
 
 export const create = () => {
   const { settlerContract } = setup();
@@ -32,15 +29,17 @@ export const create = () => {
 };
 
 function setup() {
-  if (!ORIGIN_SETTLER_ADDRESS || !ORIGIN_SETTLER_CHAIN_ID) {
+  const metadata = getMetadata();
+
+  if (!metadata.originSettler.address || !metadata.originSettler.chainId) {
     throw new Error("Origin settler information must be provided");
   }
 
   const multiProvider = new MultiProvider(chainMetadata);
-  const provider = multiProvider.getProvider(ORIGIN_SETTLER_CHAIN_ID);
+  const provider = multiProvider.getProvider(metadata.originSettler.chainId);
 
   const settlerContract = OriginSettler__factory.connect(
-    ORIGIN_SETTLER_ADDRESS,
+    metadata.originSettler.address,
     provider,
   );
 

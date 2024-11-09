@@ -1,5 +1,5 @@
 import type { BigNumber } from "ethers";
-import type { OpenEventObject } from "./typechain/onChain/contracts/OriginSettler.js";
+import type { OpenEventObject } from "../../typechain/onChain/contracts/OriginSettler.js";
 
 export type ExtractStruct<T, K extends object> = T extends (infer U & K)[]
   ? U[]
@@ -27,3 +27,16 @@ export interface OpenEventArgs {
   orderId: string;
   resolvedOrder: ResolvedCrossChainOrder;
 }
+
+export type IntentData = {
+  fillInstructions: ResolvedCrossChainOrder["fillInstructions"];
+  maxSpent: ResolvedCrossChainOrder["maxSpent"];
+};
+
+export type OnChainMetadata = {
+  originSettler: {
+    address: string;
+    chainId: number;
+    chainName?: string;
+  };
+};

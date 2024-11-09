@@ -1,14 +1,17 @@
+import fs from "fs";
+
 import { AddressZero, Zero } from "@ethersproject/constants";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import type { BigNumber } from "ethers";
+import { parse } from "yaml";
 
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 
 import type { Provider } from "@ethersproject/abstract-provider";
 import { addressToBytes32, bytes32ToAddress } from "@hyperlane-xyz/utils";
-import { logGreen } from "../../logger.js";
+import { logDebug, logGreen } from "../../logger.js";
 import { DestinationSettler__factory } from "../../typechain/factories/onChain/contracts/DestinationSettler__factory.js";
-import { ResolvedCrossChainOrder } from "../../types.js";
+import type { OnChainMetadata, ResolvedCrossChainOrder } from "./types.js";
 
 export async function checkChainTokens(
   multiProvider: MultiProvider,
@@ -124,4 +127,15 @@ export async function settleOrder(
       },
     ),
   );
+}
+
+export function getMetadata(): OnChainMetadata {
+  logGreen("Reading metadata from metadata.yaml");
+  // TODO: make it generic, so it can be used for other solvers
+  const data = fs.readFileSync("solvers/onChain/metadata.yaml", "utf8");
+  const metadata = parse(data) as OnChainMetadata;
+
+  logDebug("Metadata read:", JSON.stringify(metadata, null, 2));
+
+  return metadata;
 }
