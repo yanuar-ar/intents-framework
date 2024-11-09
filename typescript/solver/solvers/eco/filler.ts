@@ -182,14 +182,11 @@ async function fill(
   );
 
   const receipt = await tx.wait();
-  const baseUrl =
-    multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
 
-  if (baseUrl) {
-    log.green(`Fulfill Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
-  } else {
-    log.green("Fulfill Tx:", receipt.transactionHash);
-  }
+  log.green(
+    "Fulfill Tx:",
+    "https://explorer.hyperlane.xyz/?search=" + receipt.transactionHash,
+  );
 
   log.debug("Fulfilled intent on", _chainId, "with data", _data);
 }

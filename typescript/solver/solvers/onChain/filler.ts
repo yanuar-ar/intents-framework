@@ -34,6 +34,10 @@ export const create = () => {
     await fill(orderId, fillInstructions, maxSpent, multiProvider);
 
     log.green(`Filled ${fillInstructions.length} leg(s) for:`, orderId);
+
+    await settleOrder(fillInstructions, orderId, multiProvider);
+
+    log.green("Settled order:", orderId);
   };
 };
 
@@ -160,7 +164,4 @@ async function fill(
       },
     ),
   );
-
-  // This section is only an example for the settlement process
-  await settleOrder(fillInstructions, orderId, multiProvider);
 }

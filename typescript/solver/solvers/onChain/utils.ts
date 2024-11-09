@@ -115,15 +115,21 @@ export async function settleOrder(
               filler,
             );
 
-            const receipt = await destination.settle(
+            const tx = await destination.settle(
               [orderId],
               [addressToBytes32(fillerAddress)],
               { value: await destination.quoteGasPayment(destinationChain) },
             );
 
-            await receipt.wait();
+            const receipt = await tx.wait();
 
             log.green(
+              "Settlement Tx:",
+              "https://explorer.hyperlane.xyz/?search=" +
+                receipt.transactionHash,
+            );
+
+            log.debug(
               "Settled order",
               orderId,
               "on chain",
