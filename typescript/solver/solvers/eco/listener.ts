@@ -1,70 +1,56 @@
-import { chainMetadata } from "@hyperlane-xyz/registry";
-import { MultiProvider } from "@hyperlane-xyz/sdk";
-
-import { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
+import type { TypedListener } from "../../typechain/common.js";
+import type {
+  IntentCreatedEvent,
+  IntentCreatedEventObject,
+  IntentSource,
+} from "../../typechain/eco/contracts/IntentSource.js";
 import { IntentSource__factory } from "../../typechain/factories/eco/contracts/IntentSource__factory.js";
+import { BaseListener } from "../BaseListener.js";
 import { getMetadata, log } from "./utils.js";
 
-export const create = () => {
-  const { settlerContract } = setup();
-
-  return function onChain(
-    handler: (intentCreatedEvent: IntentCreatedEventObject) => void,
-  ) {
-    settlerContract.on(
-      settlerContract.filters.IntentCreated(),
-      (
-        _hash,
-        _creator,
-        _destinationChain,
-        _targets,
-        _data,
-        _rewardTokens,
-        _rewardAmounts,
-        _expiryTime,
-        nonce,
-        _prover,
-      ) => {
-        handler({
-          _hash,
-          _creator,
-          _destinationChain,
-          _targets,
-          _data,
-          _rewardTokens,
-          _rewardAmounts,
-          _expiryTime,
-          nonce,
-          _prover,
-        });
+export class EcoListener extends BaseListener<
+  IntentSource,
+  IntentCreatedEvent,
+  IntentCreatedEventObject
+> {
+  constructor() {
+    const metadata = getMetadata();
+    super(
+      IntentSource__factory,
+      "IntentCreated",
+      {
+        address: metadata.intentSource.address,
+        chainId: metadata.intentSource.chainId,
       },
+      log,
     );
-
-    settlerContract.provider.getNetwork().then((network) => {
-      log.info(
-        "Started listening for Eco-IntentCreated events on",
-        Object.values(chainMetadata).find(
-          (metadata) => metadata.chainId === network.chainId,
-        )?.displayName,
-      );
-    });
-  };
-};
-
-function setup() {
-  const metadata = getMetadata();
-
-  if (!metadata.intentSource.address || !metadata.intentSource.chainId) {
-    throw new Error("Origin settler information must be provided");
   }
 
-  const multiProvider = new MultiProvider(chainMetadata);
-  const provider = multiProvider.getProvider(metadata.intentSource.chainId);
-
-  const settlerContract = IntentSource__factory.connect(
-    metadata.intentSource.address,
-    provider,
-  );
-
-  return { settlerContract };
+  protected parseEventArgs([
+    _hash,
+    _creator,
+    _destinationChain,
+    _targets,
+    _data,
+    _rewardTokens,
+    _rewardAmounts,
+    _expiryTime,
+    nonce,
+    _prover,
+  ]: Parameters<TypedListener<IntentCreatedEvent>>) {
+    return {
+      _hash,
+      _creator,
+      _destinationChain,
+      _targets,
+      _data,
+      _rewardTokens,
+      _rewardAmounts,
+      _expiryTime,
+      nonce,
+      _prover,
+    };
+  }
 }
+
+export const create = () => new EcoListener().create();

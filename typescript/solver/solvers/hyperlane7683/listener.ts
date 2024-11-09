@@ -1,46 +1,38 @@
-import { chainMetadata } from "@hyperlane-xyz/registry";
-import { MultiProvider } from "@hyperlane-xyz/sdk";
-
+import { TypedListener } from "../../typechain/common.js";
 import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
-import type { OpenEventArgs } from "./types.js";
+import type {
+  Hyperlane7683,
+  OpenEvent,
+} from "../../typechain/hyperlane7683/contracts/Hyperlane7683.js";
+import { BaseListener } from "../BaseListener.js";
+import { OpenEventArgs } from "./types.js";
+
 import { getMetadata, log } from "./utils.js";
 
-export const create = () => {
-  const { settlerContract } = setup();
-
-  return function onChain(handler: (openEventArgs: OpenEventArgs) => void) {
-    settlerContract.on(
-      settlerContract.filters.Open(),
-      (orderId, resolvedOrder) => {
-        handler({ orderId, resolvedOrder });
+export class OnChainListener extends BaseListener<
+  Hyperlane7683,
+  OpenEvent,
+  OpenEventArgs
+> {
+  constructor() {
+    const metadata = getMetadata();
+    super(
+      Hyperlane7683__factory,
+      "Open",
+      {
+        address: metadata.originSettler.address,
+        chainId: metadata.originSettler.chainId,
       },
+      log,
     );
-
-    settlerContract.provider.getNetwork().then((network) => {
-      log.info(
-        "Started listening for Hyperlane7683-Open events on",
-        Object.values(chainMetadata).find(
-          (metadata) => metadata.chainId === network.chainId,
-        )?.displayName,
-      );
-    });
-  };
-};
-
-function setup() {
-  const metadata = getMetadata();
-
-  if (!metadata.originSettler.address || !metadata.originSettler.chainId) {
-    throw new Error("Origin settler information must be provided");
   }
 
-  const multiProvider = new MultiProvider(chainMetadata);
-  const provider = multiProvider.getProvider(metadata.originSettler.chainId);
-
-  const settlerContract = Hyperlane7683__factory.connect(
-    metadata.originSettler.address,
-    provider,
-  );
-
-  return { settlerContract };
+  protected override parseEventArgs(
+    args: Parameters<TypedListener<OpenEvent>>,
+  ) {
+    const [orderId, resolvedOrder] = args;
+    return { orderId, resolvedOrder };
+  }
 }
+
+export const create = () => new OnChainListener().create();
