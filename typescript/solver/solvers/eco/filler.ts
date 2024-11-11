@@ -11,31 +11,39 @@ import type { IntentCreatedEventObject } from "../../typechain/eco/contracts/Int
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { EcoAdapter__factory } from "../../typechain/factories/eco/contracts/EcoAdapter__factory.js";
 import type { EcoMetadata, IntentData } from "./types.js";
-import { getMetadata, log, withdrawRewards } from "./utils.js";
+import {
+  getMetadata,
+  log,
+  retrieveOriginInfo,
+  retrieveTargetInfo,
+  withdrawRewards,
+} from "./utils.js";
 
 export const create = () => {
   const { adapters, intentSource, multiProvider } = setup();
 
   return async function eco(intent: IntentCreatedEventObject) {
-    log.info("Received Intent:", intent._hash);
+    const origin = await retrieveOriginInfo(
+      intent,
+      intentSource,
+      multiProvider,
+    );
+    const target = await retrieveTargetInfo(intent, adapters, multiProvider);
+
+    log.info(
+      `Intent Indexed: Eco-${intent._hash}, ${origin.join(", ")}, ${target.join(", ")}`,
+    );
 
     const result = await prepareIntent(intent, adapters, multiProvider);
 
     if (!result.success) {
-      log.error(
-        "Failed to gather the information for the intent:",
-        result.error,
-      );
+      log.error("Failed evaluating filling Intent:", result.error);
       return;
     }
 
     await fill(intent, result.data.adapter, intentSource, multiProvider);
 
-    log.info(`Fulfilled intent:`, intent._hash);
-
     await withdrawRewards(intent, intentSource, multiProvider);
-
-    log.info(`Withdrew rewards for intent:`, intent._hash);
   };
 };
 
@@ -77,6 +85,8 @@ async function prepareIntent(
   adapters: EcoMetadata["adapters"],
   multiProvider: MultiProvider,
 ): Promise<Result<IntentData>> {
+  log.info(`Evaluating filling Intent: Eco-${intent._hash}`);
+
   try {
     const destinationChainId = intent._destinationChain.toNumber();
     const adapter = adapters.find(
@@ -125,7 +135,7 @@ async function prepareIntent(
       return { error: "Not enough tokens", success: false };
     }
 
-    log.info("Approving tokens for:", adapter.address);
+    log.debug(`Approving tokens: Eco-${intent._hash}, for ${adapter.address}`);
     await Promise.all(
       Object.entries(requiredAmountsByTarget).map(
         async ([target, requiredAmount]) => {
@@ -152,7 +162,8 @@ async function fill(
   intentSource: EcoMetadata["intentSource"],
   multiProvider: MultiProvider,
 ): Promise<void> {
-  log.info("About to fulfill intent", intent._hash);
+  log.info(`Filling Intent: Eco-${intent._hash}`);
+
   const _chainId = intent._destinationChain.toString();
 
   const filler = multiProvider.getSigner(_chainId);
@@ -184,8 +195,7 @@ async function fill(
   const receipt = await tx.wait();
 
   log.info(
-    "Fulfill Tx:",
-    "https://explorer.hyperlane.xyz/?search=" + receipt.transactionHash,
+    `Filled Intent: Eco-${intent._hash}, info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
   );
 
   log.debug("Fulfilled intent on", _chainId, "with data", _data);

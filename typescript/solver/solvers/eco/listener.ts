@@ -42,7 +42,7 @@ export const create = () => {
 
     settlerContract.provider.getNetwork().then((network) => {
       log.info(
-        "Started listening for IntentCreated events on",
+        "Started listening for Eco-IntentCreated events on",
         Object.values(chainMetadata).find(
           (metadata) => metadata.chainId === network.chainId,
         )?.displayName,
