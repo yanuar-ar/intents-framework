@@ -1,7 +1,7 @@
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 
-import { OriginSettler__factory } from "../../typechain/factories/onChain/contracts/OriginSettler__factory.js";
+import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
 import type { OpenEventArgs } from "./types.js";
 import { getMetadata, log } from "./utils.js";
 
@@ -18,7 +18,7 @@ export const create = () => {
 
     settlerContract.provider.getNetwork().then((network) => {
       log.info(
-        "Started listening for Open events on",
+        "Started listening for Hyperlane7683-Open events on",
         Object.values(chainMetadata).find(
           (metadata) => metadata.chainId === network.chainId,
         )?.displayName,
@@ -37,7 +37,7 @@ function setup() {
   const multiProvider = new MultiProvider(chainMetadata);
   const provider = multiProvider.getProvider(metadata.originSettler.chainId);
 
-  const settlerContract = OriginSettler__factory.connect(
+  const settlerContract = Hyperlane7683__factory.connect(
     metadata.originSettler.address,
     provider,
   );

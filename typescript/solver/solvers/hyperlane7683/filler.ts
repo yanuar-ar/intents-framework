@@ -1,11 +1,16 @@
 import { Wallet } from "@ethersproject/wallet";
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
-import { bytes32ToAddress, ensure0x, type Result } from "@hyperlane-xyz/utils";
+import {
+  addressToBytes32,
+  bytes32ToAddress,
+  ensure0x,
+  type Result,
+} from "@hyperlane-xyz/utils";
 
 import { MNEMONIC, PRIVATE_KEY } from "../../config.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
-import { DestinationSettler__factory } from "../../typechain/factories/onChain/contracts/DestinationSettler__factory.js";
+import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
 import type {
   IntentData,
   OpenEventArgs,
@@ -160,7 +165,8 @@ async function fill(
         const _chainId = destinationChainId.toString();
 
         const filler = multiProvider.getSigner(_chainId);
-        const destination = DestinationSettler__factory.connect(
+        const fillerAddress = await filler.getAddress();
+        const destination = Hyperlane7683__factory.connect(
           destinationSettler,
           filler,
         );
@@ -168,7 +174,11 @@ async function fill(
         // Depending on the implementation we may call `destination.fill` directly or call some other
         // contract that will produce the funds needed to execute this leg and then in turn call
         // `destination.fill`
-        const tx = await destination.fill(orderId, originData, "0x");
+        const tx = await destination.fill(
+          orderId,
+          originData,
+          addressToBytes32(fillerAddress),
+        );
 
         const receipt = await tx.wait();
         const baseUrl =

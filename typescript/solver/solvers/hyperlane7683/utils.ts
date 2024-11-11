@@ -9,14 +9,9 @@ import { parse } from "yaml";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 
 import type { Provider } from "@ethersproject/abstract-provider";
-import {
-  addressToBytes32,
-  bytes32ToAddress,
-  LogFormat,
-  LogLevel,
-} from "@hyperlane-xyz/utils";
+import { bytes32ToAddress, LogFormat, LogLevel } from "@hyperlane-xyz/utils";
 import { Logger } from "../../logger.js";
-import { DestinationSettler__factory } from "../../typechain/factories/onChain/contracts/DestinationSettler__factory.js";
+import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
 import type {
   Hyperlane7683Metadata,
   ResolvedCrossChainOrder,
@@ -25,7 +20,7 @@ import type {
 export const log = new Logger(
   LogFormat.Pretty,
   LogLevel.Info,
-  "Hyperlane7683Solver",
+  "Hyperlane7683-Solver",
 );
 
 export async function checkChainTokens(
@@ -114,20 +109,17 @@ export async function settleOrder(
       async ([destinationChain, settlers]) => {
         const uniqueSettlers = [...new Set(settlers)];
         const filler = multiProvider.getSigner(destinationChain);
-        const fillerAddress = await filler.getAddress();
 
         return Promise.all(
           uniqueSettlers.map(async (destinationSettler) => {
-            const destination = DestinationSettler__factory.connect(
+            const destination = Hyperlane7683__factory.connect(
               destinationSettler,
               filler,
             );
 
-            const tx = await destination.settle(
-              [orderId],
-              [addressToBytes32(fillerAddress)],
-              { value: await destination.quoteGasPayment(destinationChain) },
-            );
+            const tx = await destination.settle([orderId], {
+              value: await destination.quoteGasPayment(destinationChain),
+            });
 
             const receipt = await tx.wait();
 
