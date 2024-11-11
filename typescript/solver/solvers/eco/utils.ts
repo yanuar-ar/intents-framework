@@ -12,7 +12,11 @@ import { HyperProver__factory } from "../../typechain/factories/eco/contracts/Hy
 import { IntentSource__factory } from "../../typechain/factories/eco/contracts/IntentSource__factory.js";
 import type { EcoMetadata } from "./types.js";
 
-export const log = new Logger(LogFormat.Pretty, LogLevel.Info, "EcoIntentSolver");
+export const log = new Logger(
+  LogFormat.Pretty,
+  LogLevel.Info,
+  "EcoIntentSolver",
+);
 
 export async function withdrawRewards(
   intent: IntentCreatedEventObject,
