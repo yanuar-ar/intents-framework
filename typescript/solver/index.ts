@@ -18,10 +18,10 @@ const main = () => {
 
   ecoListener(ecoFiller);
 
-  const onChainListener = solvers["onChain"].listener.create();
-  const onChainFiller = solvers["onChain"].filler.create();
+  const hyperlane7683Listener = solvers["hyperlane7683"].listener.create();
+  const hyperlane7683Filler = solvers["hyperlane7683"].filler.create();
 
-  onChainListener(onChainFiller);
+  hyperlane7683Listener(hyperlane7683Filler);
 };
 
 main();

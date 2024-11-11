@@ -16,8 +16,8 @@ import { getChainIdsWithEnoughTokens, log, settleOrder } from "./utils.js";
 export const create = () => {
   const { multiProvider } = setup();
 
-  return async function onChain({ orderId, resolvedOrder }: OpenEventArgs) {
     log.info("Received Order:", orderId);
+  return async function hyperlane7683({ orderId, resolvedOrder }: OpenEventArgs) {
 
     const result = await prepareIntent(resolvedOrder, multiProvider);
 

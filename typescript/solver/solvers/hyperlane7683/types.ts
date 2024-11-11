@@ -33,7 +33,7 @@ export type IntentData = {
   maxSpent: ResolvedCrossChainOrder["maxSpent"];
 };
 
-export type OnChainMetadata = {
+export type Hyperlane7683Metadata = {
   originSettler: {
     address: string;
     chainId: number;

@@ -16,9 +16,16 @@ import {
 } from "@hyperlane-xyz/utils";
 import { Logger } from "../../logger.js";
 import { DestinationSettler__factory } from "../../typechain/factories/onChain/contracts/DestinationSettler__factory.js";
-import type { OnChainMetadata, ResolvedCrossChainOrder } from "./types.js";
+import type {
+  Hyperlane7683Metadata,
+  ResolvedCrossChainOrder,
+} from "./types.js";
 
-export const log = new Logger(LogFormat.Pretty, LogLevel.Info, "ERC7683");
+export const log = new Logger(
+  LogFormat.Pretty,
+  LogLevel.Info,
+  "Hyperlane7683Solver",
+);
 
 export async function checkChainTokens(
   multiProvider: MultiProvider,
@@ -142,11 +149,11 @@ export async function settleOrder(
   );
 }
 
-export function getMetadata(): OnChainMetadata {
+export function getMetadata(): Hyperlane7683Metadata {
   log.debug("Reading metadata from metadata.yaml");
   // TODO: make it generic, so it can be used for other solvers
-  const data = fs.readFileSync("solvers/onChain/metadata.yaml", "utf8");
-  const metadata = parse(data) as OnChainMetadata;
+  const data = fs.readFileSync("solvers/hyperlane7683/metadata.yaml", "utf8");
+  const metadata = parse(data) as Hyperlane7683Metadata;
 
   log.debug("Metadata read:", JSON.stringify(metadata, null, 2));
 
