@@ -17,7 +17,7 @@ export const create = () => {
   const { multiProvider } = setup();
 
   return async function onChain({ orderId, resolvedOrder }: OpenEventArgs) {
-    log.green("Received Order:", orderId);
+    log.info("Received Order:", orderId);
 
     const result = await prepareIntent(resolvedOrder, multiProvider);
 
@@ -33,11 +33,11 @@ export const create = () => {
 
     await fill(orderId, fillInstructions, maxSpent, multiProvider);
 
-    log.green(`Filled ${fillInstructions.length} leg(s) for:`, orderId);
+    log.info(`Filled ${fillInstructions.length} leg(s) for:`, orderId);
 
     await settleOrder(fillInstructions, orderId, multiProvider);
 
-    log.green("Settled order:", orderId);
+    log.info("Settled order:", orderId);
   };
 };
 
@@ -96,7 +96,7 @@ async function fill(
   maxSpent: ResolvedCrossChainOrder["maxSpent"],
   multiProvider: MultiProvider,
 ): Promise<void> {
-  log.green("About to fill", fillInstructions.length, "leg(s) for", orderId);
+  log.info("About to fill", fillInstructions.length, "leg(s) for", orderId);
 
   await Promise.all(
     maxSpent.map(async ({ chainId, token, amount, recipient }) => {
@@ -115,9 +115,9 @@ async function fill(
         multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
 
       if (baseUrl) {
-        log.green(`Approval Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
+        log.info(`Approval Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
       } else {
-        log.green("Approval Tx:", receipt.transactionHash);
+        log.info("Approval Tx:", receipt.transactionHash);
       }
 
       log.debug(
@@ -155,9 +155,9 @@ async function fill(
           multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
 
         if (baseUrl) {
-          log.green(`Fill Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
+          log.info(`Fill Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
         } else {
-          log.green("Fill Tx:", receipt.transactionHash);
+          log.info("Fill Tx:", receipt.transactionHash);
         }
 
         log.debug("Filled leg on", _chainId, "with data", originData);

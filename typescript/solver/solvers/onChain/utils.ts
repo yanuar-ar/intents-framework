@@ -85,7 +85,7 @@ export async function settleOrder(
   orderId: string,
   multiProvider: MultiProvider,
 ) {
-  log.green("About to settle", fillInstructions.length, "leg(s) for", orderId);
+  log.info("About to settle", fillInstructions.length, "leg(s) for", orderId);
 
   const destinationSettlers = fillInstructions.reduce<
     Record<string, Array<string>>
@@ -123,7 +123,7 @@ export async function settleOrder(
 
             const receipt = await tx.wait();
 
-            log.green(
+            log.info(
               "Settlement Tx:",
               "https://explorer.hyperlane.xyz/?search=" +
                 receipt.transactionHash,

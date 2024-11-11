@@ -18,7 +18,7 @@ export async function withdrawRewards(
 ) {
   const { _hash, _prover } = intent;
 
-  log.green("Waiting for `IntentProven` event on origin chain");
+  log.info("Waiting for `IntentProven` event on origin chain");
   const signer = multiProvider.getSigner(intentSource.chainId);
 
   const claimantAddress = await signer.getAddress();
@@ -30,7 +30,7 @@ export async function withdrawRewards(
       async () => {
         log.debug("Intent proven:", _hash);
 
-        log.green("About to claim rewards");
+        log.info("About to claim rewards");
         const settler = IntentSource__factory.connect(
           intentSource.address,
           signer,
@@ -43,11 +43,11 @@ export async function withdrawRewards(
           .blockExplorers?.[0].url;
 
         if (baseUrl) {
-          log.green(
+          log.info(
             `Withdraw Rewards Tx: ${baseUrl}/tx/${receipt.transactionHash}`,
           );
         } else {
-          log.green("Withdraw Rewards Tx:", receipt.transactionHash);
+          log.info("Withdraw Rewards Tx:", receipt.transactionHash);
         }
 
         log.debug(

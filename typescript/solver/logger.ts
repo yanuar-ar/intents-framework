@@ -1,4 +1,4 @@
-import chalk, { ChalkInstance } from "chalk";
+import chalk, { type ChalkInstance } from "chalk";
 import { type Logger as PinoLogger, pino } from "pino";
 
 import {
@@ -9,13 +9,16 @@ import {
   rootLogger,
   safelyAccessEnvVar,
 } from "@hyperlane-xyz/utils";
+import uniqolor from "uniqolor";
 
 class Logger {
-  label;
+  infoChalkInstance: ChalkInstance;
   logger: PinoLogger = rootLogger;
 
   constructor(logFormat: LogFormat, logLevel: LogLevel, label?: string) {
-    this.label = label ? `[${label}]` : undefined;
+    this.infoChalkInstance = label
+      ? chalk.hex(uniqolor(label).color)
+      : chalk.green;
     this.logger = this.configureLogger(logFormat, logLevel);
   }
 
@@ -30,20 +33,20 @@ class Logger {
   logColor(level: pino.Level, chalkInstance: ChalkInstance, ...args: any) {
     // Only use color when pretty is enabled
     if (getLogFormat() === LogFormat.Pretty) {
-      this.logger[level](chalkInstance(this.label, ...args));
+      this.logger[level](chalkInstance(...args));
     } else {
       // @ts-ignore pino type more restrictive than pino's actual arg handling
-      this.logger[level](this.label, ...args);
+      this.logger[level](...args);
     }
   }
 
-  blue(...args: any) {
+  subtitle(...args: any) {
     this.logColor("info", chalk.blue, ...args);
   }
-  green(...args: any) {
-    this.logColor("info", chalk.green, ...args);
+  info(...args: any) {
+    this.logColor("info", this.infoChalkInstance, ...args);
   }
-  boldBlue(...args: any) {
+  title(...args: any) {
     this.logColor("info", chalk.blue.bold, ...args);
   }
   warn(...args: any) {
@@ -53,7 +56,7 @@ class Logger {
     this.logColor("error", chalk.red, ...args);
   }
   debug(msg: string, ...args: any) {
-    this.logger.debug(this.label, msg, ...args);
+    this.logger.debug(msg, ...args);
   }
 }
 

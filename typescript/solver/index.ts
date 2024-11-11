@@ -7,10 +7,10 @@ import * as solvers from "./solvers/index.js";
 
 const log = new Logger(LogFormat.Pretty, LogLevel.Info);
 
-log.boldBlue("🙍 Intent Solver 📝");
+log.title("🙍 Intent Solver 📝");
 
 const main = () => {
-  log.blue("Starting...", "\n");
+  log.subtitle("Starting...", "\n");
 
   // TODO: implement a way to choose different listeners and fillers
   const ecoListener = solvers["eco"].listener.create();

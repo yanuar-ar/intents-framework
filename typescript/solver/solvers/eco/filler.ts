@@ -17,7 +17,7 @@ export const create = () => {
   const { adapters, intentSource, multiProvider } = setup();
 
   return async function eco(intent: IntentCreatedEventObject) {
-    log.green("Received Intent:", intent._hash);
+    log.info("Received Intent:", intent._hash);
 
     const result = await prepareIntent(intent, adapters, multiProvider);
 
@@ -31,11 +31,11 @@ export const create = () => {
 
     await fill(intent, result.data.adapter, intentSource, multiProvider);
 
-    log.green(`Fulfilled intent:`, intent._hash);
+    log.info(`Fulfilled intent:`, intent._hash);
 
     await withdrawRewards(intent, intentSource, multiProvider);
 
-    log.green(`Withdrew rewards for intent:`, intent._hash);
+    log.info(`Withdrew rewards for intent:`, intent._hash);
   };
 };
 
@@ -125,7 +125,7 @@ async function prepareIntent(
       return { error: "Not enough tokens", success: false };
     }
 
-    log.green("Approving tokens for:", adapter.address);
+    log.info("Approving tokens for:", adapter.address);
     await Promise.all(
       Object.entries(requiredAmountsByTarget).map(
         async ([target, requiredAmount]) => {
@@ -152,7 +152,7 @@ async function fill(
   intentSource: EcoMetadata["intentSource"],
   multiProvider: MultiProvider,
 ): Promise<void> {
-  log.green("About to fulfill intent", intent._hash);
+  log.info("About to fulfill intent", intent._hash);
   const _chainId = intent._destinationChain.toString();
 
   const filler = multiProvider.getSigner(_chainId);
@@ -183,7 +183,7 @@ async function fill(
 
   const receipt = await tx.wait();
 
-  log.green(
+  log.info(
     "Fulfill Tx:",
     "https://explorer.hyperlane.xyz/?search=" + receipt.transactionHash,
   );

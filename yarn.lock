@@ -7615,6 +7615,7 @@ __metadata:
     tsx: "npm:^4.19.2"
     typechain: "npm:^8.3.2"
     typescript: "npm:^5.6.3"
+    uniqolor: "npm:^1.1.1"
     yaml: "npm:^2.6.0"
   languageName: unknown
   linkType: soft
@@ -8139,6 +8140,13 @@ __metadata:
   version: 6.19.8
   resolution: "undici-types@npm:6.19.8"
   checksum: 10/cf0b48ed4fc99baf56584afa91aaffa5010c268b8842f62e02f752df209e3dea138b372a60a963b3b2576ed932f32329ce7ddb9cb5f27a6c83040d8cd74b7a70
+  languageName: node
+  linkType: hard
+
+"uniqolor@npm:^1.1.1":
+  version: 1.1.1
+  resolution: "uniqolor@npm:1.1.1"
+  checksum: 10/570d530ce8574623be008ef8cab778cd7268c780b24cad778c6cdb11ba97c9f2840f7efd0a3de4c024a73ce6899b7a6f6bbff2a7466cf1ed55d5f3e73288da75
   languageName: node
   linkType: hard
 

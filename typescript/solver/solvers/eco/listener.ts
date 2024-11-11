@@ -41,7 +41,7 @@ export const create = () => {
     );
 
     settlerContract.provider.getNetwork().then((network) => {
-      log.green(
+      log.info(
         "Started listening for IntentCreated events on",
         Object.values(chainMetadata).find(
           (metadata) => metadata.chainId === network.chainId,

@@ -17,7 +17,7 @@ export const create = () => {
     );
 
     settlerContract.provider.getNetwork().then((network) => {
-      log.green(
+      log.info(
         "Started listening for Open events on",
         Object.values(chainMetadata).find(
           (metadata) => metadata.chainId === network.chainId,
