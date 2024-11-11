@@ -11,12 +11,18 @@ import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin
 
 import { Hyperlane7683 } from "../src/Hyperlane7683.sol";
 
+contract OwnableProxyAdmin is ProxyAdmin {
+    constructor(address _owner) {
+        _transferOwnership(_owner);
+    }
+}
+
 /// @dev See the Solidity Scripting tutorial: https://book.getfoundry.sh/tutorials/solidity-scripting
 contract DeployHyperlane7683 is Script {
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PK");
 
-        string memory ROUTER_SALT = vm.envString("Hyperlane7683_SALT");
+        string memory ROUTER_SALT = vm.envString("HYPERLANE7683_SALT");
         address mailbox = vm.envAddress("MAILBOX");
         address permit2 = vm.envAddress("PERMIT2");
         address proxyAdminOwner = vm.envOr("PROXY_ADMIN_OWNER", address(0));
@@ -28,11 +34,7 @@ contract DeployHyperlane7683 is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        ProxyAdmin proxyAdmin = new ProxyAdmin();
-
-        if (proxyAdminOwner != address(0) && proxyAdminOwner != owner) {
-            proxyAdmin.transferOwnership(proxyAdminOwner);
-        }
+        ProxyAdmin proxyAdmin = new OwnableProxyAdmin{salt: keccak256(abi.encode(ROUTER_SALT))}(proxyAdminOwner);
 
         address routerImpl = address(new Hyperlane7683{salt: keccak256(abi.encode(ROUTER_SALT))}(mailbox, permit2));
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy{salt: keccak256(abi.encode(ROUTER_SALT))}(
