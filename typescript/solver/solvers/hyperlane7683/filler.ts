@@ -11,15 +11,34 @@ import type {
   OpenEventArgs,
   ResolvedCrossChainOrder,
 } from "./types.js";
-import { getChainIdsWithEnoughTokens, log, settleOrder } from "./utils.js";
+import {
+  getChainIdsWithEnoughTokens,
+  getMetadata,
+  log,
+  retrieveOriginInfo,
+  retrieveTargetInfo,
+  settleOrder,
+} from "./utils.js";
 
 export const create = () => {
-  const { multiProvider } = setup();
+  const { multiProvider, originSettler } = setup();
 
-    log.info("Received Order:", orderId);
-  return async function hyperlane7683({ orderId, resolvedOrder }: OpenEventArgs) {
+  return async function hyperlane7683({
+    orderId,
+    resolvedOrder,
+  }: OpenEventArgs) {
+    const origin = await retrieveOriginInfo(
+      resolvedOrder,
+      originSettler,
+      multiProvider,
+    );
+    const target = await retrieveTargetInfo(resolvedOrder, multiProvider);
 
-    const result = await prepareIntent(resolvedOrder, multiProvider);
+    log.info(
+      `Intent Indexed: Hyperlane7683-${orderId}, ${origin.join(", ")}, ${target.join(", ")}`,
+    );
+
+    const result = await prepareIntent(orderId, resolvedOrder, multiProvider);
 
     if (!result.success) {
       log.error(
@@ -33,11 +52,7 @@ export const create = () => {
 
     await fill(orderId, fillInstructions, maxSpent, multiProvider);
 
-    log.info(`Filled ${fillInstructions.length} leg(s) for:`, orderId);
-
     await settleOrder(fillInstructions, orderId, multiProvider);
-
-    log.info("Settled order:", orderId);
   };
 };
 
@@ -46,21 +61,26 @@ function setup() {
     throw new Error("Either a private key or mnemonic must be provided");
   }
 
+  const metadata = getMetadata();
+
   const multiProvider = new MultiProvider(chainMetadata);
   const wallet = PRIVATE_KEY
     ? new Wallet(ensure0x(PRIVATE_KEY))
     : Wallet.fromMnemonic(MNEMONIC!);
   multiProvider.setSharedSigner(wallet);
 
-  return { multiProvider };
+  return { multiProvider, ...metadata };
 }
 
 // We're assuming the filler will pay out of their own stock, but in reality they may have to
 // produce the funds before executing each leg.
 async function prepareIntent(
+  orderId: string,
   resolvedOrder: ResolvedCrossChainOrder,
   multiProvider: MultiProvider,
 ): Promise<Result<IntentData>> {
+  log.info(`Evaluating filling Intent: Hyperlane7683-${orderId}`);
+
   try {
     const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(
       resolvedOrder,
@@ -96,7 +116,7 @@ async function fill(
   maxSpent: ResolvedCrossChainOrder["maxSpent"],
   multiProvider: MultiProvider,
 ): Promise<void> {
-  log.info("About to fill", fillInstructions.length, "leg(s) for", orderId);
+  log.info(`Filling Intent: Hyperlane7683-${orderId}`);
 
   await Promise.all(
     maxSpent.map(async ({ chainId, token, amount, recipient }) => {
@@ -115,9 +135,9 @@ async function fill(
         multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
 
       if (baseUrl) {
-        log.info(`Approval Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
+        log.debug(`Approval Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
       } else {
-        log.info("Approval Tx:", receipt.transactionHash);
+        log.debug("Approval Tx:", receipt.transactionHash);
       }
 
       log.debug(
@@ -154,11 +174,11 @@ async function fill(
         const baseUrl =
           multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
 
-        if (baseUrl) {
-          log.info(`Fill Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
-        } else {
-          log.info("Fill Tx:", receipt.transactionHash);
-        }
+        const txInfo = baseUrl
+          ? `${baseUrl}/tx/${receipt.transactionHash}`
+          : receipt.transactionHash;
+
+        log.info(`Filled Intent: Hyperlane7683-${orderId}, info: ${txInfo}`);
 
         log.debug("Filled leg on", _chainId, "with data", originData);
       },

@@ -1,6 +1,7 @@
 import fs from "fs";
 
 import { AddressZero, Zero } from "@ethersproject/constants";
+import { formatUnits } from "@ethersproject/units";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import type { BigNumber } from "ethers";
 import { parse } from "yaml";
@@ -92,7 +93,7 @@ export async function settleOrder(
   orderId: string,
   multiProvider: MultiProvider,
 ) {
-  log.info("About to settle", fillInstructions.length, "leg(s) for", orderId);
+  log.info(`Settling Intent: Hyperlane7683-${orderId}`);
 
   const destinationSettlers = fillInstructions.reduce<
     Record<string, Array<string>>
@@ -131,9 +132,7 @@ export async function settleOrder(
             const receipt = await tx.wait();
 
             log.info(
-              "Settlement Tx:",
-              "https://explorer.hyperlane.xyz/?search=" +
-                receipt.transactionHash,
+              `Settled Intent: Hyperlane7683-${orderId}, info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
             );
 
             log.debug(
@@ -146,6 +145,59 @@ export async function settleOrder(
         );
       },
     ),
+  );
+}
+
+export async function retrieveOriginInfo(
+  resolvedOrder: ResolvedCrossChainOrder,
+  originSettler: Hyperlane7683Metadata["originSettler"],
+  multiProvider: MultiProvider,
+): Promise<Array<string>> {
+  const originInfo = await Promise.all(
+    resolvedOrder.minReceived.map(async ({ amount, chainId, token }) => {
+      const erc20 = Erc20__factory.connect(
+        bytes32ToAddress(token),
+        multiProvider.getProvider(chainId.toString()),
+      );
+      const [decimals, symbol] = await Promise.all([
+        erc20.decimals(),
+        erc20.symbol(),
+      ]);
+
+      return { amount, decimals, symbol };
+    }),
+  );
+
+  const originChain = originSettler.chainName ?? "UNKNOWN_CHAIN";
+
+  return originInfo.map(
+    ({ amount, decimals, symbol }) =>
+      `${formatUnits(amount, decimals)} ${symbol} in on ${originChain}`,
+  );
+}
+
+export async function retrieveTargetInfo(
+  resolvedOrder: ResolvedCrossChainOrder,
+  multiProvider: MultiProvider,
+): Promise<Array<string>> {
+  const targetInfo = await Promise.all(
+    resolvedOrder.maxSpent.map(async ({ amount, chainId, token }) => {
+      const erc20 = Erc20__factory.connect(
+        bytes32ToAddress(token),
+        multiProvider.getProvider(chainId.toString()),
+      );
+      const [decimals, symbol] = await Promise.all([
+        erc20.decimals(),
+        erc20.symbol(),
+      ]);
+
+      return { amount, decimals, symbol };
+    }),
+  );
+
+  return targetInfo.map(
+    ({ amount, decimals, symbol }) =>
+      `${formatUnits(amount, decimals)} ${symbol} on base-sepolia`,
   );
 }
 
