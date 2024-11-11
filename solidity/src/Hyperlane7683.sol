@@ -7,7 +7,7 @@ import { Base7683 } from "./Base7683.sol";
 import { OrderData, OrderEncoder } from "./libs/OrderEncoder.sol";
 import { Router7683Message} from "./libs/Route7683Message.sol";
 
-contract Router7683 is GasRouter, Base7683 {
+contract Hyperlane7683 is GasRouter, Base7683 {
     // ============ Libraries ============
 
     // ============ Constants ============

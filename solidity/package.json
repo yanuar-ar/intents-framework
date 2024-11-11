@@ -21,7 +21,7 @@
   "scripts": {
     "clean": "rm -rf cache out && forge clean",
     "build": "forge build",
-    "lint": "npm run lint:sol && npm run prettier:check",
+    "lint": "yarn lint:sol && yarn prettier:check",
     "lint:sol": "forge fmt --check && solhint \"{script,src,test}/**/*.sol\"",
     "sol:fmt": "forge fmt",
     "prettier:check": "prettier --check \"**/*.{json,md,yml}\" --ignore-path \".prettierignore\"",

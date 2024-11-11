@@ -19,7 +19,7 @@ import { TestIsm } from "@hyperlane-xyz/test/TestIsm.sol";
 import { InterchainGasPaymaster } from "@hyperlane-xyz/hooks/igp/InterchainGasPaymaster.sol";
 import {DeployPermit2} from "@uniswap/permit2/test/utils/DeployPermit2.sol";
 
-import { Router7683 } from "../src/Router7683.sol";
+import { Hyperlane7683 } from "../src/Hyperlane7683.sol";
 
 import {
     GaslessCrossChainOrder,
@@ -29,7 +29,7 @@ import {
     FillInstruction
 } from "../src/ERC7683/IERC7683.sol";
 import { OrderData, OrderEncoder } from "../src/libs/OrderEncoder.sol";
-import { Base7683 } from "../src/Router7683.sol";
+import { Base7683 } from "../src/Base7683.sol";
 
 event Open(bytes32 indexed orderId, ResolvedCrossChainOrder resolvedOrder);
 event Filled(bytes32 orderId, bytes originData, bytes fillerData);
@@ -59,15 +59,15 @@ contract TestInterchainGasPaymaster is InterchainGasPaymaster {
     }
 }
 
-contract Router7683ForTest is Router7683 {
-    constructor(address _mailbox, address permitt2) Router7683(_mailbox, permitt2) {}
+contract Hyperlane7683ForTest is Hyperlane7683 {
+    constructor(address _mailbox, address permitt2) Hyperlane7683(_mailbox, permitt2) {}
 
     function get7383LocalDomain() public view returns (uint32) {
       return _localDomain();
     }
 }
 
-contract Router7683BaseTest is Test, DeployPermit2 {
+contract Hyperlane7683BaseTest is Test, DeployPermit2 {
     using TypeCasts for address;
 
     MockHyperlaneEnvironment internal environment;
@@ -79,8 +79,8 @@ contract Router7683BaseTest is Test, DeployPermit2 {
 
     TestInterchainGasPaymaster internal igp;
 
-    Router7683ForTest internal originRouter;
-    Router7683ForTest internal destinationRouter;
+    Hyperlane7683ForTest internal originRouter;
+    Hyperlane7683ForTest internal destinationRouter;
 
     TestIsm internal testIsm;
     bytes32 internal testIsmB32;
@@ -116,22 +116,22 @@ contract Router7683BaseTest is Test, DeployPermit2 {
         address _owner
     )
         public
-        returns (Router7683ForTest)
+        returns (Hyperlane7683ForTest)
     {
-        Router7683ForTest implementation = new Router7683ForTest(address(_mailbox), permit2);
+        Hyperlane7683ForTest implementation = new Hyperlane7683ForTest(address(_mailbox), permit2);
 
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             admin,
             abi.encodeWithSelector(
-                Router7683.initialize.selector,
+                Hyperlane7683.initialize.selector,
                 address(0),
                 address(0),
                 _owner
             )
         );
 
-        return Router7683ForTest(address(proxy));
+        return Hyperlane7683ForTest(address(proxy));
     }
 
     function setUp() public virtual {
@@ -188,7 +188,7 @@ contract Router7683BaseTest is Test, DeployPermit2 {
     receive() external payable { }
 }
 
-contract Router7683Test is Router7683BaseTest {
+contract Hyperlane7683Test is Hyperlane7683BaseTest {
     using TypeCasts for address;
 
     modifier enrollRouters() {

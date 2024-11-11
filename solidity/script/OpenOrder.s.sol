@@ -7,7 +7,7 @@ import { console2 } from "forge-std/console2.sol";
 import { TypeCasts } from "@hyperlane-xyz/libs/TypeCasts.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-import { Router7683 } from "../src/Router7683.sol";
+import { Hyperlane7683 } from "../src/Hyperlane7683.sol";
 import { OrderData, OrderEncoder } from "../src/libs/OrderEncoder.sol";
 
 import {
@@ -28,8 +28,8 @@ contract OpenOrder is Script {
         address outputToken = vm.envAddress("ITT_OUTPUT");
         uint256 amountIn = vm.envUint("AMOUNT_IN");
         uint256 amountOut = vm.envUint("AMOUNT_OUT");
-        uint256 senderNonce = Router7683(localRouter).senderNonce(sender);
-        uint32 originDomain = Router7683(localRouter).localDomain();
+        uint256 senderNonce = Hyperlane7683(localRouter).senderNonce(sender);
+        uint32 originDomain = Hyperlane7683(localRouter).localDomain();
         uint256 destinationDomain = vm.envUint("DESTINATION_DOMAIN");
         uint32 fillDeadline = type(uint32).max;
 
@@ -55,7 +55,7 @@ contract OpenOrder is Script {
             OrderEncoder.encode(order)
         );
 
-        Router7683(localRouter).open(onchainOrder);
+        Hyperlane7683(localRouter).open(onchainOrder);
 
         vm.stopBroadcast();
     }
