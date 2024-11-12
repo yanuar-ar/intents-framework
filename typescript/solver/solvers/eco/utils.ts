@@ -23,7 +23,7 @@ export async function withdrawRewards(
   intentSource: EcoMetadata["intentSource"],
   multiProvider: MultiProvider,
 ) {
-  log.info(`Setting Intent: Eco-${intent._hash}`);
+  log.info(`Settling Intent: Eco-${intent._hash}`);
   log.debug("Waiting for `IntentProven` event on origin chain");
   const { _hash, _prover } = intent;
 
