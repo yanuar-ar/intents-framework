@@ -124,7 +124,7 @@ export async function settleOrder(
             const receipt = await tx.wait();
 
             log.info(
-              `Settled Intent: Hyperlane7683-${orderId}, info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
+              `Settled Intent: Hyperlane7683-${orderId}\n - info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
             );
 
             log.debug(

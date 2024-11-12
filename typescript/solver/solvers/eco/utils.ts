@@ -52,7 +52,7 @@ export async function withdrawRewards(
           ? `${baseUrl}/tx/${receipt.transactionHash}`
           : receipt.transactionHash;
 
-        log.info(`Settled Intent: Eco-${_hash}, info: ${txInfo}`);
+        log.info(`Settled Intent: Eco-${_hash}\n - info: ${txInfo}`);
 
         log.debug(
           "Reward withdrawn on",

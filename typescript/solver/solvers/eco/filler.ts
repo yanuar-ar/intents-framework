@@ -31,7 +31,7 @@ export const create = () => {
     const target = await retrieveTargetInfo(intent, adapters, multiProvider);
 
     log.info(
-      `Intent Indexed: Eco-${intent._hash}, ${origin.join(", ")}, ${target.join(", ")}`,
+      `Intent Indexed: Eco-${intent._hash}\n - ${origin.join(", ")}\n - ${target.join(", ")}`,
     );
 
     const result = await prepareIntent(intent, adapters, multiProvider);
@@ -195,7 +195,7 @@ async function fill(
   const receipt = await tx.wait();
 
   log.info(
-    `Filled Intent: Eco-${intent._hash}, info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
+    `Filled Intent: Eco-${intent._hash}\n - info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
   );
 
   log.debug("Fulfilled intent on", _chainId, "with data", _data);

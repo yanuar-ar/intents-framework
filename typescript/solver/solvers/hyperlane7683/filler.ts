@@ -40,7 +40,7 @@ export const create = () => {
     const target = await retrieveTargetInfo(resolvedOrder, multiProvider);
 
     log.info(
-      `Intent Indexed: Hyperlane7683-${orderId}, ${origin.join(", ")}, ${target.join(", ")}`,
+      `Intent Indexed: Hyperlane7683-${orderId}\n - ${origin.join(", ")}\n - ${target.join(", ")}`,
     );
 
     const result = await prepareIntent(orderId, resolvedOrder, multiProvider);
@@ -188,7 +188,7 @@ async function fill(
           ? `${baseUrl}/tx/${receipt.transactionHash}`
           : receipt.transactionHash;
 
-        log.info(`Filled Intent: Hyperlane7683-${orderId}, info: ${txInfo}`);
+        log.info(`Filled Intent: Hyperlane7683-${orderId}\n - info: ${txInfo}`);
 
         log.debug("Filled leg on", _chainId, "with data", originData);
       },

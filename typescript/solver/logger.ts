@@ -44,7 +44,7 @@ class Logger {
     this.logColor("info", chalk.blue, ...args);
   }
   info(...args: any) {
-    this.logColor("info", this.infoChalkInstance, ...args);
+    this.logColor("info", this.infoChalkInstance, ...args, "\n");
   }
   title(...args: any) {
     this.logColor("info", chalk.blue.bold, ...args);
