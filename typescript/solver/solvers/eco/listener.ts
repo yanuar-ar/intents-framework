@@ -14,16 +14,13 @@ export class EcoListener extends BaseListener<
   IntentCreatedEventObject
 > {
   constructor() {
-    const metadata = getMetadata();
-    super(
-      IntentSource__factory,
-      "IntentCreated",
-      {
-        address: metadata.intentSource.address,
-        chainId: metadata.intentSource.chainId,
-      },
-      log,
-    );
+    const {
+      intentSource: { address, chainId },
+      solverName,
+    } = getMetadata();
+    const metadata = { address, chainId, solverName };
+
+    super(IntentSource__factory, "IntentCreated", metadata, log);
   }
 
   protected parseEventArgs([

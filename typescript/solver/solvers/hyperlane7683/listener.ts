@@ -15,16 +15,13 @@ export class OnChainListener extends BaseListener<
   OpenEventArgs
 > {
   constructor() {
-    const metadata = getMetadata();
-    super(
-      Hyperlane7683__factory,
-      "Open",
-      {
-        address: metadata.originSettler.address,
-        chainId: metadata.originSettler.chainId,
-      },
-      log,
-    );
+    const {
+      originSettler: { address, chainId },
+      solverName,
+    } = getMetadata();
+    const metadata = { address, chainId, solverName };
+
+    super(Hyperlane7683__factory, "Open", metadata, log);
   }
 
   protected override parseEventArgs(

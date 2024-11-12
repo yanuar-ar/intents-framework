@@ -16,13 +16,21 @@ export abstract class BaseListener<
       connect(address: string, signerOrProvider: Signer | Provider): TContract;
     },
     private readonly eventName: Extract<keyof TContract["filters"], string>,
-    private readonly metadata: { address: string; chainId: number },
+    private readonly metadata: {
+      address: string;
+      chainId: number;
+      solverName: string;
+    },
     private readonly log: Logger,
   ) {}
 
   protected setup(): TContract {
     if (!this.metadata.address || !this.metadata.chainId) {
       throw new Error("Origin contract information must be provided");
+    }
+
+    if (!this.metadata.solverName) {
+      throw new Error("Solver name must be provided");
     }
 
     const multiProvider = new MultiProvider(chainMetadata);
@@ -45,7 +53,7 @@ export abstract class BaseListener<
 
       contract.provider.getNetwork().then((network) => {
         this.log.info(
-          `Started listening for ${this.eventName} events on`,
+          `Started listening for ${this.metadata.solverName}-${this.eventName} events on`,
           Object.values(chainMetadata).find(
             (metadata) => metadata.chainId === network.chainId,
           )?.displayName,

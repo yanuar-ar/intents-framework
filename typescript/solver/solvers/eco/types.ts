@@ -1,4 +1,5 @@
 export type EcoMetadata = {
+  solverName: string;
   intentSource: {
     address: string;
     chainId: number;
