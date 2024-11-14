@@ -12,8 +12,8 @@ import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__facto
 import { EcoAdapter__factory } from "../../typechain/factories/eco/contracts/EcoAdapter__factory.js";
 import type { EcoMetadata, IntentData } from "./types.js";
 import {
-  getMetadata,
   log,
+  metadata,
   retrieveOriginInfo,
   retrieveTargetInfo,
   withdrawRewards,
@@ -65,7 +65,9 @@ function setup() {
     throw new Error("Either a private key or mnemonic must be provided");
   }
 
-  const metadata = getMetadata();
+  if (!metadata.solverName) {
+    metadata.solverName = "UNKNOWN_SOLVER";
+  }
 
   if (!metadata.adapters.every(({ address }) => address)) {
     throw new Error("EcoAdapter address must be provided");

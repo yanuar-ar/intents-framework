@@ -1,21 +1,21 @@
-import fs from "node:fs";
-
 import { formatUnits } from "@ethersproject/units";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import type { BigNumber } from "ethers";
-import { parse } from "yaml";
 
 import { LogFormat, Logger, LogLevel } from "../../logger.js";
 import type { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { HyperProver__factory } from "../../typechain/factories/eco/contracts/HyperProver__factory.js";
 import { IntentSource__factory } from "../../typechain/factories/eco/contracts/IntentSource__factory.js";
+import { getMetadata } from "../utils.js";
 import type { EcoMetadata } from "./types.js";
+
+export const metadata = getMetadata<EcoMetadata>(import.meta.dirname);
 
 export const log = new Logger(
   LogFormat.Pretty,
   LogLevel.Info,
-  "EcoIntentSolver",
+  metadata.solverName,
 );
 
 export async function withdrawRewards(
@@ -58,15 +58,31 @@ export async function withdrawRewards(
   );
 }
 
-export function getMetadata(): EcoMetadata {
-  log.debug("Reading metadata from metadata.yaml");
-  // TODO: make it generic, so it can be used for other solvers
-  const data = fs.readFileSync("solvers/eco/metadata.yaml", "utf8");
-  const metadata = parse(data) as EcoMetadata;
+export async function retrieveOriginInfo(
+  intent: IntentCreatedEventObject,
+  intentSource: EcoMetadata["intentSource"],
+  multiProvider: MultiProvider,
+): Promise<Array<string>> {
+  const originInfo = await Promise.all(
+    intent._rewardTokens.map(async (tokenAddress, index) => {
+      const erc20 = Erc20__factory.connect(
+        tokenAddress,
+        multiProvider.getProvider(intentSource.chainId),
+      );
+      const [decimals, symbol] = await Promise.all([
+        erc20.decimals(),
+        erc20.symbol(),
+      ]);
+      const amount = intent._rewardAmounts[index];
 
-  log.debug("Metadata read:", JSON.stringify(metadata, null, 2));
+      return { amount, decimals, symbol };
+    }),
+  );
 
-  return metadata;
+  return originInfo.map(
+    ({ amount, decimals, symbol }) =>
+      `${formatUnits(amount, decimals)} ${symbol} in on ${intentSource.chainName}`,
+  );
 }
 
 export async function retrieveTargetInfo(
@@ -103,32 +119,5 @@ export async function retrieveTargetInfo(
   return targetInfo.map(
     ({ amount, decimals, symbol }) =>
       `${formatUnits(amount, decimals)} ${symbol} out on ${targetChain?.chainName ?? "UNKNOWN_CHAIN"}`,
-  );
-}
-
-export async function retrieveOriginInfo(
-  intent: IntentCreatedEventObject,
-  intentSource: EcoMetadata["intentSource"],
-  multiProvider: MultiProvider,
-): Promise<Array<string>> {
-  const originInfo = await Promise.all(
-    intent._rewardTokens.map(async (tokenAddress, index) => {
-      const erc20 = Erc20__factory.connect(
-        tokenAddress,
-        multiProvider.getProvider(intentSource.chainId),
-      );
-      const [decimals, symbol] = await Promise.all([
-        erc20.decimals(),
-        erc20.symbol(),
-      ]);
-      const amount = intent._rewardAmounts[index];
-
-      return { amount, decimals, symbol };
-    }),
-  );
-
-  return originInfo.map(
-    ({ amount, decimals, symbol }) =>
-      `${formatUnits(amount, decimals)} ${symbol} in on ${intentSource.chainName}`,
   );
 }

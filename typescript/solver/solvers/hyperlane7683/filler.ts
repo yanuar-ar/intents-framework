@@ -18,8 +18,8 @@ import type {
 } from "./types.js";
 import {
   getChainIdsWithEnoughTokens,
-  getMetadata,
   log,
+  metadata,
   retrieveOriginInfo,
   retrieveTargetInfo,
   settleOrder,
@@ -70,7 +70,17 @@ function setup() {
     throw new Error("Either a private key or mnemonic must be provided");
   }
 
-  const metadata = getMetadata();
+  if (!metadata.solverName) {
+    metadata.solverName = "UNKNOWN_SOLVER";
+  }
+
+  if (!metadata.originSettler.chainId) {
+    throw new Error("OriginSettler chain ID must be provided");
+  }
+
+  if (!metadata.originSettler.address) {
+    throw new Error("OriginSettler address must be provided");
+  }
 
   const multiProvider = new MultiProvider(chainMetadata);
   const wallet = PRIVATE_KEY

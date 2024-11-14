@@ -7,7 +7,7 @@ import type {
 import { BaseListener } from "../BaseListener.js";
 import { OpenEventArgs } from "./types.js";
 
-import { getMetadata, log } from "./utils.js";
+import { log, metadata } from "./utils.js";
 
 export class OnChainListener extends BaseListener<
   Hyperlane7683,
@@ -18,10 +18,10 @@ export class OnChainListener extends BaseListener<
     const {
       originSettler: { address, chainId },
       solverName,
-    } = getMetadata();
-    const metadata = { address, chainId, solverName };
+    } = metadata;
+    const hyperlane7683Metadata = { address, chainId, solverName };
 
-    super(Hyperlane7683__factory, "Open", metadata, log);
+    super(Hyperlane7683__factory, "Open", hyperlane7683Metadata, log);
   }
 
   protected override parseEventArgs(
