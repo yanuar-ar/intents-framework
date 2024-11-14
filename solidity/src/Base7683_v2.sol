@@ -3,6 +3,8 @@ pragma solidity 0.8.25;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+
 import { TypeCasts } from "@hyperlane-xyz/libs/TypeCasts.sol";
 import { IPermit2, ISignatureTransfer } from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 
@@ -51,6 +53,9 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
 
     mapping(bytes32 orderId => bytes fillerData) public orderFillerData;
 
+    // IDEA - to track the status using a bitmap with more than 3 bits, first 3 bits can be used
+    // for statuses specific to this contract UNFILLED, OPENED, FILLED and the rest can be used for statuses particular
+    // to the implementation
     mapping(bytes32 orderId => OrderStatus status) public orderStatus;
 
     // ============ Upgrade Gap ============
@@ -79,6 +84,8 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
     error OrderFillNotExpired();
     error InvalidDomain();
     error InvalidSender();
+    error InvalidGaslessOrderSettler();
+    error InvalidGaslessOrderOrigin();
 
     // ============ Constructor ============
 
@@ -99,6 +106,8 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
     /// NOT USED originFillerData Any filler-defined data required by the settler
     function openFor(GaslessCrossChainOrder calldata order, bytes calldata signature, bytes calldata) external {
         if (block.timestamp > order.openDeadline) revert OrderOpenExpired();
+        if (order.originSettler != address(this)) revert InvalidGaslessOrderSettler();
+        if (order.originChainId != _localDomain()) revert InvalidGaslessOrderOrigin();
 
         uint256 currentNonce = senderNonce[order.user];
 
@@ -169,61 +178,73 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
     /// @param _fillerData Data provided by the filler to inform the fill or express their preferences. It should
     /// contain the bytes32 encoded address of the receiver which is the used at settlement time
     function fill(bytes32 _orderId, bytes calldata _originData, bytes calldata _fillerData) external virtual {
-        // OrderData memory orderData = OrderEncoder.decode(_originData);
+        if (orderStatus[_orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
 
-        // if (_orderId != _getOrderId(orderData)) revert InvalidOrderId();
-        // if (block.timestamp > orderData.fillDeadline) revert OrderFillExpired();
-        // if (orderData.destinationDomain != _localDomain()) revert InvalidOrderDomain();
-        // _mustHaveRemoteCounterpart(orderData.originDomain);
-        // if (orderStatus[_orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
+        Address.functionDelegateCall(
+            address(RESOLVER),
+            abi.encodeWithSelector(
+                RESOLVER.fillOrder.selector,
+                _orderId,
+                _originData,
+                _fillerData
+            )
+        );
 
-        // orders[_orderId] = orderData;
-        // orderStatus[_orderId] = OrderStatus.FILLED;
-        // orderFillerData[_orderId] = _fillerData;
+        orderStatus[_orderId] = OrderStatus.FILLED;
+        orderFillerData[_orderId] = _fillerData;
 
-        // emit Filled(_orderId, _originData, _fillerData);
-
-        // IERC20(TypeCasts.bytes32ToAddress(orderData.outputToken)).safeTransferFrom(
-        //     msg.sender, TypeCasts.bytes32ToAddress(orderData.recipient), orderData.amountOut
-        // );
+        emit Filled(_orderId, _originData, _fillerData);
     }
 
+    // TODO - Isn't this something implementation specific?
     function settle(bytes32[] calldata _orderIds) external payable {
-        // bytes[] memory ordersFillerData = new bytes[](_orderIds.length);
-        // for (uint256 i = 0; i < _orderIds.length; i += 1) {
-        //     if (orderStatus[_orderIds[i]] != OrderStatus.FILLED) revert InvalidOrderStatus();
+        bytes[] memory ordersFillerData = new bytes[](_orderIds.length);
+        for (uint256 i = 0; i < _orderIds.length; i += 1) {
+            if (orderStatus[_orderIds[i]] != OrderStatus.FILLED) revert InvalidOrderStatus();
 
-        //     // not necessary to check the localDomain and counterpart since the fill function already did it
+            orderStatus[_orderIds[i]] = OrderStatus.SETTLED;
+            ordersFillerData[i] = orderFillerData[_orderIds[i]];
+        }
 
-        //     orderStatus[_orderIds[i]] = OrderStatus.SETTLED;
-        //     ordersFillerData[i] = orderFillerData[_orderIds[i]];
-        // }
+        _handleSettlement(_orderIds, ordersFillerData);
 
-        // _handleSettlement(_orderIds, ordersFillerData);
-
-        // emit Settle(_orderIds, ordersFillerData);
+        emit Settle(_orderIds, ordersFillerData);
     }
 
-    function refund(OrderData[] memory _ordersData) external payable {
-        // bytes32[] memory orderIds = new bytes32[](_ordersData.length);
-        // for (uint256 i = 0; i < _ordersData.length; i += 1) {
-        //     bytes32 orderId = _getOrderId(_ordersData[i]);
+    // TODO - Isn't this something implementation specific?
+    function refund(GaslessCrossChainOrder[] memory _orders) external payable {
+        bytes32[] memory orderIds = new bytes32[](_orders.length);
+        for (uint256 i = 0; i < _orders.length; i += 1) {
+            bytes32 orderId = RESOLVER.getOrderId(_orders[i]);
 
-        //     if (orderStatus[orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
-        //     if (block.timestamp <= _ordersData[i].fillDeadline) revert OrderFillNotExpired();
+            if (orderStatus[orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
+            if (block.timestamp <= _orders[i].fillDeadline) revert OrderFillNotExpired();
 
-        //     // we need to check the domain and counterpart here since the fill function was not called
-        //     if (_ordersData[i].destinationDomain != _localDomain()) revert InvalidOrderDomain();
-        //     _mustHaveRemoteCounterpart(_ordersData[i].originDomain);
+            orderStatus[orderId] = OrderStatus.REFUNDED;
+            orderIds[i] = orderId;
+        }
 
-        //     orders[orderId] = _ordersData[i];
-        //     orderStatus[orderId] = OrderStatus.REFUNDED;
-        //     orderIds[i] = orderId;
-        // }
+        _handleRefund(orderIds);
 
-        // _handleRefund(orderIds);
+        emit Refund(orderIds);
+    }
 
-        // emit Refund(orderIds);
+    // TODO - Isn't this something implementation specific?
+    function refund(OnchainCrossChainOrder[] memory _orders) external payable {
+        bytes32[] memory orderIds = new bytes32[](_orders.length);
+        for (uint256 i = 0; i < _orders.length; i += 1) {
+            bytes32 orderId = RESOLVER.getOrderId(_orders[i]);
+
+            if (orderStatus[orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
+            if (block.timestamp <= _orders[i].fillDeadline) revert OrderFillNotExpired();
+
+            orderStatus[orderId] = OrderStatus.REFUNDED;
+            orderIds[i] = orderId;
+        }
+
+        _handleRefund(orderIds);
+
+        emit Refund(orderIds);
     }
 
     // ============ Public Functions ============

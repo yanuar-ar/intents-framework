@@ -442,111 +442,144 @@ contract Base7683Test is Test, DeployPermit2 {
         vm.stopPrank();
     }
 
-    // // resolve
-    // function test_resolve_works(uint32 _fillDeadline) public {
-    //     OrderData memory orderData = prepareOrderData();
-    //     OnchainCrossChainOrder memory order =
-    //         prepareOnchainOrder(orderData, _fillDeadline, OrderEncoder.orderDataType());
+    // resolve
+    function test_resolve_works(uint32 _fillDeadline) public {
+        OrderData memory orderData = prepareOrderData();
+        OnchainCrossChainOrder memory order =
+            prepareOnchainOrder(orderData, _fillDeadline, OrderEncoder.orderDataType());
 
-    //     vm.prank(kakaroto);
-    //     ResolvedCrossChainOrder memory resolvedOrder = base.resolve(order);
+        vm.prank(kakaroto);
+        ResolvedCrossChainOrder memory resolvedOrder = base.resolve(order);
 
-    //     assertResolvedOrder(resolvedOrder, orderData, kakaroto, _fillDeadline, type(uint32).max);
-    // }
+        assertResolvedOrder(resolvedOrder, orderData, kakaroto, _fillDeadline, type(uint32).max);
+    }
 
-    // // resolveFor
-    // function test_resolveFor_works(uint32 _fillDeadline, uint32 _openDeadline) public {
-    //     OrderData memory orderData = prepareOrderData();
-    //     GaslessCrossChainOrder memory order =
-    //         prepareGaslessOrder(orderData, 0, _openDeadline, _fillDeadline, OrderEncoder.orderDataType());
+    // resolveFor
+    function test_resolveFor_works(uint32 _fillDeadline, uint32 _openDeadline) public {
+        OrderData memory orderData = prepareOrderData();
+        GaslessCrossChainOrder memory order =
+            prepareGaslessOrder(orderData, 0, _openDeadline, _fillDeadline, OrderEncoder.orderDataType());
 
-    //     vm.prank(karpincho);
-    //     ResolvedCrossChainOrder memory resolvedOrder = base.resolveFor(order, new bytes(0));
+        vm.prank(karpincho);
+        ResolvedCrossChainOrder memory resolvedOrder = base.resolveFor(order, new bytes(0));
 
-    //     assertResolvedOrder(resolvedOrder, orderData, kakaroto, _fillDeadline, _openDeadline);
-    // }
+        assertResolvedOrder(resolvedOrder, orderData, kakaroto, _fillDeadline, _openDeadline);
+    }
 
-    // // fill
-    // function test_fill_works() public {
-    //     OrderData memory orderData = prepareOrderData();
-    //     orderData.originDomain = destination;
-    //     orderData.destinationDomain = origin;
+    // fill
+    function test_fill_works() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.originChainId = destination;
+        orderData.destinationChainId = origin;
 
-    //     bytes32 orderId = OrderEncoder.id(orderData);
+        bytes32 orderId = OrderEncoder.id(orderData);
 
-    //     uint256[] memory balancesBefore = balances(outputToken);
+        uint256[] memory balancesBefore = balances(outputToken);
 
-    //     vm.startPrank(vegeta);
-    //     outputToken.approve(address(base), amount);
+        vm.startPrank(vegeta);
+        outputToken.approve(address(base), amount);
 
-    //     bytes memory fillerData = abi.encode(TypeCasts.addressToBytes32(vegeta));
+        bytes memory fillerData = abi.encode(TypeCasts.addressToBytes32(vegeta));
 
-    //     vm.expectEmit(false, false, false, true);
-    //     emit Filled(orderId, OrderEncoder.encode(orderData), fillerData);
+        vm.expectEmit(false, false, false, true);
+        emit Filled(orderId, OrderEncoder.encode(orderData), fillerData);
 
-    //     base.fill(orderId, OrderEncoder.encode(orderData), fillerData);
+        base.fill(orderId, OrderEncoder.encode(orderData), fillerData);
 
-    //     assertOrder(orderId, orderData, balancesBefore, outputToken, vegeta, karpincho, Base7683.OrderStatus.FILLED);
-    //     assertEq(base.orderFillerData(orderId), fillerData);
+        // assertOrder(orderId, orderData, balancesBefore, outputToken, vegeta, karpincho, Base7683_v2.OrderStatus.FILLED);
 
-    //     vm.stopPrank();
-    // }
+        assertTrue(base.orderStatus(orderId) == Base7683_v2.OrderStatus.FILLED);
+        uint256[] memory balancesAfter = balances(outputToken);
+        assertEq(balancesBefore[balanceId[vegeta]] - amount, balancesAfter[balanceId[vegeta]]);
+        assertEq(balancesBefore[balanceId[karpincho]] + amount, balancesAfter[balanceId[karpincho]]);
+        assertEq(base.orderFillerData(orderId), fillerData);
 
-    // // settle
-    // function test_settle_works() public {
-    //     OrderData memory orderData = prepareOrderData();
-    //     orderData.originDomain = destination;
-    //     orderData.destinationDomain = origin;
+        vm.stopPrank();
+    }
 
-    //     bytes32 orderId = OrderEncoder.id(orderData);
+    // settle
+    function test_settle_works() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.originChainId = destination;
+        orderData.destinationChainId = origin;
 
-    //     bytes memory fillerData = abi.encode(TypeCasts.addressToBytes32(karpincho));
+        bytes32 orderId = OrderEncoder.id(orderData);
 
-    //     vm.startPrank(vegeta);
-    //     outputToken.approve(address(base), amount);
-    //     base.fill(orderId, OrderEncoder.encode(orderData), fillerData);
+        bytes memory fillerData = abi.encode(TypeCasts.addressToBytes32(karpincho));
 
-    //     bytes32[] memory orderIds = new bytes32[](1);
-    //     orderIds[0] = orderId;
-    //     bytes[] memory ordersFillerData = new bytes[](1);
-    //     ordersFillerData[0] = fillerData;
+        vm.startPrank(vegeta);
+        outputToken.approve(address(base), amount);
+        base.fill(orderId, OrderEncoder.encode(orderData), fillerData);
 
-    //     vm.expectEmit(false, false, false, true);
-    //     emit Settle(orderIds, ordersFillerData);
+        bytes32[] memory orderIds = new bytes32[](1);
+        orderIds[0] = orderId;
+        bytes[] memory ordersFillerData = new bytes[](1);
+        ordersFillerData[0] = fillerData;
 
-    //     base.settle(orderIds);
+        vm.expectEmit(false, false, false, true);
+        emit Settle(orderIds, ordersFillerData);
 
-    //     assertTrue(base.orderStatus(orderId) == Base7683.OrderStatus.SETTLED);
-    //     assertEq(base.settledOrderIds(0), orderId);
-    //     assertEq(base.settledReceivers(0), fillerData);
+        base.settle(orderIds);
 
-    //     vm.stopPrank();
-    // }
+        assertTrue(base.orderStatus(orderId) == Base7683_v2.OrderStatus.SETTLED);
+        assertEq(base.settledOrderIds(0), orderId);
+        assertEq(base.settledReceivers(0), fillerData);
 
-    // // refund
-    // function test_refund_works() public {
-    //     OrderData memory orderData = prepareOrderData();
-    //     orderData.originDomain = destination;
-    //     orderData.destinationDomain = origin;
+        vm.stopPrank();
+    }
 
-    //     bytes32 orderId = OrderEncoder.id(orderData);
-    //     vm.warp(orderData.fillDeadline + 1);
+    // refund
+    function test_refund_gaslessOrder_works() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.originChainId = destination;
+        orderData.destinationChainId = origin;
 
-    //     OrderData[] memory ordersData = new OrderData[](1);
-    //     ordersData[0] = orderData;
+        GaslessCrossChainOrder memory order =
+            prepareGaslessOrder(orderData, 0, 0, orderData.fillDeadline, OrderEncoder.orderDataType());
 
-    //     bytes32[] memory orderIds = new bytes32[](1);
-    //     orderIds[0] = OrderEncoder.id(orderData);
+        bytes32 orderId = OrderEncoder.id(orderData);
+        vm.warp(orderData.fillDeadline + 1);
 
-    //     vm.expectEmit(false, false, false, true);
-    //     emit Refund(orderIds);
+        GaslessCrossChainOrder[] memory orders = new GaslessCrossChainOrder[](1);
+        orders[0] = order;
 
-    //     base.refund(ordersData);
+        bytes32[] memory orderIds = new bytes32[](1);
+        orderIds[0] = OrderEncoder.id(orderData);
 
-    //     assertTrue(base.orderStatus(orderId) == Base7683.OrderStatus.REFUNDED);
-    //     assertEq(OrderEncoder.encode(orderDataById(orderId)), OrderEncoder.encode(orderData));
-    //     assertEq(base.refundedOrderIds(0), orderId);
-    // }
+        vm.expectEmit(false, false, false, true);
+        emit Refund(orderIds);
+
+        base.refund(orders);
+
+        assertTrue(base.orderStatus(orderId) == Base7683_v2.OrderStatus.REFUNDED);
+        assertEq(base.refundedOrderIds(0), orderId);
+    }
+
+    function test_refund_onchainOrder_works() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.originChainId = destination;
+        orderData.destinationChainId = origin;
+
+        OnchainCrossChainOrder memory order =
+            prepareOnchainOrder(orderData, orderData.fillDeadline, OrderEncoder.orderDataType());
+
+        bytes32 orderId = OrderEncoder.id(orderData);
+        vm.warp(orderData.fillDeadline + 1);
+
+        OnchainCrossChainOrder[] memory orders = new OnchainCrossChainOrder[](1);
+        orders[0] = order;
+
+        bytes32[] memory orderIds = new bytes32[](1);
+        orderIds[0] = OrderEncoder.id(orderData);
+
+        vm.expectEmit(false, false, false, true);
+        emit Refund(orderIds);
+
+        base.refund(orders);
+
+        assertTrue(base.orderStatus(orderId) == Base7683_v2.OrderStatus.REFUNDED);
+        assertEq(base.refundedOrderIds(0), orderId);
+    }
 
     // // _settleOrder
     // function test_settleOrder_works() public {

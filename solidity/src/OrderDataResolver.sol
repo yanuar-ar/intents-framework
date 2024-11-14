@@ -17,11 +17,18 @@ import {
 } from "./ERC7683/IERC7683.sol";
 import { OrderData, OrderEncoder } from "./libs/OrderEncoder_v2.sol";
 
+
+// TODO: When documenting this make sure to mention that this contract should change state because some function are
+// called with delegatecall
 contract OrderDataResolver {
+    using SafeERC20 for IERC20;
+
     error InvalidOrderType(bytes32 orderType);
     error InvalidSender();
     error InvalidSenderNonce();
     error InvalidOriginDomain(uint32 originDomain);
+    error InvalidOrderId();
+    error OrderFillExpired();
 
     function resolveGaslessOrder(
         GaslessCrossChainOrder calldata order,
@@ -79,6 +86,8 @@ contract OrderDataResolver {
     {
         if (_orderType != OrderEncoder.orderDataType()) revert InvalidOrderType(_orderType);
 
+        // TODO: _orderData should not be directly typed as OrderData, it should contain information that is not
+        // present on the type used for open the order. So _fillDeadline and _user should be passed as arguments
         OrderData memory orderData = OrderEncoder.decode(_orderData);
 
         if (orderData.originChainId != _localDomain) revert InvalidOriginDomain(orderData.originChainId);
@@ -126,5 +135,38 @@ contract OrderDataResolver {
         });
 
         orderId = OrderEncoder.id(orderData);
+    }
+
+    function getOrderId(GaslessCrossChainOrder calldata order) external pure returns (bytes32) {
+        if (order.orderDataType != OrderEncoder.orderDataType()) revert InvalidOrderType(order.orderDataType);
+
+        // TODO: _orderData should not be directly typed as OrderData, it should contain information that is not
+        // present on the type used for open the order. So _fillDeadline and _user should be passed as arguments
+        OrderData memory orderData = OrderEncoder.decode(order.orderData);
+
+        return OrderEncoder.id(orderData);
+    }
+
+    function getOrderId(OnchainCrossChainOrder calldata order) external pure returns (bytes32) {
+        if (order.orderDataType != OrderEncoder.orderDataType()) revert InvalidOrderType(order.orderDataType);
+
+        // TODO: _orderData should not be directly typed as OrderData, it should contain information that is not
+        // present on the type used for open the order. So _fillDeadline and _user should be passed as arguments
+        OrderData memory orderData = OrderEncoder.decode(order.orderData);
+
+        return OrderEncoder.id(orderData);
+    }
+
+    // TODO: docs, make 100% sure this function does not change state because it is called with delegatecall or you
+    // know very well what you are doing
+    function fillOrder(bytes32 _orderId, bytes calldata _originData, bytes calldata) external {
+        OrderData memory orderData = OrderEncoder.decode(_originData);
+
+        if (_orderId != OrderEncoder.id(orderData)) revert InvalidOrderId();
+        if (block.timestamp > orderData.fillDeadline) revert OrderFillExpired();
+
+        IERC20(TypeCasts.bytes32ToAddress(orderData.outputToken)).safeTransferFrom(
+            msg.sender, TypeCasts.bytes32ToAddress(orderData.recipient), orderData.amountOut
+        );
     }
 }
