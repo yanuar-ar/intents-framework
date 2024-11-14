@@ -20,7 +20,7 @@ import {
 } from "./utils.js";
 
 export const create = () => {
-  const { adapters, intentSource, multiProvider } = setup();
+  const { adapters, intentSource, multiProvider, solverName } = setup();
 
   return async function eco(intent: IntentCreatedEventObject) {
     const origin = await retrieveOriginInfo(
@@ -31,19 +31,32 @@ export const create = () => {
     const target = await retrieveTargetInfo(intent, adapters, multiProvider);
 
     log.info(
-      `Intent Indexed: Eco-${intent._hash}\n - ${origin.join(", ")}\n - ${target.join(", ")}`,
+      `Intent Indexed: ${solverName}-${intent._hash}\n - ${origin.join(", ")}\n - ${target.join(", ")}`,
     );
 
-    const result = await prepareIntent(intent, adapters, multiProvider);
+    const result = await prepareIntent(
+      intent,
+      adapters,
+      multiProvider,
+      solverName,
+    );
 
     if (!result.success) {
-      log.error("Failed evaluating filling Intent:", result.error);
+      log.error(
+        `${solverName} Failed evaluating filling Intent: ${result.error}`,
+      );
       return;
     }
 
-    await fill(intent, result.data.adapter, intentSource, multiProvider);
+    await fill(
+      intent,
+      result.data.adapter,
+      intentSource,
+      multiProvider,
+      solverName,
+    );
 
-    await withdrawRewards(intent, intentSource, multiProvider);
+    await withdrawRewards(intent, intentSource, multiProvider, solverName);
   };
 };
 
@@ -72,10 +85,7 @@ function setup() {
     : Wallet.fromMnemonic(MNEMONIC!);
   multiProvider.setSharedSigner(wallet);
 
-  return {
-    multiProvider,
-    ...metadata,
-  };
+  return { multiProvider, ...metadata };
 }
 
 // We're assuming the filler will pay out of their own stock, but in reality they may have to
@@ -84,8 +94,9 @@ async function prepareIntent(
   intent: IntentCreatedEventObject,
   adapters: EcoMetadata["adapters"],
   multiProvider: MultiProvider,
+  solverName: string,
 ): Promise<Result<IntentData>> {
-  log.info(`Evaluating filling Intent: Eco-${intent._hash}`);
+  log.info(`Evaluating filling Intent: ${solverName}-${intent._hash}`);
 
   try {
     const destinationChainId = intent._destinationChain.toNumber();
@@ -135,7 +146,9 @@ async function prepareIntent(
       return { error: "Not enough tokens", success: false };
     }
 
-    log.debug(`Approving tokens: Eco-${intent._hash}, for ${adapter.address}`);
+    log.debug(
+      `${solverName} - Approving tokens: ${intent._hash}, for ${adapter.address}`,
+    );
     await Promise.all(
       Object.entries(requiredAmountsByTarget).map(
         async ([target, requiredAmount]) => {
@@ -161,8 +174,9 @@ async function fill(
   adapter: EcoMetadata["adapters"][number],
   intentSource: EcoMetadata["intentSource"],
   multiProvider: MultiProvider,
+  solverName: string,
 ): Promise<void> {
-  log.info(`Filling Intent: Eco-${intent._hash}`);
+  log.info(`Filling Intent: ${solverName}-${intent._hash}`);
 
   const _chainId = intent._destinationChain.toString();
 
@@ -195,8 +209,6 @@ async function fill(
   const receipt = await tx.wait();
 
   log.info(
-    `Filled Intent: Eco-${intent._hash}\n - info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
+    `Filled Intent: ${solverName}-${intent._hash}\n - info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
   );
-
-  log.debug("Fulfilled intent on", _chainId, "with data", _data);
 }

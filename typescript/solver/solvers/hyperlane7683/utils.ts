@@ -87,8 +87,9 @@ export async function settleOrder(
   fillInstructions: ResolvedCrossChainOrder["fillInstructions"],
   orderId: string,
   multiProvider: MultiProvider,
+  solverName: string,
 ) {
-  log.info(`Settling Intent: Hyperlane7683-${orderId}`);
+  log.info(`Settling Intent: ${solverName}-${orderId}`);
 
   const destinationSettlers = fillInstructions.reduce<
     Record<string, Array<string>>
@@ -124,14 +125,7 @@ export async function settleOrder(
             const receipt = await tx.wait();
 
             log.info(
-              `Settled Intent: Hyperlane7683-${orderId}\n - info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
-            );
-
-            log.debug(
-              "Settled order",
-              orderId,
-              "on chain",
-              destinationChain.toString(),
+              `Settled Intent: ${solverName}-${orderId}\n - info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
             );
           }),
         );

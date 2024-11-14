@@ -22,13 +22,12 @@ export async function withdrawRewards(
   intent: IntentCreatedEventObject,
   intentSource: EcoMetadata["intentSource"],
   multiProvider: MultiProvider,
+  solverName: string,
 ) {
-  log.info(`Settling Intent: Eco-${intent._hash}`);
-  log.debug("Waiting for `IntentProven` event on origin chain");
+  log.info(`Settling Intent: ${solverName}-${intent._hash}`);
+
   const { _hash, _prover } = intent;
-
   const signer = multiProvider.getSigner(intentSource.chainId);
-
   const claimantAddress = await signer.getAddress();
   const prover = HyperProver__factory.connect(_prover, signer);
 
@@ -36,8 +35,7 @@ export async function withdrawRewards(
     prover.once(
       prover.filters.IntentProven(_hash, claimantAddress),
       async () => {
-        log.debug("Intent proven:", _hash);
-        log.debug("About to claim rewards");
+        log.debug(`${solverName} - Intent proven: ${_hash}`);
 
         const settler = IntentSource__factory.connect(
           intentSource.address,
@@ -52,14 +50,7 @@ export async function withdrawRewards(
           ? `${baseUrl}/tx/${receipt.transactionHash}`
           : receipt.transactionHash;
 
-        log.info(`Settled Intent: Eco-${_hash}\n - info: ${txInfo}`);
-
-        log.debug(
-          "Reward withdrawn on",
-          intentSource.chainId,
-          "for intent",
-          _hash,
-        );
+        log.info(`Settled Intent: ${solverName}-${_hash}\n - info: ${txInfo}`);
 
         resolve(_hash);
       },
