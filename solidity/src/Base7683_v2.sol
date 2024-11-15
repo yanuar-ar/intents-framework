@@ -12,13 +12,9 @@ import {
     GaslessCrossChainOrder,
     OnchainCrossChainOrder,
     ResolvedCrossChainOrder,
-    Output,
-    FillInstruction,
     IOriginSettler,
     IDestinationSettler
 } from "./ERC7683/IERC7683.sol";
-import { OrderData, OrderEncoder } from "./libs/OrderEncoder.sol";
-import { OrderDataResolver } from "./OrderDataResolver.sol";
 
 abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
     // ============ Libraries ============
@@ -35,8 +31,6 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
     }
 
     IPermit2 public immutable PERMIT2;
-    // TODO - Make an interface
-    OrderDataResolver public immutable RESOLVER;
 
     bytes32 public constant RESOLVED_CROSS_CHAIN_ORDER_TYPEHASH = keccak256(
         "ResolvedCrossChainOrder(address user, uint64 originChainId, uint32 openDeadline, uint32 fillDeadline, Output[] maxSpent, Output[] minReceived, FillInstruction[] fillInstructions)Output(bytes32 token, uint256 amount, bytes32 recipient, uint64 chainId)FillInstruction(uint64 destinationChainId, bytes32 destinationSettler, bytes originData)"
@@ -49,7 +43,11 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
 
     mapping(address sender => uint256 nonce) public senderNonce;
 
+    mapping(address => mapping(uint256 => uint256)) public nonceBitmap;
+
     mapping(bytes32 orderId => bytes resolvedOrder) public orders;
+
+    mapping(bytes32 orderId => bytes originData) public filledOrders;
 
     mapping(bytes32 orderId => bytes fillerData) public orderFillerData;
 
@@ -65,33 +63,23 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
     // ============ Events ============
 
     event Filled(bytes32 orderId, bytes originData, bytes fillerData);
-    event Settle(bytes32[] orderIds, bytes[] ordersFillerData);
-    event Refund(bytes32[] orderIds);
-    event Settled(bytes32 orderId, address receiver);
-    event Refunded(bytes32 orderId, address receiver);
+    /**
+     *@notice Emits an event when the owner successfully invalidates an unordered nonce.
+     */
+    event UnorderedNonceInvalidation(address indexed owner, uint256 nonce);
 
     // ============ Errors ============
 
     error OrderOpenExpired();
-    error InvalidOrderType(bytes32 orderType);
-    error InvalidSenderNonc();
-    error InvalidOriginDomain(uint32 originDomain);
-    error InvalidOrderId();
-    error OrderFillExpired();
-    error InvalidOrderDomain();
     error InvalidOrderStatus();
-    error InvalidSenderNonce();
-    error OrderFillNotExpired();
-    error InvalidDomain();
-    error InvalidSender();
     error InvalidGaslessOrderSettler();
     error InvalidGaslessOrderOrigin();
+    error InvalidNonce();
 
     // ============ Constructor ============
 
     constructor(address _permit2) {
         PERMIT2 = IPermit2(_permit2);
-        RESOLVER = new OrderDataResolver();
     }
 
     // ============ Initializers ============
@@ -109,16 +97,13 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
         if (order.originSettler != address(this)) revert InvalidGaslessOrderSettler();
         if (order.originChainId != _localDomain()) revert InvalidGaslessOrderOrigin();
 
-        uint256 currentNonce = senderNonce[order.user];
+        (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(order);
 
-        (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId) =
-            RESOLVER.resolveGaslessOrder(order, senderNonce[order.user], _localDomain());
-
-        _permitTransferFrom(resolvedOrder, signature, currentNonce, address(this));
+        _permitTransferFrom(resolvedOrder, signature, order.nonce, address(this));
 
         orders[orderId] = abi.encode(resolvedOrder);
         orderStatus[orderId] = OrderStatus.OPENED;
-        senderNonce[order.user] += 1;
+        _useUnorderedNonce(order.user, nonce);
 
         emit Open(orderId, resolvedOrder);
     }
@@ -128,8 +113,7 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
     /// @dev This method must emit the Open event
     /// @param order The OnchainCrossChainOrder definition
     function open(OnchainCrossChainOrder calldata order) external {
-        (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId) =
-            RESOLVER.resolveOnchainOrder(order, msg.sender, senderNonce[msg.sender], _localDomain());
+        (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(order);
 
         for (uint256 i = 0; i < resolvedOrder.minReceived.length; i++) {
             IERC20(TypeCasts.bytes32ToAddress(resolvedOrder.minReceived[i].token)).safeTransferFrom(
@@ -139,7 +123,7 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
 
         orders[orderId] = abi.encode(resolvedOrder);
         orderStatus[orderId] = OrderStatus.OPENED;
-        senderNonce[msg.sender] += 1;
+        _useUnorderedNonce(msg.sender, nonce);
 
         emit Open(orderId, resolvedOrder);
     }
@@ -157,7 +141,7 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
         view
         returns (ResolvedCrossChainOrder memory resolvedOrder)
     {
-        (resolvedOrder,) = RESOLVER.resolveGaslessOrder(order, senderNonce[order.user], _localDomain());
+        (resolvedOrder,,) = _resolveOrder(order);
     }
 
     /// @notice Resolves a specific OnchainCrossChainOrder into a generic ResolvedCrossChainOrder
@@ -169,7 +153,7 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
         view
         returns (ResolvedCrossChainOrder memory resolvedOrder)
     {
-        (resolvedOrder,) = RESOLVER.resolveOnchainOrder(order, msg.sender, senderNonce[msg.sender], _localDomain());
+        (resolvedOrder,,) = _resolveOrder(order);
     }
 
     /// @notice Fills a single leg of a particular order on the destination chain
@@ -180,71 +164,13 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
     function fill(bytes32 _orderId, bytes calldata _originData, bytes calldata _fillerData) external virtual {
         if (orderStatus[_orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
 
-        Address.functionDelegateCall(
-            address(RESOLVER),
-            abi.encodeWithSelector(
-                RESOLVER.fillOrder.selector,
-                _orderId,
-                _originData,
-                _fillerData
-            )
-        );
+        _fillOrder(_orderId, _originData, _fillerData);
 
         orderStatus[_orderId] = OrderStatus.FILLED;
+        filledOrders[_orderId] = _originData;
         orderFillerData[_orderId] = _fillerData;
 
         emit Filled(_orderId, _originData, _fillerData);
-    }
-
-    // TODO - Isn't this something implementation specific?
-    function settle(bytes32[] calldata _orderIds) external payable {
-        bytes[] memory ordersFillerData = new bytes[](_orderIds.length);
-        for (uint256 i = 0; i < _orderIds.length; i += 1) {
-            if (orderStatus[_orderIds[i]] != OrderStatus.FILLED) revert InvalidOrderStatus();
-
-            orderStatus[_orderIds[i]] = OrderStatus.SETTLED;
-            ordersFillerData[i] = orderFillerData[_orderIds[i]];
-        }
-
-        _handleSettlement(_orderIds, ordersFillerData);
-
-        emit Settle(_orderIds, ordersFillerData);
-    }
-
-    // TODO - Isn't this something implementation specific?
-    function refund(GaslessCrossChainOrder[] memory _orders) external payable {
-        bytes32[] memory orderIds = new bytes32[](_orders.length);
-        for (uint256 i = 0; i < _orders.length; i += 1) {
-            bytes32 orderId = RESOLVER.getOrderId(_orders[i]);
-
-            if (orderStatus[orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
-            if (block.timestamp <= _orders[i].fillDeadline) revert OrderFillNotExpired();
-
-            orderStatus[orderId] = OrderStatus.REFUNDED;
-            orderIds[i] = orderId;
-        }
-
-        _handleRefund(orderIds);
-
-        emit Refund(orderIds);
-    }
-
-    // TODO - Isn't this something implementation specific?
-    function refund(OnchainCrossChainOrder[] memory _orders) external payable {
-        bytes32[] memory orderIds = new bytes32[](_orders.length);
-        for (uint256 i = 0; i < _orders.length; i += 1) {
-            bytes32 orderId = RESOLVER.getOrderId(_orders[i]);
-
-            if (orderStatus[orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
-            if (block.timestamp <= _orders[i].fillDeadline) revert OrderFillNotExpired();
-
-            orderStatus[orderId] = OrderStatus.REFUNDED;
-            orderIds[i] = orderId;
-        }
-
-        _handleRefund(orderIds);
-
-        emit Refund(orderIds);
     }
 
     // ============ Public Functions ============
@@ -264,10 +190,36 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
         );
     }
 
+    /// @notice Invalidates the a nonce for the user calling the function
+    /// @param nonce The nonce to get the associated word and bit positions
+    function invalidateUnorderedNonces(uint256 nonce) external {
+        _useUnorderedNonce(msg.sender, nonce);
+
+        emit UnorderedNonceInvalidation(msg.sender, nonce);
+    }
+
     // ============ Internal Functions ============
 
-    function _getOrderId(OrderData memory orderData) internal pure returns (bytes32) {
-        return OrderEncoder.id(orderData);
+    /// @notice Returns the index of the bitmap and the bit position within the bitmap. Used for unordered nonces
+    /// @param nonce The nonce to get the associated word and bit positions
+    /// @return wordPos The word position or index into the nonceBitmap
+    /// @return bitPos The bit position
+    /// @dev The first 248 bits of the nonce value is the index of the desired bitmap
+    /// @dev The last 8 bits of the nonce value is the position of the bit in the bitmap
+    function bitmapPositions(uint256 nonce) private pure returns (uint256 wordPos, uint256 bitPos) {
+        wordPos = uint248(nonce >> 8);
+        bitPos = uint8(nonce);
+    }
+
+    /// @notice Checks whether a nonce is taken and sets the bit at the bit position in the bitmap at the word position
+    /// @param from The address to use the nonce at
+    /// @param nonce The nonce to spend
+    function _useUnorderedNonce(address from, uint256 nonce) internal {
+        (uint256 wordPos, uint256 bitPos) = bitmapPositions(nonce);
+        uint256 bit = 1 << bitPos;
+        uint256 flipped = nonceBitmap[from][wordPos] ^= bit;
+
+        if (flipped & bit == 0) revert InvalidNonce();
     }
 
     function _permitTransferFrom(
@@ -307,60 +259,24 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
     }
 
     /**
-     * @dev This function is meant to be called by the inheriting contract when receiving a settle cross-chain message
-     * from a remote domain counterpart
+     * @dev To be implemented by the inheriting contract with specific logic fot the orderDataType and orderData
      */
-    function _settleOrder(bytes32 _orderId, bytes32 _receiver, uint32 _settlingDomain) internal {
-        // OrderData memory orderData = orders[_orderId];
-
-        // if (orderData.destinationDomain != _settlingDomain) revert InvalidDomain();
-        // if (orderStatus[_orderId] != OrderStatus.OPENED) revert InvalidOrderStatus();
-
-        // orderStatus[_orderId] = OrderStatus.SETTLED;
-
-        // address receiver = TypeCasts.bytes32ToAddress(_receiver);
-
-        // emit Settled(_orderId, receiver);
-
-        // IERC20(TypeCasts.bytes32ToAddress(orderData.inputToken)).safeTransfer(receiver, orderData.amountIn);
-    }
+    function _resolveOrder(GaslessCrossChainOrder memory order)
+        internal
+        view
+        virtual
+        returns (ResolvedCrossChainOrder memory, bytes32 orderId, uint256 nonce);
 
     /**
-     * @dev This function is meant to be called by the inheriting contract when receiving a refund cross-chain message
-     * from a remote domain counterpart
+     * @dev To be implemented by the inheriting contract with specific logic fot the orderDataType and orderData
      */
-    function _refundOrder(bytes32 _orderId, uint32 _refundingDomain) internal {
-        // OrderData memory orderData = orders[_orderId];
+    function _resolveOrder(OnchainCrossChainOrder memory order)
+        internal
+        view
+        virtual
+        returns (ResolvedCrossChainOrder memory, bytes32 orderId, uint256 nonce);
 
-        // if (orderData.destinationDomain != _refundingDomain) revert InvalidDomain();
-        // if (orderStatus[_orderId] != OrderStatus.OPENED) revert InvalidOrderStatus();
-
-        // orderStatus[_orderId] = OrderStatus.REFUNDED;
-
-        // address orderSender = TypeCasts.bytes32ToAddress(orderData.sender);
-
-        // emit Refunded(_orderId, orderSender);
-
-        // IERC20(TypeCasts.bytes32ToAddress(orderData.inputToken)).safeTransfer(orderSender, orderData.amountIn);
-    }
-
-    /**
-     * @dev This function is called during `settle` to handle the settlement of the orders, it is meant to be
-     * implemented by the inheriting contract with specific settlement logic. i.e. sending a cross-chain message
-     */
-    function _handleSettlement(bytes32[] memory _orderIds, bytes[] memory _ordersFillerData) internal virtual;
-
-    /**
-     * @dev This function is called during `refund` to handle the refund of the orders, it is meant to be
-     * implemented by the inheriting contract with specific refund logic. i.e. sending a cross-chain message
-     */
-    function _handleRefund(bytes32[] memory _orderIds) internal virtual;
-
-    /**
-     * @dev To be implemented by the inheriting contract with specific logic, the address of its remote counterpart and
-     * revert if it does not exist
-     */
-    function _mustHaveRemoteCounterpart(uint32 _domain) internal view virtual returns (bytes32);
+    function _fillOrder(bytes32 _orderId, bytes calldata _originData, bytes calldata _fillerData) internal virtual;
 
     /**
      * @dev To be implemented by the inheriting contract with specific logic, should return the local domain
