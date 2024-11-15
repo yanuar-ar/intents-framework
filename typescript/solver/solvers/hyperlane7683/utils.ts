@@ -1,14 +1,27 @@
 import { AddressZero, Zero } from "@ethersproject/constants";
+import { formatUnits } from "@ethersproject/units";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import type { BigNumber } from "ethers";
 
-import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__factory.js";
+import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 
 import type { Provider } from "@ethersproject/abstract-provider";
-import { addressToBytes32, bytes32ToAddress } from "@hyperlane-xyz/utils";
-import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory.js";
-import { logGreen } from "../../logger.js";
-import { ResolvedCrossChainOrder } from "../../types.js";
+import { bytes32ToAddress, LogFormat, LogLevel } from "@hyperlane-xyz/utils";
+import { Logger } from "../../logger.js";
+import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
+import { getMetadata } from "../utils.js";
+import type {
+  Hyperlane7683Metadata,
+  ResolvedCrossChainOrder,
+} from "./types.js";
+
+export const metadata = getMetadata<Hyperlane7683Metadata>(import.meta.dirname);
+
+export const log = new Logger(
+  LogFormat.Pretty,
+  LogLevel.Info,
+  metadata.solverName,
+);
 
 export async function checkChainTokens(
   multiProvider: MultiProvider,
@@ -74,8 +87,9 @@ export async function settleOrder(
   fillInstructions: ResolvedCrossChainOrder["fillInstructions"],
   orderId: string,
   multiProvider: MultiProvider,
+  solverName: string,
 ) {
-  logGreen("About to settle", fillInstructions.length, "leg(s) for", orderId);
+  log.info(`Settling Intent: ${solverName}-${orderId}`);
 
   const destinationSettlers = fillInstructions.reduce<
     Record<string, Array<string>>
@@ -96,32 +110,79 @@ export async function settleOrder(
       async ([destinationChain, settlers]) => {
         const uniqueSettlers = [...new Set(settlers)];
         const filler = multiProvider.getSigner(destinationChain);
-        const fillerAddress = await filler.getAddress();
 
         return Promise.all(
           uniqueSettlers.map(async (destinationSettler) => {
-            const destination = DestinationSettler__factory.connect(
+            const destination = Hyperlane7683__factory.connect(
               destinationSettler,
               filler,
             );
 
-            const receipt = await destination.settle(
-              [orderId],
-              [addressToBytes32(fillerAddress)],
-              { value: await destination.quoteGasPayment(destinationChain) },
-            );
+            const tx = await destination.settle([orderId], {
+              value: await destination.quoteGasPayment(destinationChain),
+            });
 
-            await receipt.wait();
+            const receipt = await tx.wait();
 
-            logGreen(
-              "Settled order",
-              orderId,
-              "on chain",
-              destinationChain.toString(),
+            log.info(
+              `Settled Intent: ${solverName}-${orderId}\n - info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
             );
           }),
         );
       },
     ),
+  );
+}
+
+export async function retrieveOriginInfo(
+  resolvedOrder: ResolvedCrossChainOrder,
+  originSettler: Hyperlane7683Metadata["originSettler"],
+  multiProvider: MultiProvider,
+): Promise<Array<string>> {
+  const originInfo = await Promise.all(
+    resolvedOrder.minReceived.map(async ({ amount, chainId, token }) => {
+      const erc20 = Erc20__factory.connect(
+        bytes32ToAddress(token),
+        multiProvider.getProvider(chainId.toString()),
+      );
+      const [decimals, symbol] = await Promise.all([
+        erc20.decimals(),
+        erc20.symbol(),
+      ]);
+
+      return { amount, decimals, symbol };
+    }),
+  );
+
+  const originChain = originSettler.chainName ?? "UNKNOWN_CHAIN";
+
+  return originInfo.map(
+    ({ amount, decimals, symbol }) =>
+      `${formatUnits(amount, decimals)} ${symbol} in on ${originChain}`,
+  );
+}
+
+export async function retrieveTargetInfo(
+  resolvedOrder: ResolvedCrossChainOrder,
+  multiProvider: MultiProvider,
+): Promise<Array<string>> {
+  const targetInfo = await Promise.all(
+    resolvedOrder.maxSpent.map(async ({ amount, chainId, token }) => {
+      const erc20 = Erc20__factory.connect(
+        bytes32ToAddress(token),
+        multiProvider.getProvider(chainId.toString()),
+      );
+      const [decimals, symbol] = await Promise.all([
+        erc20.decimals(),
+        erc20.symbol(),
+      ]);
+
+      return { amount, decimals, symbol };
+    }),
+  );
+
+  return targetInfo.map(
+    ({ amount, decimals, symbol }) =>
+      `${formatUnits(amount, decimals)} ${symbol} on base-sepolia`,
   );
 }

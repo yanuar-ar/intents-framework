@@ -3,3 +3,4 @@ build
 coverage
 dist
 contracts/typechain
+*.md

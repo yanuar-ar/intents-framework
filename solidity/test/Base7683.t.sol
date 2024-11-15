@@ -17,7 +17,7 @@ import {
     FillInstruction
 } from "../src/ERC7683/IERC7683.sol";
 import { OrderData, OrderEncoder } from "../src/libs/OrderEncoder.sol";
-import { Base7683 } from "../src/Router7683.sol";
+import { Base7683 } from "../src/Base7683.sol";
 
 event Open(bytes32 indexed orderId, ResolvedCrossChainOrder resolvedOrder);
 event Filled(bytes32 orderId, bytes originData, bytes fillerData);

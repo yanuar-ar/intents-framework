@@ -1,38 +1,67 @@
 import { Wallet } from "@ethersproject/wallet";
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
-import { bytes32ToAddress, ensure0x, type Result } from "@hyperlane-xyz/utils";
+import {
+  addressToBytes32,
+  bytes32ToAddress,
+  ensure0x,
+  type Result,
+} from "@hyperlane-xyz/utils";
 
 import { MNEMONIC, PRIVATE_KEY } from "../../config.js";
-import { DestinationSettler__factory } from "../../contracts/typechain/factories/DestinationSettler__factory.js";
-import { Erc20__factory } from "../../contracts/typechain/factories/Erc20__factory.js";
-import { logDebug, logError, logGreen } from "../../logger.js";
-import type { OpenEventArgs, ResolvedCrossChainOrder } from "../../types.js";
-import { getChainIdsWithEnoughTokens, settleOrder } from "./utils.js";
-
-type IntentData = {
-  fillInstructions: ResolvedCrossChainOrder["fillInstructions"];
-  maxSpent: ResolvedCrossChainOrder["maxSpent"];
-};
+import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
+import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
+import type {
+  IntentData,
+  OpenEventArgs,
+  ResolvedCrossChainOrder,
+} from "./types.js";
+import {
+  getChainIdsWithEnoughTokens,
+  log,
+  metadata,
+  retrieveOriginInfo,
+  retrieveTargetInfo,
+  settleOrder,
+} from "./utils.js";
 
 export const create = () => {
-  const { multiProvider } = setup();
+  const { multiProvider, originSettler, solverName } = setup();
 
-  return async function onChain({ orderId, resolvedOrder }: OpenEventArgs) {
-    logGreen("Received Order:", orderId);
+  return async function hyperlane7683({
+    orderId,
+    resolvedOrder,
+  }: OpenEventArgs) {
+    const origin = await retrieveOriginInfo(
+      resolvedOrder,
+      originSettler,
+      multiProvider,
+    );
+    const target = await retrieveTargetInfo(resolvedOrder, multiProvider);
 
-    const result = await prepareIntent(resolvedOrder, multiProvider);
+    log.info(
+      `Intent Indexed: ${solverName}-${orderId}\n - ${origin.join(", ")}\n - ${target.join(", ")}`,
+    );
+
+    const result = await prepareIntent(
+      orderId,
+      resolvedOrder,
+      multiProvider,
+      solverName,
+    );
 
     if (!result.success) {
-      logError("Failed to gather the information for the intent:", result.error);
+      log.error(
+        `${solverName} Failed evaluating filling Intent: ${result.error}`,
+      );
       return;
     }
 
     const { fillInstructions, maxSpent } = result.data;
 
-    await fill(orderId, fillInstructions, maxSpent, multiProvider);
+    await fill(orderId, fillInstructions, maxSpent, multiProvider, solverName);
 
-    logGreen(`Filled ${fillInstructions.length} leg(s) for:`, orderId);
+    await settleOrder(fillInstructions, orderId, multiProvider, solverName);
   };
 };
 
@@ -41,39 +70,59 @@ function setup() {
     throw new Error("Either a private key or mnemonic must be provided");
   }
 
+  if (!metadata.solverName) {
+    metadata.solverName = "UNKNOWN_SOLVER";
+  }
+
+  if (!metadata.originSettler.chainId) {
+    throw new Error("OriginSettler chain ID must be provided");
+  }
+
+  if (!metadata.originSettler.address) {
+    throw new Error("OriginSettler address must be provided");
+  }
+
   const multiProvider = new MultiProvider(chainMetadata);
   const wallet = PRIVATE_KEY
     ? new Wallet(ensure0x(PRIVATE_KEY))
     : Wallet.fromMnemonic(MNEMONIC!);
   multiProvider.setSharedSigner(wallet);
 
-  return { multiProvider };
+  return { multiProvider, ...metadata };
 }
 
 // We're assuming the filler will pay out of their own stock, but in reality they may have to
 // produce the funds before executing each leg.
 async function prepareIntent(
+  orderId: string,
   resolvedOrder: ResolvedCrossChainOrder,
   multiProvider: MultiProvider,
+  solverName: string,
 ): Promise<Result<IntentData>> {
+  log.info(`Evaluating filling Intent: ${solverName}-${orderId}`);
+
   try {
     const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(
       resolvedOrder,
       multiProvider,
     );
 
-    logDebug("Chain IDs with enough tokens:", chainIdsWithEnoughTokens);
+    log.debug(
+      `${solverName} - Chain IDs with enough tokens: ${chainIdsWithEnoughTokens}`,
+    );
 
     const fillInstructions = resolvedOrder.fillInstructions.filter(
       ({ destinationChainId }) =>
         chainIdsWithEnoughTokens.includes(destinationChainId.toString()),
     );
-    logDebug("fillInstructions:", JSON.stringify(fillInstructions));
+    log.debug(
+      `${solverName} - fillInstructions: ${JSON.stringify(fillInstructions)}`,
+    );
 
     const maxSpent = resolvedOrder.maxSpent.filter(({ chainId }) =>
       chainIdsWithEnoughTokens.includes(chainId.toString()),
     );
-    logDebug("maxSpent:", JSON.stringify(maxSpent));
+    log.debug(`${solverName} - maxSpent: ${JSON.stringify(maxSpent)}`);
 
     return { data: { fillInstructions, maxSpent }, success: true };
   } catch (error: any) {
@@ -90,8 +139,9 @@ async function fill(
   fillInstructions: ResolvedCrossChainOrder["fillInstructions"],
   maxSpent: ResolvedCrossChainOrder["maxSpent"],
   multiProvider: MultiProvider,
+  solverName: string,
 ): Promise<void> {
-  logGreen("About to fill", fillInstructions.length, "leg(s) for", orderId);
+  log.info(`Filling Intent: ${solverName}-${orderId}`);
 
   await Promise.all(
     maxSpent.map(async ({ chainId, token, amount, recipient }) => {
@@ -110,20 +160,15 @@ async function fill(
         multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
 
       if (baseUrl) {
-        logGreen(`Approval Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
+        log.debug(
+          `${solverName} - Approval Tx: ${baseUrl}/tx/${receipt.transactionHash}`,
+        );
       } else {
-        logGreen("Approval Tx:", receipt.transactionHash);
+        log.debug(`${solverName} - Approval Tx: ${receipt.transactionHash}`);
       }
 
-      logDebug(
-        "Approved",
-        amount.toString(),
-        "of",
-        token,
-        "to",
-        recipient,
-        "on",
-        _chainId,
+      log.debug(
+        `${solverName} - Approved ${amount.toString()} of ${token} to ${recipient} on ${_chainId}`,
       );
     }),
   );
@@ -135,7 +180,8 @@ async function fill(
         const _chainId = destinationChainId.toString();
 
         const filler = multiProvider.getSigner(_chainId);
-        const destination = DestinationSettler__factory.connect(
+        const fillerAddress = await filler.getAddress();
+        const destination = Hyperlane7683__factory.connect(
           destinationSettler,
           filler,
         );
@@ -143,23 +189,22 @@ async function fill(
         // Depending on the implementation we may call `destination.fill` directly or call some other
         // contract that will produce the funds needed to execute this leg and then in turn call
         // `destination.fill`
-        const tx = await destination.fill(orderId, originData, "0x");
+        const tx = await destination.fill(
+          orderId,
+          originData,
+          addressToBytes32(fillerAddress),
+        );
 
         const receipt = await tx.wait();
         const baseUrl =
           multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
 
-        if (baseUrl) {
-          logGreen(`Fill Tx: ${baseUrl}/tx/${receipt.transactionHash}`);
-        } else {
-          logGreen("Fill Tx:", receipt.transactionHash);
-        }
+        const txInfo = baseUrl
+          ? `${baseUrl}/tx/${receipt.transactionHash}`
+          : receipt.transactionHash;
 
-        logDebug("Filled leg on", _chainId, "with data", originData);
+        log.info(`Filled Intent: ${solverName}-${orderId}\n - info: ${txInfo}`);
       },
     ),
   );
-
-  // This section is only an example for the settlement process
-  await settleOrder(fillInstructions, orderId, multiProvider);
 }
