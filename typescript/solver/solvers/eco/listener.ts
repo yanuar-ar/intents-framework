@@ -6,7 +6,7 @@ import type {
 } from "../../typechain/eco/contracts/IntentSource.js";
 import { IntentSource__factory } from "../../typechain/factories/eco/contracts/IntentSource__factory.js";
 import { BaseListener } from "../BaseListener.js";
-import { getMetadata, log } from "./utils.js";
+import { log, metadata } from "./utils.js";
 
 export class EcoListener extends BaseListener<
   IntentSource,
@@ -17,10 +17,10 @@ export class EcoListener extends BaseListener<
     const {
       intentSource: { address, chainId },
       solverName,
-    } = getMetadata();
-    const metadata = { address, chainId, solverName };
+    } = metadata;
+    const ecoMetadata = { address, chainId, solverName };
 
-    super(IntentSource__factory, "IntentCreated", metadata, log);
+    super(IntentSource__factory, "IntentCreated", ecoMetadata, log);
   }
 
   protected parseEventArgs([

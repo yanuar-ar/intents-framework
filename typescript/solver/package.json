@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "solver": "node ./dist/index.js",
-    "build": "tsc",
+    "build": "tsc && copyfiles ./solvers/**/*.yaml ./dist",
     "dev": "tsx --watch ./index.ts",
     "prettier:check": "prettier . --check",
     "prettier:write": "prettier . --write",
@@ -20,6 +20,8 @@
   "description": "",
   "devDependencies": {
     "@typechain/ethers-v5": "^11.1.2",
+    "@types/copyfiles": "^2",
+    "copyfiles": "^2.4.1",
     "prettier": "^3.3.3",
     "tsx": "^4.19.2",
     "typechain": "^8.3.2",

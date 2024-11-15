@@ -1,10 +1,7 @@
-import fs from "fs";
-
 import { AddressZero, Zero } from "@ethersproject/constants";
 import { formatUnits } from "@ethersproject/units";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import type { BigNumber } from "ethers";
-import { parse } from "yaml";
 
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 
@@ -12,15 +9,18 @@ import type { Provider } from "@ethersproject/abstract-provider";
 import { bytes32ToAddress, LogFormat, LogLevel } from "@hyperlane-xyz/utils";
 import { Logger } from "../../logger.js";
 import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
+import { getMetadata } from "../utils.js";
 import type {
   Hyperlane7683Metadata,
   ResolvedCrossChainOrder,
 } from "./types.js";
 
+export const metadata = getMetadata<Hyperlane7683Metadata>(import.meta.dirname);
+
 export const log = new Logger(
   LogFormat.Pretty,
   LogLevel.Info,
-  "Hyperlane7683-Solver",
+  metadata.solverName,
 );
 
 export async function checkChainTokens(
@@ -87,8 +87,9 @@ export async function settleOrder(
   fillInstructions: ResolvedCrossChainOrder["fillInstructions"],
   orderId: string,
   multiProvider: MultiProvider,
+  solverName: string,
 ) {
-  log.info(`Settling Intent: Hyperlane7683-${orderId}`);
+  log.info(`Settling Intent: ${solverName}-${orderId}`);
 
   const destinationSettlers = fillInstructions.reduce<
     Record<string, Array<string>>
@@ -124,14 +125,7 @@ export async function settleOrder(
             const receipt = await tx.wait();
 
             log.info(
-              `Settled Intent: Hyperlane7683-${orderId}\n - info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
-            );
-
-            log.debug(
-              "Settled order",
-              orderId,
-              "on chain",
-              destinationChain.toString(),
+              `Settled Intent: ${solverName}-${orderId}\n - info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
             );
           }),
         );
@@ -191,15 +185,4 @@ export async function retrieveTargetInfo(
     ({ amount, decimals, symbol }) =>
       `${formatUnits(amount, decimals)} ${symbol} on base-sepolia`,
   );
-}
-
-export function getMetadata(): Hyperlane7683Metadata {
-  log.debug("Reading metadata from metadata.yaml");
-  // TODO: make it generic, so it can be used for other solvers
-  const data = fs.readFileSync("solvers/hyperlane7683/metadata.yaml", "utf8");
-  const metadata = parse(data) as Hyperlane7683Metadata;
-
-  log.debug("Metadata read:", JSON.stringify(metadata, null, 2));
-
-  return metadata;
 }
