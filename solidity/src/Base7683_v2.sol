@@ -22,14 +22,6 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
 
     // ============ Constants ============
 
-    enum OrderStatus {
-        UNFILLED,
-        OPENED,
-        FILLED,
-        SETTLED,
-        REFUNDED
-    }
-
     IPermit2 public immutable PERMIT2;
 
     bytes32 public constant RESOLVED_CROSS_CHAIN_ORDER_TYPEHASH = keccak256(
@@ -38,6 +30,12 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
 
     string public constant witnessTypeString =
         "ResolvedCrossChainOrder witness)ResolvedCrossChainOrder(address user, uint64 originChainId, uint32 openDeadline, uint32 fillDeadline, Output[] maxSpent, Output[] minReceived, FillInstruction[] fillInstructions)Output(bytes32 token, uint256 amount, bytes32 recipient, uint64 chainId)FillInstruction(uint64 destinationChainId, bytes32 destinationSettler, bytes originData)TokenPermissions(address token,uint256 amount)";
+
+    // to be used to check the status of the order on orderStatus mapping. Other possible statuses should be defined in
+    // the inheriting contract
+    bytes32 public constant UNKNOWN = "";
+    bytes32 public constant OPENED = "OPENED";
+    bytes32 public constant FILLED = "FILLED";
 
     // ============ Public Storage ============
 
@@ -51,10 +49,7 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
 
     mapping(bytes32 orderId => bytes fillerData) public orderFillerData;
 
-    // IDEA - to track the status using a bitmap with more than 3 bits, first 3 bits can be used
-    // for statuses specific to this contract UNFILLED, OPENED, FILLED and the rest can be used for statuses particular
-    // to the implementation
-    mapping(bytes32 orderId => OrderStatus status) public orderStatus;
+    mapping(bytes32 orderId => bytes32 status) public orderStatus;
 
     // ============ Upgrade Gap ============
 
@@ -102,7 +97,7 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
         _permitTransferFrom(resolvedOrder, signature, order.nonce, address(this));
 
         orders[orderId] = abi.encode(resolvedOrder);
-        orderStatus[orderId] = OrderStatus.OPENED;
+        orderStatus[orderId] = OPENED;
         _useUnorderedNonce(order.user, nonce);
 
         emit Open(orderId, resolvedOrder);
@@ -122,7 +117,7 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
         }
 
         orders[orderId] = abi.encode(resolvedOrder);
-        orderStatus[orderId] = OrderStatus.OPENED;
+        orderStatus[orderId] = OPENED;
         _useUnorderedNonce(msg.sender, nonce);
 
         emit Open(orderId, resolvedOrder);
@@ -162,11 +157,11 @@ abstract contract Base7683_v2 is IOriginSettler, IDestinationSettler {
     /// @param _fillerData Data provided by the filler to inform the fill or express their preferences. It should
     /// contain the bytes32 encoded address of the receiver which is the used at settlement time
     function fill(bytes32 _orderId, bytes calldata _originData, bytes calldata _fillerData) external virtual {
-        if (orderStatus[_orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
+        if (orderStatus[_orderId] != UNKNOWN) revert InvalidOrderStatus();
 
         _fillOrder(_orderId, _originData, _fillerData);
 
-        orderStatus[_orderId] = OrderStatus.FILLED;
+        orderStatus[_orderId] = FILLED;
         filledOrders[_orderId] = _originData;
         orderFillerData[_orderId] = _fillerData;
 

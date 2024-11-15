@@ -25,6 +25,8 @@ contract Hyperlane7683 is GasRouter, Base7683_v2 {
     using SafeERC20 for IERC20;
 
     // ============ Constants ============
+    bytes32 public constant SETTLED = "SETTLED";
+    bytes32 public constant REFUNDED = "REFUNDED";
 
     // ============ Public Storage ============
 
@@ -78,9 +80,9 @@ contract Hyperlane7683 is GasRouter, Base7683_v2 {
 
         bytes[] memory ordersFillerData = new bytes[](_orderIds.length);
         for (uint256 i = 0; i < _orderIds.length; i += 1) {
-            if (orderStatus[_orderIds[i]] != OrderStatus.FILLED) revert InvalidOrderStatus();
+            if (orderStatus[_orderIds[i]] != FILLED) revert InvalidOrderStatus();
 
-            orderStatus[_orderIds[i]] = OrderStatus.SETTLED;
+            orderStatus[_orderIds[i]] = SETTLED;
             ordersFillerData[i] = orderFillerData[_orderIds[i]];
         }
 
@@ -97,12 +99,12 @@ contract Hyperlane7683 is GasRouter, Base7683_v2 {
             OrderData memory orderData = OrderEncoder.decode(_orders[i].orderData);
             bytes32 orderId = OrderEncoder.id(orderData);
 
-            if (orderStatus[orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
+            if (orderStatus[orderId] != UNKNOWN) revert InvalidOrderStatus();
             if (block.timestamp <= orderData.fillDeadline) revert OrderFillNotExpired();
             if (orderData.destinationDomain != localDomain) revert InvalidOrderDomain();
             _mustHaveRemoteCounterpart(orderData.originDomain);
 
-            orderStatus[orderId] = OrderStatus.REFUNDED;
+            orderStatus[orderId] = REFUNDED;
             orderIds[i] = orderId;
         }
 
@@ -117,12 +119,12 @@ contract Hyperlane7683 is GasRouter, Base7683_v2 {
             OrderData memory orderData = OrderEncoder.decode(_orders[i].orderData);
             bytes32 orderId = OrderEncoder.id(orderData);
 
-            if (orderStatus[orderId] != OrderStatus.UNFILLED) revert InvalidOrderStatus();
+            if (orderStatus[orderId] != UNKNOWN) revert InvalidOrderStatus();
             if (block.timestamp <= orderData.fillDeadline) revert OrderFillNotExpired();
             if (orderData.destinationDomain != localDomain) revert InvalidOrderDomain();
             _mustHaveRemoteCounterpart(orderData.originDomain);
 
-            orderStatus[orderId] = OrderStatus.REFUNDED;
+            orderStatus[orderId] = REFUNDED;
             orderIds[i] = orderId;
         }
 
@@ -139,7 +141,7 @@ contract Hyperlane7683 is GasRouter, Base7683_v2 {
 
         for (uint256 i = 0; i < _orderIds.length; i++) {
             // check if the order is opened to ensure it belongs to this domain, skip otherwise
-            if (orderStatus[_orderIds[i]] != OrderStatus.OPENED) continue;
+            if (orderStatus[_orderIds[i]] != OPENED) continue;
 
             if (_settle) {
                 _settleOrder(_orderIds[i], abi.decode(_ordersFillerData[i], (bytes32)), _origin);
@@ -150,7 +152,7 @@ contract Hyperlane7683 is GasRouter, Base7683_v2 {
     }
 
     function _settleOrder(bytes32 _orderId, bytes32 _receiver, uint32 _settlingDomain) internal {
-        if (orderStatus[_orderId] != OrderStatus.OPENED) revert InvalidOrderStatus();
+        if (orderStatus[_orderId] != OPENED) revert InvalidOrderStatus();
 
         ResolvedCrossChainOrder memory resolvedOrder = abi.decode(orders[_orderId], (ResolvedCrossChainOrder));
 
@@ -158,7 +160,7 @@ contract Hyperlane7683 is GasRouter, Base7683_v2 {
 
         if (orderData.destinationDomain != _settlingDomain) revert InvalidDomain();
 
-        orderStatus[_orderId] = OrderStatus.SETTLED;
+        orderStatus[_orderId] = SETTLED;
 
         address receiver = TypeCasts.bytes32ToAddress(_receiver);
 
@@ -168,7 +170,7 @@ contract Hyperlane7683 is GasRouter, Base7683_v2 {
     }
 
     function _refundOrder(bytes32 _orderId, uint32 _refundingDomain) internal {
-        if (orderStatus[_orderId] != OrderStatus.OPENED) revert InvalidOrderStatus();
+        if (orderStatus[_orderId] != OPENED) revert InvalidOrderStatus();
 
         ResolvedCrossChainOrder memory resolvedOrder = abi.decode(orders[_orderId], (ResolvedCrossChainOrder));
 
@@ -176,7 +178,7 @@ contract Hyperlane7683 is GasRouter, Base7683_v2 {
 
         if (orderData.destinationDomain != _refundingDomain) revert InvalidDomain();
 
-        orderStatus[_orderId] = OrderStatus.REFUNDED;
+        orderStatus[_orderId] = REFUNDED;
 
         address orderSender = TypeCasts.bytes32ToAddress(orderData.sender);
 
