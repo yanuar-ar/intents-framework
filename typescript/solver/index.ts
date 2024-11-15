@@ -2,10 +2,8 @@
 
 import "./patch-bigint-buffer-warn.js";
 
-import { LogFormat, Logger, LogLevel } from "./logger.js";
+import { log } from "./logger.js";
 import * as solvers from "./solvers/index.js";
-
-const log = new Logger(LogFormat.Pretty, LogLevel.Info);
 import { getMultiProvider } from "./solvers/utils.js";
 
 log.title("🙍 Intent Solver 📝");
