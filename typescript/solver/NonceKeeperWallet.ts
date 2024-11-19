@@ -11,7 +11,7 @@ import { log } from "./logger.js";
 const nonces: Record<number, Promise<number>> = {};
 
 export class NonceKeeperWallet extends Wallet {
-  connect(provider: Provider): NonceKeeperWallet{
+  connect(provider: Provider): NonceKeeperWallet {
     return new NonceKeeperWallet(this, provider);
   }
 
