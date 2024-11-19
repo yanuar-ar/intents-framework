@@ -7,9 +7,9 @@ import {
   configureRootLogger,
   getLogFormat,
   rootLogger,
-  safelyAccessEnvVar,
 } from "@hyperlane-xyz/utils";
 import uniqolor from "uniqolor";
+import { LOG_FORMAT, LOG_LEVEL } from "./config.js";
 
 class Logger {
   infoChalkInstance: ChalkInstance;
@@ -23,12 +23,8 @@ class Logger {
   }
 
   private configureLogger(logFormat?: LogFormat, logLevel?: LogLevel) {
-    logFormat = (logFormat ||
-      safelyAccessEnvVar("LOG_FORMAT", true) ||
-      LogFormat.Pretty) as LogFormat;
-    logLevel = (logLevel ||
-      safelyAccessEnvVar("LOG_LEVEL", true) ||
-      LogLevel.Info) as LogLevel;
+    logFormat = (logFormat || LOG_FORMAT || LogFormat.Pretty) as LogFormat;
+    logLevel = (logLevel || LOG_LEVEL || LogLevel.Info) as LogLevel;
     return configureRootLogger(logFormat, logLevel).child({ module: "solver" });
   }
 
