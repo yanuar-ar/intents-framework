@@ -1,14 +1,10 @@
-import { Wallet } from "@ethersproject/wallet";
-import { chainMetadata } from "@hyperlane-xyz/registry";
-import { MultiProvider } from "@hyperlane-xyz/sdk";
+import { type MultiProvider } from "@hyperlane-xyz/sdk";
 import {
   addressToBytes32,
   bytes32ToAddress,
-  ensure0x,
   type Result,
 } from "@hyperlane-xyz/utils";
 
-import { MNEMONIC, PRIVATE_KEY } from "../../config.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
 import type {
@@ -25,8 +21,8 @@ import {
   settleOrder,
 } from "./utils.js";
 
-export const create = () => {
-  const { multiProvider, originSettler, solverName } = setup();
+export const create = (multiProvider: MultiProvider) => {
+  const { originSettler, solverName } = setup();
 
   return async function hyperlane7683({
     orderId,
@@ -66,10 +62,6 @@ export const create = () => {
 };
 
 function setup() {
-  if (!PRIVATE_KEY && !MNEMONIC) {
-    throw new Error("Either a private key or mnemonic must be provided");
-  }
-
   if (!metadata.solverName) {
     metadata.solverName = "UNKNOWN_SOLVER";
   }
@@ -82,13 +74,7 @@ function setup() {
     throw new Error("OriginSettler address must be provided");
   }
 
-  const multiProvider = new MultiProvider(chainMetadata);
-  const wallet = PRIVATE_KEY
-    ? new Wallet(ensure0x(PRIVATE_KEY))
-    : Wallet.fromMnemonic(MNEMONIC!);
-  multiProvider.setSharedSigner(wallet);
-
-  return { multiProvider, ...metadata };
+  return metadata;
 }
 
 // We're assuming the filler will pay out of their own stock, but in reality they may have to

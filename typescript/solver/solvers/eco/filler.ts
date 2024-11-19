@@ -1,12 +1,9 @@
 import { Zero } from "@ethersproject/constants";
-import { Wallet } from "@ethersproject/wallet";
-import { chainMetadata } from "@hyperlane-xyz/registry";
-import { MultiProvider } from "@hyperlane-xyz/sdk";
-import { ensure0x, type Result } from "@hyperlane-xyz/utils";
+import { type MultiProvider } from "@hyperlane-xyz/sdk";
+import { type Result } from "@hyperlane-xyz/utils";
 
 import { type BigNumber } from "ethers";
 
-import { MNEMONIC, PRIVATE_KEY } from "../../config.js";
 import type { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { EcoAdapter__factory } from "../../typechain/factories/eco/contracts/EcoAdapter__factory.js";
@@ -19,8 +16,8 @@ import {
   withdrawRewards,
 } from "./utils.js";
 
-export const create = () => {
-  const { adapters, intentSource, multiProvider, solverName } = setup();
+export const create = (multiProvider: MultiProvider) => {
+  const { adapters, intentSource, solverName } = setup();
 
   return async function eco(intent: IntentCreatedEventObject) {
     const origin = await retrieveOriginInfo(
@@ -61,10 +58,6 @@ export const create = () => {
 };
 
 function setup() {
-  if (!PRIVATE_KEY && !MNEMONIC) {
-    throw new Error("Either a private key or mnemonic must be provided");
-  }
-
   if (!metadata.solverName) {
     metadata.solverName = "UNKNOWN_SOLVER";
   }
@@ -81,13 +74,7 @@ function setup() {
     throw new Error("IntentSource address must be provided");
   }
 
-  const multiProvider = new MultiProvider(chainMetadata);
-  const wallet = PRIVATE_KEY
-    ? new Wallet(ensure0x(PRIVATE_KEY))
-    : Wallet.fromMnemonic(MNEMONIC!);
-  multiProvider.setSharedSigner(wallet);
-
-  return { multiProvider, ...metadata };
+  return metadata;
 }
 
 // We're assuming the filler will pay out of their own stock, but in reality they may have to

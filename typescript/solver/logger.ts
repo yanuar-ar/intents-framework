@@ -15,18 +15,20 @@ class Logger {
   infoChalkInstance: ChalkInstance;
   logger: PinoLogger = rootLogger;
 
-  constructor(logFormat: LogFormat, logLevel: LogLevel, label?: string) {
+  constructor(label?: string, logFormat?: LogFormat, logLevel?: LogLevel) {
     this.infoChalkInstance = label
       ? chalk.hex(uniqolor(label).color)
       : chalk.green;
     this.logger = this.configureLogger(logFormat, logLevel);
   }
 
-  private configureLogger(logFormat: LogFormat, logLevel: LogLevel) {
-    logFormat =
-      logFormat || safelyAccessEnvVar("LOG_FORMAT", true) || LogFormat.Pretty;
-    logLevel =
-      logLevel || safelyAccessEnvVar("LOG_LEVEL", true) || LogLevel.Info;
+  private configureLogger(logFormat?: LogFormat, logLevel?: LogLevel) {
+    logFormat = (logFormat ||
+      safelyAccessEnvVar("LOG_FORMAT", true) ||
+      LogFormat.Pretty) as LogFormat;
+    logLevel = (logLevel ||
+      safelyAccessEnvVar("LOG_LEVEL", true) ||
+      LogLevel.Info) as LogLevel;
     return configureRootLogger(logFormat, logLevel).child({ module: "solver" });
   }
 
@@ -60,6 +62,6 @@ class Logger {
   }
 }
 
-const log = new Logger(LogFormat.Pretty, LogLevel.Info);
+const log = new Logger();
 
 export { LogFormat, LogLevel, Logger, log };

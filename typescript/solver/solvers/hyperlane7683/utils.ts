@@ -6,7 +6,7 @@ import type { BigNumber } from "ethers";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 
 import type { Provider } from "@ethersproject/abstract-provider";
-import { bytes32ToAddress, LogFormat, LogLevel } from "@hyperlane-xyz/utils";
+import { bytes32ToAddress } from "@hyperlane-xyz/utils";
 import { Logger } from "../../logger.js";
 import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
 import { getMetadata } from "../utils.js";
@@ -17,11 +17,7 @@ import type {
 
 export const metadata = getMetadata<Hyperlane7683Metadata>(import.meta.dirname);
 
-export const log = new Logger(
-  LogFormat.Pretty,
-  LogLevel.Info,
-  metadata.solverName,
-);
+export const log = new Logger(metadata.solverName);
 
 export async function checkChainTokens(
   multiProvider: MultiProvider,

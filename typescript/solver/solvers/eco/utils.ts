@@ -2,7 +2,7 @@ import { formatUnits } from "@ethersproject/units";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import type { BigNumber } from "ethers";
 
-import { LogFormat, Logger, LogLevel } from "../../logger.js";
+import { Logger } from "../../logger.js";
 import type { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { HyperProver__factory } from "../../typechain/factories/eco/contracts/HyperProver__factory.js";
@@ -12,11 +12,7 @@ import type { EcoMetadata } from "./types.js";
 
 export const metadata = getMetadata<EcoMetadata>(import.meta.dirname);
 
-export const log = new Logger(
-  LogFormat.Pretty,
-  LogLevel.Info,
-  metadata.solverName,
-);
+export const log = new Logger(metadata.solverName);
 
 export async function withdrawRewards(
   intent: IntentCreatedEventObject,
