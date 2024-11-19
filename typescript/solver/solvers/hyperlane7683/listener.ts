@@ -9,7 +9,7 @@ import { OpenEventArgs } from "./types.js";
 
 import { log, metadata } from "./utils.js";
 
-export class OnChainListener extends BaseListener<
+export class Hyperlane7683Listener extends BaseListener<
   Hyperlane7683,
   OpenEvent,
   OpenEventArgs
@@ -32,4 +32,4 @@ export class OnChainListener extends BaseListener<
   }
 }
 
-export const create = () => new OnChainListener().create();
+export const create = () => new Hyperlane7683Listener().create();
