@@ -8,10 +8,10 @@ import { getMultiProvider } from "./solvers/utils.js";
 
 log.title("🙍 Intent Solver 📝");
 
-const main = async () => {
+const main = () => {
   log.subtitle("Starting...", "\n");
 
-  const multiProvider = await getMultiProvider();
+  const multiProvider = getMultiProvider();
 
   // TODO: implement a way to choose different listeners and fillers
   const ecoListener = solvers["eco"].listener.create();
