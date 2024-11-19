@@ -96,19 +96,15 @@ contract Hyperlane7683 is GasRouter, Base7683 {
     function refund(GaslessCrossChainOrder[] memory _orders) external payable {
         bytes32[] memory orderIds = new bytes32[](_orders.length);
         for (uint256 i = 0; i < _orders.length; i += 1) {
-            OrderData memory orderData = OrderEncoder.decode(_orders[i].orderData);
-            bytes32 orderId = OrderEncoder.id(orderData);
-
-            if (orderStatus[orderId] != UNKNOWN) revert InvalidOrderStatus();
-            if (block.timestamp <= orderData.fillDeadline) revert OrderFillNotExpired();
-            if (orderData.destinationDomain != localDomain) revert InvalidOrderDomain();
-            _mustHaveRemoteCounterpart(orderData.originDomain);
-
-            orderStatus[orderId] = REFUNDED;
-            orderIds[i] = orderId;
+            orderIds[i] = _refundOrder(_orders[i].orderData);
         }
 
-        _handleRefund(orderIds, OrderEncoder.decode(_orders[0].orderData).originDomain);
+        _GasRouter_dispatch(
+            OrderEncoder.decode(_orders[0].orderData).originDomain,
+            msg.value,
+            Hyperlane7683Message.encodeRefund(orderIds),
+            address(hook)
+        );
 
         emit Refund(orderIds);
     }
@@ -116,19 +112,15 @@ contract Hyperlane7683 is GasRouter, Base7683 {
     function refund(OnchainCrossChainOrder[] memory _orders) external payable {
         bytes32[] memory orderIds = new bytes32[](_orders.length);
         for (uint256 i = 0; i < _orders.length; i += 1) {
-            OrderData memory orderData = OrderEncoder.decode(_orders[i].orderData);
-            bytes32 orderId = OrderEncoder.id(orderData);
-
-            if (orderStatus[orderId] != UNKNOWN) revert InvalidOrderStatus();
-            if (block.timestamp <= orderData.fillDeadline) revert OrderFillNotExpired();
-            if (orderData.destinationDomain != localDomain) revert InvalidOrderDomain();
-            _mustHaveRemoteCounterpart(orderData.originDomain);
-
-            orderStatus[orderId] = REFUNDED;
-            orderIds[i] = orderId;
+            orderIds[i] = _refundOrder(_orders[i].orderData);
         }
 
-        _handleRefund(orderIds, OrderEncoder.decode(_orders[0].orderData).originDomain);
+        _GasRouter_dispatch(
+            OrderEncoder.decode(_orders[0].orderData).originDomain,
+            msg.value,
+            Hyperlane7683Message.encodeRefund(orderIds),
+            address(hook)
+        );
 
         emit Refund(orderIds);
     }
@@ -144,14 +136,14 @@ contract Hyperlane7683 is GasRouter, Base7683 {
             if (orderStatus[_orderIds[i]] != OPENED) continue;
 
             if (_settle) {
-                _settleOrder(_orderIds[i], abi.decode(_ordersFillerData[i], (bytes32)), _origin);
+                _handleSettleOrder(_orderIds[i], abi.decode(_ordersFillerData[i], (bytes32)), _origin);
             } else {
-                _refundOrder(_orderIds[i], _origin);
+                _handleRefundOrder(_orderIds[i], _origin);
             }
         }
     }
 
-    function _settleOrder(bytes32 _orderId, bytes32 _receiver, uint32 _settlingDomain) internal {
+    function _handleSettleOrder(bytes32 _orderId, bytes32 _receiver, uint32 _settlingDomain) internal {
         if (orderStatus[_orderId] != OPENED) revert InvalidOrderStatus();
 
         ResolvedCrossChainOrder memory resolvedOrder = abi.decode(orders[_orderId], (ResolvedCrossChainOrder));
@@ -169,7 +161,7 @@ contract Hyperlane7683 is GasRouter, Base7683 {
         IERC20(TypeCasts.bytes32ToAddress(orderData.inputToken)).safeTransfer(receiver, orderData.amountIn);
     }
 
-    function _refundOrder(bytes32 _orderId, uint32 _refundingDomain) internal {
+    function _handleRefundOrder(bytes32 _orderId, uint32 _refundingDomain) internal {
         if (orderStatus[_orderId] != OPENED) revert InvalidOrderStatus();
 
         ResolvedCrossChainOrder memory resolvedOrder = abi.decode(orders[_orderId], (ResolvedCrossChainOrder));
@@ -187,8 +179,17 @@ contract Hyperlane7683 is GasRouter, Base7683 {
         IERC20(TypeCasts.bytes32ToAddress(orderData.inputToken)).safeTransfer(orderSender, orderData.amountIn);
     }
 
-    function _handleRefund(bytes32[] memory _orderIds, uint32 _originDomain) internal virtual {
-        _GasRouter_dispatch(_originDomain, msg.value, Hyperlane7683Message.encodeRefund(_orderIds), address(hook));
+    function _refundOrder(bytes memory _orderData) internal virtual returns (bytes32 orderId) {
+        OrderData memory orderData = OrderEncoder.decode(_orderData);
+        orderId = OrderEncoder.id(orderData);
+
+        if (orderStatus[orderId] != UNKNOWN) revert InvalidOrderStatus();
+        if (block.timestamp <= orderData.fillDeadline) revert OrderFillNotExpired();
+        if (orderData.destinationDomain != localDomain) revert InvalidOrderDomain();
+        _mustHaveRemoteCounterpart(orderData.originDomain);
+
+        orderStatus[orderId] = REFUNDED;
+        return orderId;
     }
 
     function _mustHaveRemoteCounterpart(uint32 _domain) internal view virtual returns (bytes32) {
