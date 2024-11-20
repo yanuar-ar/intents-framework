@@ -2,7 +2,7 @@ import { formatUnits } from "@ethersproject/units";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import type { BigNumber } from "ethers";
 
-import { Logger } from "../../logger.js";
+import { createLogger } from "../../logger.js";
 import type { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { HyperProver__factory } from "../../typechain/factories/eco/contracts/HyperProver__factory.js";
@@ -12,7 +12,7 @@ import type { EcoMetadata } from "./types.js";
 
 export const metadata = getMetadata<EcoMetadata>(import.meta.dirname);
 
-export const log = new Logger(metadata.solverName);
+export const log = createLogger(metadata.solverName);
 
 export async function withdrawRewards(
   intent: IntentCreatedEventObject,
@@ -20,7 +20,10 @@ export async function withdrawRewards(
   multiProvider: MultiProvider,
   solverName: string,
 ) {
-  log.info(`Settling Intent: ${solverName}-${intent._hash}`);
+  log.info({
+    msg: "Settling Intent",
+    intent: `${solverName}-${intent._hash}`,
+  });
 
   const { _hash, _prover } = intent;
   const signer = multiProvider.getSigner(intentSource.chainId);
@@ -46,7 +49,12 @@ export async function withdrawRewards(
           ? `${baseUrl}/tx/${receipt.transactionHash}`
           : receipt.transactionHash;
 
-        log.info(`Settled Intent: ${solverName}-${_hash}\n - info: ${txInfo}`);
+        log.info({
+          msg: "Settled Intent",
+          intent: `${solverName}-${_hash}`,
+          txDetails: txInfo,
+          txHash: receipt.transactionHash,
+        });
 
         resolve(_hash);
       },

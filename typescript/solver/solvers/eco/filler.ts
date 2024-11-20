@@ -27,9 +27,12 @@ export const create = (multiProvider: MultiProvider) => {
     );
     const target = await retrieveTargetInfo(intent, adapters, multiProvider);
 
-    log.info(
-      `Intent Indexed: ${solverName}-${intent._hash}\n - ${origin.join(", ")}\n - ${target.join(", ")}`,
-    );
+    log.info({
+      msg: "Intent Indexed",
+      intent: `${solverName}-${intent._hash}`,
+      origin: origin.join(", "),
+      target: target.join(", "),
+    });
 
     const result = await prepareIntent(
       intent,
@@ -85,7 +88,10 @@ async function prepareIntent(
   multiProvider: MultiProvider,
   solverName: string,
 ): Promise<Result<IntentData>> {
-  log.info(`Evaluating filling Intent: ${solverName}-${intent._hash}`);
+  log.info({
+    msg: "Evaluating filling Intent",
+    intent: `${solverName}-${intent._hash}`,
+  });
 
   try {
     const destinationChainId = intent._destinationChain.toNumber();
@@ -165,7 +171,10 @@ async function fill(
   multiProvider: MultiProvider,
   solverName: string,
 ): Promise<void> {
-  log.info(`Filling Intent: ${solverName}-${intent._hash}`);
+  log.info({
+    msg: "Filling Intent",
+    intent: `${solverName}-${intent._hash}`,
+  });
 
   const _chainId = intent._destinationChain.toString();
 
@@ -197,7 +206,10 @@ async function fill(
 
   const receipt = await tx.wait();
 
-  log.info(
-    `Filled Intent: ${solverName}-${intent._hash}\n - info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
-  );
+  log.info({
+    msg: "Filled Intent",
+    intent: `${solverName}-${intent._hash}`,
+    txDetails: receipt.transactionHash,
+    txHash: receipt.transactionHash,
+  });
 }
