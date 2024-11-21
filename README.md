@@ -2,7 +2,7 @@
 
 ## Description
 
-The Intents Framework is a modular and interoperable system designed to interpret and execute user intents on any ENV-compatible blockchain. It leverages a combination of smart contracts, solvers, and an optional UI component to provide a comprehensive solution for decentralized intent management.
+The Intents Framework is a modular and interoperable system designed to interpret and execute user intents on any EVM-compatible blockchain. It leverages a combination of smart contracts, solvers, and an optional UI component to provide a comprehensive solution for decentralized intent management.
 
 ## Features
 
