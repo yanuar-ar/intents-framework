@@ -6,10 +6,10 @@ import { log } from "./logger.js";
 import * as solvers from "./solvers/index.js";
 import { getMultiProvider } from "./solvers/utils.js";
 
-log.title("🙍 Intent Solver 📝");
+log.info("🙍 Intent Solver 📝");
 
 const main = () => {
-  log.subtitle("Starting...", "\n");
+  log.info("Starting...");
 
   const multiProvider = getMultiProvider();
 

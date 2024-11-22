@@ -35,9 +35,12 @@ export const create = (multiProvider: MultiProvider) => {
     );
     const target = await retrieveTargetInfo(resolvedOrder, multiProvider);
 
-    log.info(
-      `Intent Indexed: ${solverName}-${orderId}\n - ${origin.join(", ")}\n - ${target.join(", ")}`,
-    );
+    log.info({
+      msg: "Intent Indexed",
+      intent: `${solverName}-${orderId}`,
+      origin: origin.join(", "),
+      target: target.join(", "),
+    });
 
     const result = await prepareIntent(
       orderId,
@@ -85,7 +88,10 @@ async function prepareIntent(
   multiProvider: MultiProvider,
   solverName: string,
 ): Promise<Result<IntentData>> {
-  log.info(`Evaluating filling Intent: ${solverName}-${orderId}`);
+  log.info({
+    msg: "Evaluating filling Intent",
+    intent: `${solverName}-${orderId}`,
+  });
 
   try {
     const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(
@@ -127,7 +133,10 @@ async function fill(
   multiProvider: MultiProvider,
   solverName: string,
 ): Promise<void> {
-  log.info(`Filling Intent: ${solverName}-${orderId}`);
+  log.info({
+    msg: "Filling Intent",
+    intent: `${solverName}-${orderId}`,
+  });
 
   await Promise.all(
     maxSpent.map(async ({ chainId, token, amount, recipient }) => {
@@ -189,7 +198,12 @@ async function fill(
           ? `${baseUrl}/tx/${receipt.transactionHash}`
           : receipt.transactionHash;
 
-        log.info(`Filled Intent: ${solverName}-${orderId}\n - info: ${txInfo}`);
+        log.info({
+          msg: "Filled Intent",
+          intent: `${solverName}-${orderId}`,
+          txDetails: txInfo,
+          txHash: receipt.transactionHash,
+        });
       },
     ),
   );

@@ -7,7 +7,7 @@ import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__facto
 
 import type { Provider } from "@ethersproject/abstract-provider";
 import { bytes32ToAddress } from "@hyperlane-xyz/utils";
-import { Logger } from "../../logger.js";
+import { createLogger } from "../../logger.js";
 import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
 import { getMetadata } from "../utils.js";
 import type {
@@ -17,7 +17,7 @@ import type {
 
 export const metadata = getMetadata<Hyperlane7683Metadata>(import.meta.dirname);
 
-export const log = new Logger(metadata.solverName);
+export const log = createLogger(metadata.solverName);
 
 export async function checkChainTokens(
   multiProvider: MultiProvider,
@@ -85,7 +85,10 @@ export async function settleOrder(
   multiProvider: MultiProvider,
   solverName: string,
 ) {
-  log.info(`Settling Intent: ${solverName}-${orderId}`);
+  log.info({
+    msg: "Settling Intent",
+    intent: `${solverName}-${orderId}`,
+  });
 
   const destinationSettlers = fillInstructions.reduce<
     Record<string, Array<string>>
@@ -120,9 +123,12 @@ export async function settleOrder(
 
             const receipt = await tx.wait();
 
-            log.info(
-              `Settled Intent: ${solverName}-${orderId}\n - info: https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
-            );
+            log.info({
+              msg: "Settled Intent",
+              intent: `${solverName}-${orderId}`,
+              txDetails: `https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
+              txHash: receipt.transactionHash,
+            });
           }),
         );
       },

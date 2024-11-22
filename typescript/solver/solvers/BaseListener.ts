@@ -52,12 +52,16 @@ export abstract class BaseListener<
       contract.on(filter, listener);
 
       contract.provider.getNetwork().then((network) => {
-        this.log.info(
-          `Started listening for ${this.metadata.solverName}-${this.eventName} events on`,
-          Object.values(chainMetadata).find(
-            (metadata) => metadata.chainId === network.chainId,
-          )?.displayName,
-        );
+        this.log.info({
+          msg: "Listener started",
+          event: this.eventName,
+          solver: this.metadata.solverName,
+          chainId: network.chainId,
+          chainName:
+            Object.values(chainMetadata).find(
+              (metadata) => metadata.chainId === network.chainId,
+            )?.displayName ?? "Unknown",
+        });
       });
     };
   }
