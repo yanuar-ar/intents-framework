@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.25;
+pragma solidity ^0.8.27;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -56,8 +56,10 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     // ============ Events ============
 
     event Filled(bytes32 orderId, bytes originData, bytes fillerData);
+    event Settle(bytes32[] orderIds, bytes[] ordersFillerData);
+
     /**
-     *@notice Emits an event when the owner successfully invalidates an unordered nonce.
+     * @notice Emits an event when the owner successfully invalidates an unordered nonce.
      */
     event UnorderedNonceInvalidation(address indexed owner, uint256 nonce);
 
@@ -68,6 +70,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     error InvalidGaslessOrderSettler();
     error InvalidGaslessOrderOrigin();
     error InvalidNonce();
+    error InvalidOrderOrigin();
 
     // ============ Constructor ============
 
@@ -85,7 +88,14 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     /// @param order The GaslessCrossChainOrder definition
     /// @param signature The user's signature over the order
     /// NOT USED originFillerData Any filler-defined data required by the settler
-    function openFor(GaslessCrossChainOrder calldata order, bytes calldata signature, bytes calldata) external virtual {
+    function openFor(
+        GaslessCrossChainOrder calldata order,
+        bytes calldata signature,
+        bytes calldata
+    )
+        external
+        virtual
+    {
         if (block.timestamp > order.openDeadline) revert OrderOpenExpired();
         if (order.originSettler != address(this)) revert InvalidGaslessOrderSettler();
         if (order.originChainId != _localDomain()) revert InvalidGaslessOrderOrigin();
@@ -131,8 +141,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         bytes calldata
     )
         public
-        virtual
         view
+        virtual
         returns (ResolvedCrossChainOrder memory resolvedOrder)
     {
         (resolvedOrder,,) = _resolveOrder(order);
@@ -144,8 +154,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     /// @return resolvedOrder ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
     function resolve(OnchainCrossChainOrder calldata order)
         public
-        virtual
         view
+        virtual
         returns (ResolvedCrossChainOrder memory resolvedOrder)
     {
         (resolvedOrder,,) = _resolveOrder(order);
@@ -168,9 +178,29 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         emit Filled(_orderId, _originData, _fillerData);
     }
 
+    function settle(bytes32[] calldata _orderIds) external payable {
+        bytes memory originData = filledOrders[_orderIds[0]];
+
+        if (originData.length == 0) revert InvalidOrderOrigin();
+
+        bytes[] memory ordersFillerData = new bytes[](_orderIds.length);
+        for (uint256 i = 0; i < _orderIds.length; i += 1) {
+            if (orderStatus[_orderIds[i]] != FILLED) revert InvalidOrderStatus();
+
+            // It may be good idea not to change the status here (on destination) but only on the origin.
+            // If the filler fills the order and settles it before it is opened on the origin, there should be a way for
+            // the filler to retry settling the order.
+            ordersFillerData[i] = orderFillerData[_orderIds[i]];
+        }
+
+        _settleOrders(_orderIds, ordersFillerData);
+
+        emit Settle(_orderIds, ordersFillerData);
+    }
+
     // ============ Public Functions ============
 
-    function witnessHash(ResolvedCrossChainOrder memory resolvedOrder) public virtual pure returns (bytes32) {
+    function witnessHash(ResolvedCrossChainOrder memory resolvedOrder) public pure virtual returns (bytes32) {
         return keccak256(
             abi.encode(
                 RESOLVED_CROSS_CHAIN_ORDER_TYPEHASH,
@@ -279,6 +309,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         returns (ResolvedCrossChainOrder memory, bytes32 orderId, uint256 nonce);
 
     function _fillOrder(bytes32 _orderId, bytes calldata _originData, bytes calldata _fillerData) internal virtual;
+
+    function _settleOrders(bytes32[] calldata _orderIds, bytes[] memory ordersFillerData) internal virtual;
 
     /**
      * @dev To be implemented by the inheriting contract with specific logic, should return the local domain

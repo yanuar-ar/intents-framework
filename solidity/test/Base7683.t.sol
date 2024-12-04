@@ -26,10 +26,6 @@ event Filled(bytes32 orderId, bytes originData, bytes fillerData);
 contract Base7683ForTest is Base7683, StdCheats {
     bytes32 public counterpart;
 
-    bytes32[] public refundedOrderIds;
-    bytes32[] public settledOrderIds;
-    bytes[] public settledReceivers;
-
     uint32 internal _origin;
     uint32 internal _destination;
     address internal inputToken;
@@ -38,6 +34,9 @@ contract Base7683ForTest is Base7683, StdCheats {
     bytes32 public filledId;
     bytes public filledOriginData;
     bytes public filledFillerData;
+
+    bytes32[] public settledOrderIds;
+    bytes[] public settledOrdersFillerData;
 
     constructor(
       address _permit2,
@@ -138,6 +137,11 @@ contract Base7683ForTest is Base7683, StdCheats {
         filledId = _orderId;
         filledOriginData = _originData;
         filledFillerData = _fillerData;
+    }
+
+    function _settleOrders(bytes32[] calldata _orderIds, bytes[] memory _ordersFillerData) internal override {
+        settledOrderIds = _orderIds;
+        settledOrdersFillerData = _ordersFillerData;
     }
 
     function _localDomain() internal view override returns (uint32) {
