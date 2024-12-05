@@ -7,10 +7,8 @@ import type { IntentCreatedEventObject } from "../../typechain/eco/contracts/Int
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { HyperProver__factory } from "../../typechain/factories/eco/contracts/HyperProver__factory.js";
 import { IntentSource__factory } from "../../typechain/factories/eco/contracts/IntentSource__factory.js";
-import { getMetadata } from "../utils.js";
 import type { EcoMetadata } from "./types.js";
-
-export const metadata = getMetadata<EcoMetadata>(import.meta.dirname);
+import { metadata } from "./config/index.js";
 
 export const log = createLogger(metadata.solverName);
 

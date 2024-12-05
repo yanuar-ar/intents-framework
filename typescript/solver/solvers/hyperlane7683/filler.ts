@@ -15,11 +15,12 @@ import type {
 import {
   getChainIdsWithEnoughTokens,
   log,
-  metadata,
   retrieveOriginInfo,
   retrieveTargetInfo,
   settleOrder,
 } from "./utils.js";
+
+import { metadata } from "./config/index.js";
 
 export const create = (multiProvider: MultiProvider) => {
   const { originSettler, solverName } = setup();

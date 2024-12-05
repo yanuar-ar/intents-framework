@@ -10,11 +10,11 @@ import { EcoAdapter__factory } from "../../typechain/factories/eco/contracts/Eco
 import type { EcoMetadata, IntentData } from "./types.js";
 import {
   log,
-  metadata,
   retrieveOriginInfo,
   retrieveTargetInfo,
   withdrawRewards,
 } from "./utils.js";
+import { metadata } from "./config/index.js";
 
 export const create = (multiProvider: MultiProvider) => {
   const { adapters, intentSource, solverName } = setup();
