@@ -1,5 +1,3 @@
-// import fs from "node:fs";
-
 import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 import { ensure0x } from "@hyperlane-xyz/utils";
