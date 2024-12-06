@@ -60,7 +60,13 @@ export const create = (multiProvider: MultiProvider) => {
 
     const { fillInstructions, maxSpent } = result.data;
 
-    await fill(orderId, fillInstructions, maxSpent, multiProvider, protocolName);
+    await fill(
+      orderId,
+      fillInstructions,
+      maxSpent,
+      multiProvider,
+      protocolName,
+    );
 
     await settleOrder(fillInstructions, orderId, multiProvider, protocolName);
   };
@@ -96,13 +102,19 @@ async function prepareIntent(
   });
 
   try {
-    if (!resolvedOrder.maxSpent.every(
-      (maxSpent) => isAllowedIntent(allowBlockLists, {senderAddress: resolvedOrder.user, destinationDomain: maxSpent.chainId.toString(), recipientAddress: maxSpent.recipient}))
+    if (
+      !resolvedOrder.maxSpent.every((maxSpent) =>
+        isAllowedIntent(allowBlockLists, {
+          senderAddress: resolvedOrder.user,
+          destinationDomain: maxSpent.chainId.toString(),
+          recipientAddress: maxSpent.recipient,
+        }),
+      )
     ) {
       return {
         error: "Not allowed intent",
         success: false,
-      }
+      };
     }
 
     const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(

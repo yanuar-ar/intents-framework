@@ -1,4 +1,4 @@
-import type {EcoMetadata} from "../types.ts";
+import type { EcoMetadata } from "../types.ts";
 
 const metadata: EcoMetadata = {
   protocolName: "Eco",
@@ -12,8 +12,8 @@ const metadata: EcoMetadata = {
       address: "0x218FB5210d4eE248f046F3EC8B5Dd1c7Bc0756e5",
       chainId: 84532,
       chainName: "base-sepolia",
-    }
-  ]
-}
+    },
+  ],
+};
 
 export default metadata;

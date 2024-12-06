@@ -19,10 +19,9 @@ import type { AllowBlockLists } from "./types.js";
 //   }
 // ]
 
-
 const allowBlockLists: AllowBlockLists = {
   allowList: [],
   blockList: [],
-}
+};
 
 export default allowBlockLists;

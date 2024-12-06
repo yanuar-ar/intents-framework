@@ -111,32 +111,42 @@ async function prepareIntent(
     const erc20Interface = Erc20__factory.createInterface();
 
     const { requiredAmountsByTarget, receivers } = intent._targets.reduce<{
-      requiredAmountsByTarget: {[tokenAddress: string]: BigNumber};
-      receivers: string[]
-    }>((acc, target, index) => {
-      const [receiver, amount] = erc20Interface.decodeFunctionData(
-        "transfer",
-        intent._data[index],
-      ) as [string, BigNumber];
+      requiredAmountsByTarget: { [tokenAddress: string]: BigNumber };
+      receivers: string[];
+    }>(
+      (acc, target, index) => {
+        const [receiver, amount] = erc20Interface.decodeFunctionData(
+          "transfer",
+          intent._data[index],
+        ) as [string, BigNumber];
 
-      acc.requiredAmountsByTarget[target] ||= Zero;
-      acc.requiredAmountsByTarget[target] = acc.requiredAmountsByTarget[target].add(amount);
+        acc.requiredAmountsByTarget[target] ||= Zero;
+        acc.requiredAmountsByTarget[target] =
+          acc.requiredAmountsByTarget[target].add(amount);
 
-      acc.receivers.push(receiver);
+        acc.receivers.push(receiver);
 
-      return acc;
-    }, {
-      requiredAmountsByTarget: {},
-      receivers: []
-    });
+        return acc;
+      },
+      {
+        requiredAmountsByTarget: {},
+        receivers: [],
+      },
+    );
 
-    if (!receivers.every(
-      (recipientAddress) => isAllowedIntent(allowBlockLists, {senderAddress: intent._creator, destinationDomain: destinationChainId.toString(), recipientAddress}))
+    if (
+      !receivers.every((recipientAddress) =>
+        isAllowedIntent(allowBlockLists, {
+          senderAddress: intent._creator,
+          destinationDomain: destinationChainId.toString(),
+          recipientAddress,
+        }),
+      )
     ) {
       return {
         error: "Not allowed intent",
         success: false,
-      }
+      };
     }
 
     const fillerAddress =

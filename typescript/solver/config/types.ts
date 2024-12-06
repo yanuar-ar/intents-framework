@@ -7,4 +7,4 @@ export type AllowBlockListItem = {
 export type AllowBlockLists = {
   allowList: AllowBlockListItem[];
   blockList: AllowBlockListItem[];
-}
+};
