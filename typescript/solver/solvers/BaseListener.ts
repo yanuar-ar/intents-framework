@@ -55,7 +55,7 @@ export abstract class BaseListener<
         this.log.info({
           msg: "Listener started",
           event: this.eventName,
-          solver: this.metadata.solverName,
+          protocol: this.metadata.solverName,
           chainId: network.chainId,
           chainName:
             Object.values(chainMetadata).find(
