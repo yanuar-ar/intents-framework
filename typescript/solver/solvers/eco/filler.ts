@@ -14,7 +14,8 @@ import {
   retrieveTargetInfo,
   withdrawRewards,
 } from "./utils.js";
-import { metadata } from "./config/index.js";
+import { metadata, allowBlockLists } from "./config/index.js";
+import { isAllowedIntent } from "../../config/index.js";
 
 export const create = (multiProvider: MultiProvider) => {
   const { adapters, intentSource, solverName } = setup();
@@ -109,25 +110,40 @@ async function prepareIntent(
     const signer = multiProvider.getSigner(destinationChainId);
     const erc20Interface = Erc20__factory.createInterface();
 
-    const requiredAmountsByTarget = intent._targets.reduce<{
-      [tokenAddress: string]: BigNumber;
+    const targets = intent._targets.reduce<{
+      requiredAmountsByTarget: {[tokenAddress: string]: BigNumber};
+      receivers: string[]
     }>((acc, target, index) => {
-      const [, amount] = erc20Interface.decodeFunctionData(
+      const [receiver, amount] = erc20Interface.decodeFunctionData(
         "transfer",
         intent._data[index],
       ) as [string, BigNumber];
 
-      acc[target] ||= Zero;
-      acc[target] = acc[target].add(amount);
+      acc.requiredAmountsByTarget[target] ||= Zero;
+      acc.requiredAmountsByTarget[target] = acc.requiredAmountsByTarget[target].add(amount);
+
+      acc.receivers.push(receiver);
 
       return acc;
-    }, {});
+    }, {
+      requiredAmountsByTarget: {},
+      receivers: []
+    });
+
+    if (!targets.receivers.every(
+      (recipientAddress) => isAllowedIntent(allowBlockLists, {senderAddress: intent._creator, destinationDomain: destinationChainId.toString(), recipientAddress}))
+    ) {
+      return {
+        error: "Not allowed intent",
+        success: false,
+      }
+    }
 
     const fillerAddress =
       await multiProvider.getSignerAddress(destinationChainId);
 
     const areTargetFundsAvailable = await Promise.all(
-      Object.entries(requiredAmountsByTarget).map(
+      Object.entries(targets.requiredAmountsByTarget).map(
         async ([target, requiredAmount]) => {
           const erc20 = Erc20__factory.connect(target, signer);
 
@@ -145,7 +161,7 @@ async function prepareIntent(
       `${solverName} - Approving tokens: ${intent._hash}, for ${adapter.address}`,
     );
     await Promise.all(
-      Object.entries(requiredAmountsByTarget).map(
+      Object.entries(targets.requiredAmountsByTarget).map(
         async ([target, requiredAmount]) => {
           const erc20 = Erc20__factory.connect(target, signer);
 

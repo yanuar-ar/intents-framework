@@ -20,7 +20,8 @@ import {
   settleOrder,
 } from "./utils.js";
 
-import { metadata } from "./config/index.js";
+import { allowBlockLists, metadata } from "./config/index.js";
+import { isAllowedIntent } from "../../config/index.js";
 
 export const create = (multiProvider: MultiProvider) => {
   const { originSettler, solverName } = setup();
@@ -95,6 +96,15 @@ async function prepareIntent(
   });
 
   try {
+    if (!resolvedOrder.maxSpent.every(
+      (maxSpent) => isAllowedIntent(allowBlockLists, {senderAddress: resolvedOrder.user, destinationDomain: maxSpent.chainId.toString(), recipientAddress: maxSpent.recipient}))
+    ) {
+      return {
+        error: "Not allowed intent",
+        success: false,
+      }
+    }
+
     const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(
       resolvedOrder,
       multiProvider,
