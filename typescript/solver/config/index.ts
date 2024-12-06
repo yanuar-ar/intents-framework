@@ -40,6 +40,7 @@ export function isAllowedIntent(
   const isBlocked = consolidatedBlockList.some((blockItem) =>
     matches(blockItem, transaction),
   );
+
   if (isBlocked) return false;
 
   // Check allowList
@@ -47,9 +48,9 @@ export function isAllowedIntent(
     ...allowBlockListsGlobal.allowList,
     ...allowBlockLists.allowList,
   ];
-  const isAllowed = consolidatedAllowList.some((allowItem) =>
-    matches(allowItem, transaction),
-  );
+  const isAllowed =
+    !consolidatedAllowList.length ||
+    consolidatedAllowList.some((allowItem) => matches(allowItem, transaction));
 
   return isAllowed;
 }
