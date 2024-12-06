@@ -24,8 +24,8 @@ type Item = {
 };
 
 const matches = (item: GenericAllowBlockListItem, data: Item): boolean => {
-  const matches = Object.keys(item).map((key) => {
-    return item[key as keyof GenericAllowBlockListItem] === "*" || item[key as keyof GenericAllowBlockListItem].includes(data[key as keyof GenericAllowBlockListItem])
+  const matches = Object.entries(item).map(([key, value]) => {
+    return value === "*" || value.includes(data[key])
   })
 
   return matches.every((el: boolean) => el)
@@ -36,17 +36,15 @@ export function isAllowedIntent(
   transaction: Item
 ): boolean {
   // Check blockList first
-  const isBlocked = allowBlockLists.blockList.some((blockItem) =>
-    matches(blockItem, transaction)
-  ) || allowBlockListsGlobal.blockList.some((blockItem) =>
+  const consolidatedBlockList = [...allowBlockListsGlobal.blockList, ...allowBlockLists.blockList];
+  const isBlocked = consolidatedBlockList.some((blockItem) =>
     matches(blockItem, transaction)
   );
   if (isBlocked) return false;
 
   // Check allowList
-  const isAllowed = allowBlockLists.allowList.some((allowItem) =>
-    matches(allowItem, transaction)
-  ) || allowBlockLists.allowList.some((allowItem) =>
+  const consolidatedAllowList = [...allowBlockListsGlobal.allowList, ...allowBlockLists.allowList];
+  const isAllowed = consolidatedAllowList.some((allowItem) =>
     matches(allowItem, transaction)
   );
 

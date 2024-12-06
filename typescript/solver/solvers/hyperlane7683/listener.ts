@@ -17,9 +17,9 @@ export class Hyperlane7683Listener extends BaseListener<
   constructor() {
     const {
       originSettler: { address, chainId },
-      solverName,
+      protocolName,
     } = metadata;
-    const hyperlane7683Metadata = { address, chainId, solverName };
+    const hyperlane7683Metadata = { address, chainId, protocolName };
 
     super(Hyperlane7683__factory, "Open", hyperlane7683Metadata, log);
   }

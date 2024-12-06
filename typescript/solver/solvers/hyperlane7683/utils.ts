@@ -15,7 +15,7 @@ import type {
 } from "./types.js";
 import { metadata } from "./config/index.js";
 
-export const log = createLogger(metadata.solverName);
+export const log = createLogger(metadata.protocolName);
 
 export async function checkChainTokens(
   multiProvider: MultiProvider,

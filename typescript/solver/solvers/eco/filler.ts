@@ -18,7 +18,7 @@ import { metadata, allowBlockLists } from "./config/index.js";
 import { isAllowedIntent } from "../../config/index.js";
 
 export const create = (multiProvider: MultiProvider) => {
-  const { adapters, intentSource, solverName } = setup();
+  const { adapters, intentSource, protocolName } = setup();
 
   return async function eco(intent: IntentCreatedEventObject) {
     const origin = await retrieveOriginInfo(
@@ -30,7 +30,7 @@ export const create = (multiProvider: MultiProvider) => {
 
     log.info({
       msg: "Intent Indexed",
-      intent: `${solverName}-${intent._hash}`,
+      intent: `${protocolName}-${intent._hash}`,
       origin: origin.join(", "),
       target: target.join(", "),
     });
@@ -39,12 +39,12 @@ export const create = (multiProvider: MultiProvider) => {
       intent,
       adapters,
       multiProvider,
-      solverName,
+      protocolName,
     );
 
     if (!result.success) {
       log.error(
-        `${solverName} Failed evaluating filling Intent: ${result.error}`,
+        `${protocolName} Failed evaluating filling Intent: ${result.error}`,
       );
       return;
     }
@@ -54,16 +54,16 @@ export const create = (multiProvider: MultiProvider) => {
       result.data.adapter,
       intentSource,
       multiProvider,
-      solverName,
+      protocolName,
     );
 
-    await withdrawRewards(intent, intentSource, multiProvider, solverName);
+    await withdrawRewards(intent, intentSource, multiProvider, protocolName);
   };
 };
 
 function setup() {
-  if (!metadata.solverName) {
-    metadata.solverName = "UNKNOWN_SOLVER";
+  if (!metadata.protocolName) {
+    metadata.protocolName = "UNKNOWN_SOLVER";
   }
 
   if (!metadata.adapters.every(({ address }) => address)) {
@@ -87,11 +87,11 @@ async function prepareIntent(
   intent: IntentCreatedEventObject,
   adapters: EcoMetadata["adapters"],
   multiProvider: MultiProvider,
-  solverName: string,
+  protocolName: string,
 ): Promise<Result<IntentData>> {
   log.info({
     msg: "Evaluating filling Intent",
-    intent: `${solverName}-${intent._hash}`,
+    intent: `${protocolName}-${intent._hash}`,
   });
 
   try {
@@ -110,7 +110,7 @@ async function prepareIntent(
     const signer = multiProvider.getSigner(destinationChainId);
     const erc20Interface = Erc20__factory.createInterface();
 
-    const targets = intent._targets.reduce<{
+    const { requiredAmountsByTarget, receivers } = intent._targets.reduce<{
       requiredAmountsByTarget: {[tokenAddress: string]: BigNumber};
       receivers: string[]
     }>((acc, target, index) => {
@@ -130,7 +130,7 @@ async function prepareIntent(
       receivers: []
     });
 
-    if (!targets.receivers.every(
+    if (!receivers.every(
       (recipientAddress) => isAllowedIntent(allowBlockLists, {senderAddress: intent._creator, destinationDomain: destinationChainId.toString(), recipientAddress}))
     ) {
       return {
@@ -143,7 +143,7 @@ async function prepareIntent(
       await multiProvider.getSignerAddress(destinationChainId);
 
     const areTargetFundsAvailable = await Promise.all(
-      Object.entries(targets.requiredAmountsByTarget).map(
+      Object.entries(requiredAmountsByTarget).map(
         async ([target, requiredAmount]) => {
           const erc20 = Erc20__factory.connect(target, signer);
 
@@ -158,10 +158,10 @@ async function prepareIntent(
     }
 
     log.debug(
-      `${solverName} - Approving tokens: ${intent._hash}, for ${adapter.address}`,
+      `${protocolName} - Approving tokens: ${intent._hash}, for ${adapter.address}`,
     );
     await Promise.all(
-      Object.entries(targets.requiredAmountsByTarget).map(
+      Object.entries(requiredAmountsByTarget).map(
         async ([target, requiredAmount]) => {
           const erc20 = Erc20__factory.connect(target, signer);
 
@@ -185,11 +185,11 @@ async function fill(
   adapter: EcoMetadata["adapters"][number],
   intentSource: EcoMetadata["intentSource"],
   multiProvider: MultiProvider,
-  solverName: string,
+  protocolName: string,
 ): Promise<void> {
   log.info({
     msg: "Filling Intent",
-    intent: `${solverName}-${intent._hash}`,
+    intent: `${protocolName}-${intent._hash}`,
   });
 
   const _chainId = intent._destinationChain.toString();
@@ -224,7 +224,7 @@ async function fill(
 
   log.info({
     msg: "Filled Intent",
-    intent: `${solverName}-${intent._hash}`,
+    intent: `${protocolName}-${intent._hash}`,
     txDetails: receipt.transactionHash,
     txHash: receipt.transactionHash,
   });

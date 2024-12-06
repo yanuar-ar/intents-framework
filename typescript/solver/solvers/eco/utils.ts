@@ -10,17 +10,17 @@ import { IntentSource__factory } from "../../typechain/factories/eco/contracts/I
 import type { EcoMetadata } from "./types.js";
 import { metadata } from "./config/index.js";
 
-export const log = createLogger(metadata.solverName);
+export const log = createLogger(metadata.protocolName);
 
 export async function withdrawRewards(
   intent: IntentCreatedEventObject,
   intentSource: EcoMetadata["intentSource"],
   multiProvider: MultiProvider,
-  solverName: string,
+  protocolName: string,
 ) {
   log.info({
     msg: "Settling Intent",
-    intent: `${solverName}-${intent._hash}`,
+    intent: `${protocolName}-${intent._hash}`,
   });
 
   const { _hash, _prover } = intent;
@@ -32,7 +32,7 @@ export async function withdrawRewards(
     prover.once(
       prover.filters.IntentProven(_hash, claimantAddress),
       async () => {
-        log.debug(`${solverName} - Intent proven: ${_hash}`);
+        log.debug(`${protocolName} - Intent proven: ${_hash}`);
 
         const settler = IntentSource__factory.connect(
           intentSource.address,
@@ -49,7 +49,7 @@ export async function withdrawRewards(
 
         log.info({
           msg: "Settled Intent",
-          intent: `${solverName}-${_hash}`,
+          intent: `${protocolName}-${_hash}`,
           txDetails: txInfo,
           txHash: receipt.transactionHash,
         });

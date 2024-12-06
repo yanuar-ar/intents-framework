@@ -1,7 +1,7 @@
 import type {EcoMetadata} from "../types.ts";
 
 const metadata: EcoMetadata = {
-  solverName: "Eco",
+  protocolName: "Eco",
   intentSource: {
     address: "0x734a3d5a8D691d9b9,11674E682De5f06517c79ec",
     chainId: 11155420,
