@@ -31,7 +31,7 @@ describe("config schema", () => {
     expect(parsed.error?.errors[1].message).toBe("Invalid domain");
   });
 
-  it("invalid config - invalid data in arrary", () => {
+  it("invalid config - invalid data in array", () => {
     const parsed = AllowBlockListItemSchema.safeParse({
       senderAddress: [
         "0xca7f632e91B592178D83A70B404f398c0a51581F",
