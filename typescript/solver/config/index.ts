@@ -1,5 +1,7 @@
+import z from "zod";
 import dotenvFlow from "dotenv-flow";
 import allowBlockListsGlobal from "./allowBlockLists.js";
+import {ConfigSchema} from "./types.js"
 
 dotenvFlow.config();
 
@@ -10,9 +12,7 @@ const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
 export { LOG_FORMAT, LOG_LEVEL, MNEMONIC, PRIVATE_KEY };
 
-type GenericAllowBlockListItem = {
-  [key: string]: string[] | "*";
-};
+type GenericAllowBlockListItem = z.infer<typeof ConfigSchema>;
 
 type GenericAllowBlockLists = {
   allowList: GenericAllowBlockListItem[];
@@ -23,10 +23,20 @@ type Item = {
   [Key in keyof GenericAllowBlockListItem]: string;
 };
 
-const matches = (item: GenericAllowBlockListItem, data: Item): boolean =>
-  Object.entries(item).every(
-    ([key, value]) => value === "*" || value.includes(data[key]),
-  );
+const matches = (item: GenericAllowBlockListItem, data: Item): boolean => {
+  return Object.entries(item)
+    .filter(([, value]) => value !== "*")
+    .every(([key, value]) => {
+      if (Array.isArray(value)) {
+        value = value
+          .map((value) => value.toLowerCase());
+      } else {
+        value = value.toLowerCase();
+      }
+
+      return value.includes(data[key].toLowerCase());
+    });
+};
 
 export function isAllowedIntent(
   allowBlockLists: GenericAllowBlockLists,

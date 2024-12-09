@@ -1,4 +1,4 @@
-import type { AllowBlockLists } from "../../../config/types.ts";
+import { AllowBlockLists, AllowBlockListsSchema } from "../../../config/types.js";
 
 // Example config
 // [
@@ -23,5 +23,7 @@ const allowBlockLists: AllowBlockLists = {
   allowList: [],
   blockList: [],
 };
+
+AllowBlockListsSchema.parse(allowBlockLists);
 
 export default allowBlockLists;

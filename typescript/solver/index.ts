@@ -5,6 +5,9 @@ import "./patch-bigint-buffer-warn.js";
 import { log } from "./logger.js";
 import * as solvers from "./solvers/index.js";
 import { getMultiProvider } from "./solvers/utils.js";
+// import allowBlockLists  from "./config/allowBlockLists.js";
+
+// console.log(allowBlockLists);
 
 log.info("🙍 Intent Solver 📝");
 
