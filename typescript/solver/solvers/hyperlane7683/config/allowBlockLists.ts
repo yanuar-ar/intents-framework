@@ -1,4 +1,7 @@
-import { AllowBlockLists, AllowBlockListsSchema } from "../../../config/types.js";
+import {
+  AllowBlockLists,
+  AllowBlockListsSchema,
+} from "../../../config/types.js";
 
 // Example config
 // [

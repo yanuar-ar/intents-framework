@@ -1,7 +1,7 @@
 import z from "zod";
 import dotenvFlow from "dotenv-flow";
 import allowBlockListsGlobal from "./allowBlockLists.js";
-import {ConfigSchema} from "./types.js"
+import { ConfigSchema } from "./types.js";
 
 dotenvFlow.config();
 
@@ -28,8 +28,7 @@ const matches = (item: GenericAllowBlockListItem, data: Item): boolean => {
     .filter(([, value]) => value !== "*")
     .every(([key, value]) => {
       if (Array.isArray(value)) {
-        value = value
-          .map((value) => value.toLowerCase());
+        value = value.map((value) => value.toLowerCase());
       } else {
         value = value.toLowerCase();
       }

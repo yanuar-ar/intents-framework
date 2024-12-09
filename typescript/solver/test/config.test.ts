@@ -1,65 +1,74 @@
 import { describe, expect, it } from "@jest/globals";
 import { isAllowedIntent } from "../config";
-import { type AllowBlockLists, AllowBlockListItemSchema } from "../config/types";
+import {
+  type AllowBlockLists,
+  AllowBlockListItemSchema,
+} from "../config/types";
 
-describe("config schema", ()  => {
+describe("config schema", () => {
   it("invalid config - wildcard in array", () => {
     const parsed = AllowBlockListItemSchema.safeParse({
       senderAddress: ["*"],
       destinationDomain: ["*"],
       recipientAddress: ["*"],
-    })
+    });
 
-    expect(parsed.success).toBeFalsy()
-    expect(parsed.error?.errors[0].message).toBe("Invalid address")
-    expect(parsed.error?.errors[1].message).toBe("Invalid domain")
-    expect(parsed.error?.errors[2].message).toBe("Invalid address")
-  })
+    expect(parsed.success).toBeFalsy();
+    expect(parsed.error?.errors[0].message).toBe("Invalid address");
+    expect(parsed.error?.errors[1].message).toBe("Invalid domain");
+    expect(parsed.error?.errors[2].message).toBe("Invalid address");
+  });
 
   it("invalid config - invalid data string", () => {
     const parsed = AllowBlockListItemSchema.safeParse({
       senderAddress: "invalid address",
       destinationDomain: "invalid domain",
       recipientAddress: "*",
-    })
+    });
 
-    expect(parsed.success).toBeFalsy()
-    expect(parsed.error?.errors[0].message).toBe("Invalid address")
-    expect(parsed.error?.errors[1].message).toBe("Invalid domain")
-  })
+    expect(parsed.success).toBeFalsy();
+    expect(parsed.error?.errors[0].message).toBe("Invalid address");
+    expect(parsed.error?.errors[1].message).toBe("Invalid domain");
+  });
 
   it("invalid config - invalid data in arrary", () => {
     const parsed = AllowBlockListItemSchema.safeParse({
-      senderAddress: ["0xca7f632e91B592178D83A70B404f398c0a51581F", "invalid address"],
+      senderAddress: [
+        "0xca7f632e91B592178D83A70B404f398c0a51581F",
+        "invalid address",
+      ],
       destinationDomain: ["1", "invalid domain"],
       recipientAddress: "*",
-    })
+    });
 
-    expect(parsed.success).toBeFalsy()
-    expect(parsed.error?.errors[0].message).toBe("Invalid address")
-    expect(parsed.error?.errors[1].message).toBe("Invalid domain")
-  })
+    expect(parsed.success).toBeFalsy();
+    expect(parsed.error?.errors[0].message).toBe("Invalid address");
+    expect(parsed.error?.errors[1].message).toBe("Invalid domain");
+  });
 
   it("valid config - single values", () => {
     const parsed = AllowBlockListItemSchema.safeParse({
       senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
       destinationDomain: "1",
       recipientAddress: "*",
-    })
+    });
 
-    expect(parsed.success).toBeTruthy()
-  })
+    expect(parsed.success).toBeTruthy();
+  });
 
   it("valid config - multi values", () => {
     const parsed = AllowBlockListItemSchema.safeParse({
-      senderAddress: ["0xca7f632e91B592178D83A70B404f398c0a51581F", "0xca7f632e91B592178D83A70B404f398c0a51581F"],
+      senderAddress: [
+        "0xca7f632e91B592178D83A70B404f398c0a51581F",
+        "0xca7f632e91B592178D83A70B404f398c0a51581F",
+      ],
       destinationDomain: ["1", "2"],
       recipientAddress: "*",
-    })
+    });
 
-    expect(parsed.success).toBeTruthy()
-  })
-})
+    expect(parsed.success).toBeTruthy();
+  });
+});
 
 describe("isAllowedIntent", () => {
   it("intent not allowed by destination", () => {
@@ -200,25 +209,29 @@ describe("isAllowedIntent", () => {
           destinationDomain: ["42220", "43114"],
           recipientAddress: "*",
         },
-      ]
+      ],
     };
 
-    [{
-      senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-      destinationDomain: "42220",
-      recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-      expected: false
-    }, {
-      senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-      destinationDomain: "43114",
-      recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-      expected: false
-    }, {
-      senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-      destinationDomain: "1",
-      recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581A",
-      expected: true
-    }].forEach((test) => {
+    [
+      {
+        senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
+        destinationDomain: "42220",
+        recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
+        expected: false,
+      },
+      {
+        senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
+        destinationDomain: "43114",
+        recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
+        expected: false,
+      },
+      {
+        senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
+        destinationDomain: "1",
+        recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581A",
+        expected: true,
+      },
+    ].forEach((test) => {
       expect(
         isAllowedIntent(allowBlockLists, {
           senderAddress: test.senderAddress,
