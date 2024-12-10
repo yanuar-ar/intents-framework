@@ -8,10 +8,10 @@ import { getMultiProvider } from "./solvers/utils.js";
 
 log.info("🙍 Intent Solver 📝");
 
-const main = () => {
+const main = async () => {
   log.info("Starting...");
 
-  const multiProvider = getMultiProvider();
+  const multiProvider = await getMultiProvider();
 
   // TODO: implement a way to choose different listeners and fillers
   const ecoListener = solvers["eco"].listener.create();
@@ -26,4 +26,4 @@ const main = () => {
   hyperlane7683Listener(hyperlane7683Filler);
 };
 
-main();
+await main();
