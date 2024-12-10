@@ -1,4 +1,4 @@
-import { describe, expect, it } from "@jest/globals";
+import { describe, expect, it } from "vitest";
 import { isAllowedIntent } from "../config";
 import {
   type AllowBlockLists,
@@ -37,7 +37,7 @@ describe("config schema", () => {
         "0xca7f632e91B592178D83A70B404f398c0a51581F",
         "invalid address",
       ],
-      destinationDomain: ["1", "invalid domain"],
+      destinationDomain: ["mainnet", "invalid domain"],
       recipientAddress: "*",
     });
 
@@ -49,10 +49,11 @@ describe("config schema", () => {
   it("valid config - single values", () => {
     const parsed = AllowBlockListItemSchema.safeParse({
       senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-      destinationDomain: "1",
+      destinationDomain: "ethereum",
       recipientAddress: "*",
     });
 
+    console.log(parsed.error);
     expect(parsed.success).toBeTruthy();
   });
 
@@ -62,7 +63,7 @@ describe("config schema", () => {
         "0xca7f632e91B592178D83A70B404f398c0a51581F",
         "0xca7f632e91B592178D83A70B404f398c0a51581F",
       ],
-      destinationDomain: ["1", "2"],
+      destinationDomain: ["ethereum", "optimism"],
       recipientAddress: "*",
     });
 
@@ -77,7 +78,7 @@ describe("isAllowedIntent", () => {
       blockList: [
         {
           senderAddress: "*",
-          destinationDomain: ["1"],
+          destinationDomain: ["ethereum"],
           recipientAddress: "*",
         },
       ],
@@ -85,7 +86,7 @@ describe("isAllowedIntent", () => {
     expect(
       isAllowedIntent(allowBlockLists, {
         senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-        destinationDomain: "1",
+        destinationDomain: "ethereum",
         recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
       }),
     ).toBeFalsy();
@@ -105,7 +106,7 @@ describe("isAllowedIntent", () => {
     expect(
       isAllowedIntent(allowBlockLists, {
         senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-        destinationDomain: "1",
+        destinationDomain: "ethereum",
         recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
       }),
     ).toBeFalsy();
@@ -125,7 +126,7 @@ describe("isAllowedIntent", () => {
     expect(
       isAllowedIntent(allowBlockLists, {
         senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-        destinationDomain: "1",
+        destinationDomain: "ethereum",
         recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
       }),
     ).toBeFalsy();
@@ -152,7 +153,7 @@ describe("isAllowedIntent", () => {
     expect(
       isAllowedIntent(allowBlockLists, {
         senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-        destinationDomain: "1",
+        destinationDomain: "ethereum",
         recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581a",
       }),
     ).toBeFalsy();
@@ -173,7 +174,7 @@ describe("isAllowedIntent", () => {
     expect(
       isAllowedIntent(allowBlockLists, {
         senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-        destinationDomain: "1",
+        destinationDomain: "ethereum",
         recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581a",
       }),
     ).toBeTruthy();
@@ -206,7 +207,7 @@ describe("isAllowedIntent", () => {
       blockList: [
         {
           senderAddress: "*",
-          destinationDomain: ["42220", "43114"],
+          destinationDomain: ["optimism", "base"],
           recipientAddress: "*",
         },
       ],
@@ -215,19 +216,19 @@ describe("isAllowedIntent", () => {
     [
       {
         senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-        destinationDomain: "42220",
+        destinationDomain: "optimism",
         recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
         expected: false,
       },
       {
         senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-        destinationDomain: "43114",
+        destinationDomain: "base",
         recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
         expected: false,
       },
       {
         senderAddress: "0xca7f632e91B592178D83A70B404f398c0a51581F",
-        destinationDomain: "1",
+        destinationDomain: "ethereum",
         recipientAddress: "0xca7f632e91B592178D83A70B404f398c0a51581A",
         expected: true,
       },

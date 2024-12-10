@@ -2,6 +2,7 @@ import z from "zod";
 import dotenvFlow from "dotenv-flow";
 import allowBlockListsGlobal from "./allowBlockLists.js";
 import { ConfigSchema } from "./types.js";
+import { chainMetadata } from "@hyperlane-xyz/registry";
 
 dotenvFlow.config();
 
@@ -63,3 +64,15 @@ export function isAllowedIntent(
 
   return isAllowed;
 }
+
+export const chainNames = Object.keys(chainMetadata)
+
+export const chainIds = Object.entries(chainMetadata).reduce<{[key: string]: number | string}>((acc, [key, value] ) => {
+  acc[key] = value.chainId
+  return acc
+}, {})
+
+export const chainIdsToName = Object.entries(chainMetadata).reduce<{[key: string]: string}>((acc, [key, value] ) => {
+  acc[value.chainId.toString()] = key
+  return acc
+}, {})

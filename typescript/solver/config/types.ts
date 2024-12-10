@@ -1,5 +1,6 @@
 import z from "zod";
 import { ethers } from "ethers";
+import { chainNames } from "./index.js";
 
 export const addressSchema = z
   .string()
@@ -14,7 +15,9 @@ export const addressValueSchema = z.union([
 
 export const domainSchema = z
   .string()
-  .regex(/^[0-9]+$/, { message: "Invalid domain" });
+  .refine((domain) => chainNames.includes(domain), {
+    message: "Invalid domain",
+  });
 export const domainValueSchema = z.union([
   domainSchema,
   z.array(domainSchema).default([]),

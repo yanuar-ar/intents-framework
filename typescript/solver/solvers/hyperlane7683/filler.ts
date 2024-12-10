@@ -21,7 +21,7 @@ import {
 } from "./utils.js";
 
 import { allowBlockLists, metadata } from "./config/index.js";
-import { isAllowedIntent } from "../../config/index.js";
+import { chainIdsToName, isAllowedIntent } from "../../config/index.js";
 
 export const create = (multiProvider: MultiProvider) => {
   const { originSettler, protocolName } = setup();
@@ -73,18 +73,6 @@ export const create = (multiProvider: MultiProvider) => {
 };
 
 function setup() {
-  if (!metadata.protocolName) {
-    metadata.protocolName = "UNKNOWN_SOLVER";
-  }
-
-  if (!metadata.originSettler.chainId) {
-    throw new Error("OriginSettler chain ID must be provided");
-  }
-
-  if (!metadata.originSettler.address) {
-    throw new Error("OriginSettler address must be provided");
-  }
-
   return metadata;
 }
 
@@ -106,7 +94,7 @@ async function prepareIntent(
       !resolvedOrder.maxSpent.every((maxSpent) =>
         isAllowedIntent(allowBlockLists, {
           senderAddress: resolvedOrder.user,
-          destinationDomain: maxSpent.chainId.toString(),
+          destinationDomain: chainIdsToName[maxSpent.chainId.toString()],
           recipientAddress: maxSpent.recipient,
         }),
       )

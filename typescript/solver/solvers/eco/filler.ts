@@ -15,7 +15,7 @@ import {
   withdrawRewards,
 } from "./utils.js";
 import { metadata, allowBlockLists } from "./config/index.js";
-import { isAllowedIntent } from "../../config/index.js";
+import { chainIds, chainIdsToName, isAllowedIntent } from "../../config/index.js";
 
 export const create = (multiProvider: MultiProvider) => {
   const { adapters, intentSource, protocolName } = setup();
@@ -62,22 +62,6 @@ export const create = (multiProvider: MultiProvider) => {
 };
 
 function setup() {
-  if (!metadata.protocolName) {
-    metadata.protocolName = "UNKNOWN_SOLVER";
-  }
-
-  if (!metadata.adapters.every(({ address }) => address)) {
-    throw new Error("EcoAdapter address must be provided");
-  }
-
-  if (!metadata.intentSource.chainId) {
-    throw new Error("IntentSource chain ID must be provided");
-  }
-
-  if (!metadata.intentSource.address) {
-    throw new Error("IntentSource address must be provided");
-  }
-
   return metadata;
 }
 
@@ -97,7 +81,7 @@ async function prepareIntent(
   try {
     const destinationChainId = intent._destinationChain.toNumber();
     const adapter = adapters.find(
-      ({ chainId }) => chainId === destinationChainId,
+      ({ chainName }) => chainIds[chainName] === destinationChainId,
     );
 
     if (!adapter) {
@@ -138,7 +122,7 @@ async function prepareIntent(
       !receivers.every((recipientAddress) =>
         isAllowedIntent(allowBlockLists, {
           senderAddress: intent._creator,
-          destinationDomain: destinationChainId.toString(),
+          destinationDomain: chainIdsToName[destinationChainId.toString()],
           recipientAddress,
         }),
       )
@@ -208,18 +192,18 @@ async function fill(
   const ecoAdapter = EcoAdapter__factory.connect(adapter.address, filler);
 
   const claimantAddress = await multiProvider.getSignerAddress(
-    intentSource.chainId,
+    chainIds[intentSource.chainName],
   );
 
   const { _targets, _data, _expiryTime, nonce, _hash, _prover } = intent;
   const value = await ecoAdapter.fetchFee(
-    intentSource.chainId,
+    chainIds[intentSource.chainName],
     [_hash],
     [claimantAddress],
     _prover,
   );
   const tx = await ecoAdapter.fulfillHyperInstant(
-    intentSource.chainId,
+    chainIds[intentSource.chainName],
     _targets,
     _data,
     _expiryTime,

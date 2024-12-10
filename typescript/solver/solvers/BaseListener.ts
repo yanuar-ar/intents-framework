@@ -18,7 +18,7 @@ export abstract class BaseListener<
     private readonly eventName: Extract<keyof TContract["filters"], string>,
     private readonly metadata: {
       address: string;
-      chainId: number;
+      chainId: number | string;
       protocolName: string;
     },
     private readonly log: Logger,
