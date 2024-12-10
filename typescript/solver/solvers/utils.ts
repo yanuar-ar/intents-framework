@@ -2,7 +2,7 @@ import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
 import { ensure0x } from "@hyperlane-xyz/utils";
 import { password } from "@inquirer/prompts";
-import { ethers } from "ethers";
+import { isHexString } from "@ethersproject/bytes";
 
 import { MNEMONIC, PRIVATE_KEY } from "../config/index.js";
 import { NonceKeeperWallet } from "../NonceKeeperWallet.js";
@@ -16,30 +16,35 @@ export async function getMultiProvider() {
   return multiProvider;
 }
 
-export async function getSigner(): Promise<NonceKeeperWallet> {
+export async function getSigner() {
   const key = await retrieveKey();
   const signer = privateKeyToSigner(key);
   return signer;
 }
 
-function privateKeyToSigner(key: string): NonceKeeperWallet {
+function privateKeyToSigner(key: string) {
   if (!key) throw new Error("No private key provided");
 
   const formattedKey = key.trim().toLowerCase();
-  if (ethers.utils.isHexString(ensure0x(formattedKey)))
+  if (isHexString(ensure0x(formattedKey))) {
     return new NonceKeeperWallet(ensure0x(key)) as NonceKeeperWallet;
-  else if (formattedKey.split(" ").length >= 6)
+  }
+
+  if (formattedKey.split(" ").length >= 6) {
     return NonceKeeperWallet.fromMnemonic(formattedKey) as NonceKeeperWallet;
-  else throw new Error("Invalid private key format");
+  }
+
+  throw new Error("Invalid private key format");
 }
 
-async function retrieveKey(): Promise<string> {
+async function retrieveKey() {
   if (PRIVATE_KEY) {
     return PRIVATE_KEY;
-  } else if (MNEMONIC) {
+  }
+  if (MNEMONIC) {
     return MNEMONIC;
-  } else
-    return password({
-      message: `Please enter private key or mnemonic.`,
-    });
+  }
+  return password({
+    message: `Please enter private key or mnemonic.`,
+  });
 }
