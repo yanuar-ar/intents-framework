@@ -15,7 +15,11 @@ import {
   withdrawRewards,
 } from "./utils.js";
 import { metadata, allowBlockLists } from "./config/index.js";
-import { chainIds, chainIdsToName, isAllowedIntent } from "../../config/index.js";
+import {
+  chainIds,
+  chainIdsToName,
+  isAllowedIntent,
+} from "../../config/index.js";
 
 export const create = (multiProvider: MultiProvider) => {
   const { adapters, intentSource, protocolName } = setup();
@@ -192,7 +196,7 @@ async function fill(
   const ecoAdapter = EcoAdapter__factory.connect(adapter.address, filler);
 
   const claimantAddress = await multiProvider.getSignerAddress(
-    chainIds[intentSource.chainName],
+    intentSource.chainName,
   );
 
   const { _targets, _data, _expiryTime, nonce, _hash, _prover } = intent;

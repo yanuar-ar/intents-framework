@@ -1,4 +1,7 @@
-import { type Hyperlane7683Metadata, Hyperlane7683MetadataSchema } from "../types.js";
+import {
+  type Hyperlane7683Metadata,
+  Hyperlane7683MetadataSchema,
+} from "../types.js";
 
 const metadata: Hyperlane7683Metadata = {
   protocolName: "Hyperlane7683",

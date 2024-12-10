@@ -18,14 +18,14 @@ export abstract class BaseListener<
     private readonly eventName: Extract<keyof TContract["filters"], string>,
     private readonly metadata: {
       address: string;
-      chainId: number | string;
+      chainName: string;
       protocolName: string;
     },
     private readonly log: Logger,
   ) {}
 
   protected setup(): TContract {
-    if (!this.metadata.address || !this.metadata.chainId) {
+    if (!this.metadata.address || !this.metadata.chainName) {
       throw new Error("Origin contract information must be provided");
     }
 
@@ -34,7 +34,7 @@ export abstract class BaseListener<
     }
 
     const multiProvider = new MultiProvider(chainMetadata);
-    const provider = multiProvider.getProvider(this.metadata.chainId);
+    const provider = multiProvider.getProvider(this.metadata.chainName);
 
     return this.contractFactory.connect(this.metadata.address, provider);
   }
@@ -57,10 +57,7 @@ export abstract class BaseListener<
           event: this.eventName,
           protocol: this.metadata.protocolName,
           chainId: network.chainId,
-          chainName:
-            Object.values(chainMetadata).find(
-              (metadata) => metadata.chainId === network.chainId,
-            )?.displayName ?? "Unknown",
+          chainName: this.metadata.chainName,
         });
       });
     };

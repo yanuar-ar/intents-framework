@@ -65,14 +65,20 @@ export function isAllowedIntent(
   return isAllowed;
 }
 
-export const chainNames = Object.keys(chainMetadata)
+const { chainIds, chainNames, chainIdsToName } = Object.entries(
+  chainMetadata,
+).reduce<{
+  chainNames: Array<string>;
+  chainIds: { [key: string]: number | string };
+  chainIdsToName: { [key: string]: string };
+}>(
+  (acc, [key, value]) => {
+    acc.chainNames.push(key);
+    acc.chainIds[key] = value.chainId;
+    acc.chainIdsToName[value.chainId.toString()] = key;
+    return acc;
+  },
+  { chainNames: [], chainIds: {}, chainIdsToName: {} },
+);
 
-export const chainIds = Object.entries(chainMetadata).reduce<{[key: string]: number | string}>((acc, [key, value] ) => {
-  acc[key] = value.chainId
-  return acc
-}, {})
-
-export const chainIdsToName = Object.entries(chainMetadata).reduce<{[key: string]: string}>((acc, [key, value] ) => {
-  acc[value.chainId.toString()] = key
-  return acc
-}, {})
+export { chainIds, chainNames, chainIdsToName };

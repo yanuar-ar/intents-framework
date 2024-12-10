@@ -9,6 +9,7 @@ import { HyperProver__factory } from "../../typechain/factories/eco/contracts/Hy
 import { IntentSource__factory } from "../../typechain/factories/eco/contracts/IntentSource__factory.js";
 import type { EcoMetadata } from "./types.js";
 import { metadata } from "./config/index.js";
+import { chainIds } from "../../config/index.js";
 
 export const log = createLogger(metadata.protocolName);
 
@@ -24,7 +25,7 @@ export async function withdrawRewards(
   });
 
   const { _hash, _prover } = intent;
-  const signer = multiProvider.getSigner(intentSource.chainId);
+  const signer = multiProvider.getSigner(intentSource.chainName);
   const claimantAddress = await signer.getAddress();
   const prover = HyperProver__factory.connect(_prover, signer);
 
@@ -40,7 +41,7 @@ export async function withdrawRewards(
         );
         const tx = await settler.withdrawRewards(_hash);
         const receipt = await tx.wait();
-        const baseUrl = multiProvider.getChainMetadata(intentSource.chainId)
+        const baseUrl = multiProvider.getChainMetadata(intentSource.chainName)
           .blockExplorers?.[0].url;
 
         const txInfo = baseUrl
@@ -69,7 +70,7 @@ export async function retrieveOriginInfo(
     intent._rewardTokens.map(async (tokenAddress, index) => {
       const erc20 = Erc20__factory.connect(
         tokenAddress,
-        multiProvider.getProvider(intentSource.chainId),
+        multiProvider.getProvider(intentSource.chainName),
       );
       const [decimals, symbol] = await Promise.all([
         erc20.decimals(),
@@ -115,7 +116,8 @@ export async function retrieveTargetInfo(
   );
 
   const targetChain = adapters.find(
-    ({ chainId }) => chainId === intent._destinationChain.toNumber(),
+    ({ chainName }) =>
+      chainIds[chainName] === intent._destinationChain.toNumber(),
   );
 
   return targetInfo.map(

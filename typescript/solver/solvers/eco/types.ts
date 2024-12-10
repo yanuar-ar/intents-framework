@@ -1,7 +1,7 @@
 import z from "zod";
 import { chainNames } from "../../config/index.js";
 
-export const  EcoMetadataSchema  = z.object({
+export const EcoMetadataSchema = z.object({
   protocolName: z.string(),
   intentSource: z.object({
     address: z.string(),
@@ -15,9 +15,9 @@ export const  EcoMetadataSchema  = z.object({
       chainName: z.string().refine((name) => chainNames.includes(name), {
         message: "Invalid chainName",
       }),
-    })
+    }),
   ),
-})
+});
 
 export type EcoMetadata = z.infer<typeof EcoMetadataSchema>;
 
