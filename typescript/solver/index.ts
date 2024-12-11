@@ -6,12 +6,14 @@ import { log } from "./logger.js";
 import * as solvers from "./solvers/index.js";
 import { getMultiProvider } from "./solvers/utils.js";
 
-log.info("🙍 Intent Solver 📝");
 
 const main = async () => {
-  log.info("Starting...");
+  const multiProvider = await getMultiProvider().catch(
+    (error) => (log.error(error.reason ?? error.message), process.exit(1)),
+  );
 
-  const multiProvider = await getMultiProvider();
+  log.info("🙍 Intent Solver 📝");
+  log.info("Starting...");
 
   // TODO: implement a way to choose different listeners and fillers
   const ecoListener = solvers["eco"].listener.create();

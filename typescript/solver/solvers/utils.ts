@@ -27,7 +27,7 @@ function privateKeyToSigner(key: string) {
 
   const formattedKey = key.trim().toLowerCase();
   if (isHexString(ensure0x(formattedKey))) {
-    return new NonceKeeperWallet(ensure0x(key)) as NonceKeeperWallet;
+    return new NonceKeeperWallet(ensure0x(formattedKey)) as NonceKeeperWallet;
   }
 
   if (formattedKey.split(" ").length >= 6) {
