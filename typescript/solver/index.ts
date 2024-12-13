@@ -5,10 +5,10 @@ import "./patch-bigint-buffer-warn.js";
 import { log } from "./logger.js";
 import * as solvers from "./solvers/index.js";
 import { getMultiProvider } from "./solvers/utils.js";
-
+import { chainMetadata } from "./config/chainMetadata.js";
 
 const main = async () => {
-  const multiProvider = await getMultiProvider().catch(
+  const multiProvider = await getMultiProvider(chainMetadata).catch(
     (error) => (log.error(error.reason ?? error.message), process.exit(1)),
   );
 

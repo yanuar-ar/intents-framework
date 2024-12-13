@@ -1,5 +1,5 @@
-import { chainMetadata } from "@hyperlane-xyz/registry";
 import { MultiProvider } from "@hyperlane-xyz/sdk";
+import type { ChainMap, ChainMetadata } from "@hyperlane-xyz/sdk";
 import { ensure0x } from "@hyperlane-xyz/utils";
 import { password } from "@inquirer/prompts";
 import { isHexString } from "@ethersproject/bytes";
@@ -7,7 +7,7 @@ import { isHexString } from "@ethersproject/bytes";
 import { MNEMONIC, PRIVATE_KEY } from "../config/index.js";
 import { NonceKeeperWallet } from "../NonceKeeperWallet.js";
 
-export async function getMultiProvider() {
+export async function getMultiProvider(chainMetadata: ChainMap<ChainMetadata>) {
   const multiProvider = new MultiProvider(chainMetadata);
   const wallet = await getSigner();
 
