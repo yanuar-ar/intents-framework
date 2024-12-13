@@ -7,12 +7,14 @@ import * as solvers from "./solvers/index.js";
 import { getMultiProvider } from "./solvers/utils.js";
 import { chainMetadata } from "./config/chainMetadata.js";
 
-log.info("🙍 Intent Solver 📝");
 
-const main = () => {
+const main = async () => {
+  const multiProvider = await getMultiProvider(chainMetadata).catch(
+    (error) => (log.error(error.reason ?? error.message), process.exit(1)),
+  );
+
+  log.info("🙍 Intent Solver 📝");
   log.info("Starting...");
-
-  const multiProvider = getMultiProvider(chainMetadata);
 
   // TODO: implement a way to choose different listeners and fillers
   const ecoListener = solvers["eco"].listener.create();
@@ -27,4 +29,4 @@ const main = () => {
   hyperlane7683Listener(hyperlane7683Filler);
 };
 
-main();
+await main();
