@@ -142,7 +142,8 @@ The clock-list supersedes the allow-list, i.e. if a message matches both the all
 
 ### Logging
 
-The application utilizes a custom Logger class for logging. You can adjust the log level and format by modifying the Logger instantiation in index.ts.
+The application utilizes a custom Logger class for logging. You can adjust the log level and format by modifying the Logger instantiation in index.ts. By default it will log to `stdout` in a human-readable format using the `INFO` level.
+You can customize the logging destination by using a pino transport of your choosing. There's an example for logging to a Syslog server running on `localhost` commented in [logger.ts](logger.ts). Check out the [pino transports docs](https://github.com/pinojs/pino/blob/main/docs/transports.md) for other available transports.
 
 ## Adding a New Solver
 
