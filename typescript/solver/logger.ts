@@ -26,7 +26,17 @@ function createLogger(name?: string, logFormat?: LogFormat, logLevel?: Level) {
   const baseConfig = { level: logLevel, name };
 
   if (logFormat === LogFormat.JSON) {
-    return pino(baseConfig);
+    return pino({
+      ...baseConfig,
+      // transport: {
+      //   target: "pino-socket",
+      //   options: {
+      //     address: "127.0.0.1",
+      //     port: 514,
+      //     mode: "udp",
+      //   },
+      // },
+    });
   }
 
   return pino(baseConfig, pretty(prettyConfig));
