@@ -1,62 +1,37 @@
-import chalk, { ChalkInstance } from "chalk";
-import { type Logger as PinoLogger, pino } from "pino";
+import { LogFormat } from "@hyperlane-xyz/utils";
+import chalk from "chalk";
+import { pino, type Level, type Logger } from "pino";
+import pretty, { type PrettyOptions } from "pino-pretty";
+import uniqolor from "uniqolor";
 
-import {
-  LogFormat,
-  LogLevel,
-  configureRootLogger,
-  getLogFormat,
-  rootLogger,
-  safelyAccessEnvVar,
-} from "@hyperlane-xyz/utils";
+import { LOG_FORMAT, LOG_LEVEL } from "./config/index.js";
 
-class Logger {
-  label;
-  logger: PinoLogger = rootLogger;
+const prettyConfig: PrettyOptions = {
+  ignore: "hostname,pid,level",
+  messageFormat: (log, msgKey) => {
+    const message = `${log[msgKey]}`;
 
-  constructor(logFormat: LogFormat, logLevel: LogLevel, label?: string) {
-    this.label = label ? `[${label}]` : undefined;
-    this.logger = this.configureLogger(logFormat, logLevel);
-  }
-
-  private configureLogger(logFormat: LogFormat, logLevel: LogLevel) {
-    logFormat =
-      logFormat || safelyAccessEnvVar("LOG_FORMAT", true) || LogFormat.Pretty;
-    logLevel =
-      logLevel || safelyAccessEnvVar("LOG_LEVEL", true) || LogLevel.Info;
-    return configureRootLogger(logFormat, logLevel).child({ module: "solver" });
-  }
-
-  logColor(level: pino.Level, chalkInstance: ChalkInstance, ...args: any) {
-    // Only use color when pretty is enabled
-    if (getLogFormat() === LogFormat.Pretty) {
-      this.logger[level](chalkInstance(this.label, ...args));
-    } else {
-      // @ts-ignore pino type more restrictive than pino's actual arg handling
-      this.logger[level](this.label, ...args);
+    if (log.name) {
+      return chalk.hex(uniqolor(log.name as string).color)(message);
     }
+
+    return message;
+  },
+};
+
+function createLogger(name?: string, logFormat?: LogFormat, logLevel?: Level) {
+  logFormat = logFormat || (LOG_FORMAT as LogFormat) || LogFormat.Pretty;
+  logLevel = logLevel || (LOG_LEVEL as Level) || "info";
+
+  const baseConfig = { level: logLevel, name };
+
+  if (logFormat === LogFormat.JSON) {
+    return pino(baseConfig);
   }
 
-  blue(...args: any) {
-    this.logColor("info", chalk.blue, ...args);
-  }
-  green(...args: any) {
-    this.logColor("info", chalk.green, ...args);
-  }
-  boldBlue(...args: any) {
-    this.logColor("info", chalk.blue.bold, ...args);
-  }
-  warn(...args: any) {
-    this.logColor("warn", chalk.yellow, ...args);
-  }
-  error(...args: any) {
-    this.logColor("error", chalk.red, ...args);
-  }
-  debug(msg: string, ...args: any) {
-    this.logger.debug(this.label, msg, ...args);
-  }
+  return pino(baseConfig, pretty(prettyConfig));
 }
 
-const log = new Logger(LogFormat.Pretty, LogLevel.Info);
+const log = createLogger();
 
-export { LogFormat, LogLevel, Logger, log };
+export { createLogger, log, LogFormat, type Level, type Logger };

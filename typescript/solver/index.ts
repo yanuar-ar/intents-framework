@@ -2,26 +2,30 @@
 
 import "./patch-bigint-buffer-warn.js";
 
-import { LogFormat, Logger, LogLevel } from "./logger.js";
+import { log } from "./logger.js";
 import * as solvers from "./solvers/index.js";
+import { getMultiProvider } from "./solvers/utils.js";
 
-const log = new Logger(LogFormat.Pretty, LogLevel.Info);
 
-log.boldBlue("🙍 Intent Solver 📝");
+const main = async () => {
+  const multiProvider = await getMultiProvider().catch(
+    (error) => (log.error(error.reason ?? error.message), process.exit(1)),
+  );
 
-const main = () => {
-  log.blue("Starting...", "\n");
+  log.info("🙍 Intent Solver 📝");
+  log.info("Starting...");
 
   // TODO: implement a way to choose different listeners and fillers
   const ecoListener = solvers["eco"].listener.create();
-  const ecoFiller = solvers["eco"].filler.create();
+  const ecoFiller = solvers["eco"].filler.create(multiProvider);
 
   ecoListener(ecoFiller);
 
-  const onChainListener = solvers["onChain"].listener.create();
-  const onChainFiller = solvers["onChain"].filler.create();
+  const hyperlane7683Listener = solvers["hyperlane7683"].listener.create();
+  const hyperlane7683Filler =
+    solvers["hyperlane7683"].filler.create(multiProvider);
 
-  onChainListener(onChainFiller);
+  hyperlane7683Listener(hyperlane7683Filler);
 };
 
-main();
+await main();

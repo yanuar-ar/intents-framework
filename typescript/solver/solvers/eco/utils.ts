@@ -1,26 +1,31 @@
-import fs from "node:fs";
-
+import { formatUnits } from "@ethersproject/units";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
-import { parse } from "yaml";
+import type { BigNumber } from "ethers";
 
-import { LogFormat, Logger, LogLevel } from "../../logger.js";
+import { createLogger } from "../../logger.js";
 import type { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
+import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { HyperProver__factory } from "../../typechain/factories/eco/contracts/HyperProver__factory.js";
 import { IntentSource__factory } from "../../typechain/factories/eco/contracts/IntentSource__factory.js";
 import type { EcoMetadata } from "./types.js";
+import { metadata } from "./config/index.js";
+import { chainIds } from "../../config/index.js";
 
-export const log = new Logger(LogFormat.Pretty, LogLevel.Info, "Eco");
+export const log = createLogger(metadata.protocolName);
 
 export async function withdrawRewards(
   intent: IntentCreatedEventObject,
   intentSource: EcoMetadata["intentSource"],
   multiProvider: MultiProvider,
+  protocolName: string,
 ) {
+  log.info({
+    msg: "Settling Intent",
+    intent: `${protocolName}-${intent._hash}`,
+  });
+
   const { _hash, _prover } = intent;
-
-  log.green("Waiting for `IntentProven` event on origin chain");
-  const signer = multiProvider.getSigner(intentSource.chainId);
-
+  const signer = multiProvider.getSigner(intentSource.chainName);
   const claimantAddress = await signer.getAddress();
   const prover = HyperProver__factory.connect(_prover, signer);
 
@@ -28,34 +33,27 @@ export async function withdrawRewards(
     prover.once(
       prover.filters.IntentProven(_hash, claimantAddress),
       async () => {
-        log.debug("Intent proven:", _hash);
+        log.debug(`${protocolName} - Intent proven: ${_hash}`);
 
-        log.green("About to claim rewards");
         const settler = IntentSource__factory.connect(
           intentSource.address,
           signer,
         );
         const tx = await settler.withdrawRewards(_hash);
-
         const receipt = await tx.wait();
-
-        const baseUrl = multiProvider.getChainMetadata(intentSource.chainId)
+        const baseUrl = multiProvider.getChainMetadata(intentSource.chainName)
           .blockExplorers?.[0].url;
 
-        if (baseUrl) {
-          log.green(
-            `Withdraw Rewards Tx: ${baseUrl}/tx/${receipt.transactionHash}`,
-          );
-        } else {
-          log.green("Withdraw Rewards Tx:", receipt.transactionHash);
-        }
+        const txInfo = baseUrl
+          ? `${baseUrl}/tx/${receipt.transactionHash}`
+          : receipt.transactionHash;
 
-        log.debug(
-          "Reward withdrawn on",
-          intentSource.chainId,
-          "for intent",
-          _hash,
-        );
+        log.info({
+          msg: "Settled Intent",
+          intent: `${protocolName}-${_hash}`,
+          txDetails: txInfo,
+          txHash: receipt.transactionHash,
+        });
 
         resolve(_hash);
       },
@@ -63,13 +61,67 @@ export async function withdrawRewards(
   );
 }
 
-export function getMetadata(): EcoMetadata {
-  log.debug("Reading metadata from metadata.yaml");
-  // TODO: make it generic, so it can be used for other solvers
-  const data = fs.readFileSync("solvers/eco/metadata.yaml", "utf8");
-  const metadata = parse(data) as EcoMetadata;
+export async function retrieveOriginInfo(
+  intent: IntentCreatedEventObject,
+  intentSource: EcoMetadata["intentSource"],
+  multiProvider: MultiProvider,
+): Promise<Array<string>> {
+  const originInfo = await Promise.all(
+    intent._rewardTokens.map(async (tokenAddress, index) => {
+      const erc20 = Erc20__factory.connect(
+        tokenAddress,
+        multiProvider.getProvider(intentSource.chainName),
+      );
+      const [decimals, symbol] = await Promise.all([
+        erc20.decimals(),
+        erc20.symbol(),
+      ]);
+      const amount = intent._rewardAmounts[index];
 
-  log.debug("Metadata read:", JSON.stringify(metadata, null, 2));
+      return { amount, decimals, symbol };
+    }),
+  );
 
-  return metadata;
+  return originInfo.map(
+    ({ amount, decimals, symbol }) =>
+      `${formatUnits(amount, decimals)} ${symbol} in on ${intentSource.chainName}`,
+  );
+}
+
+export async function retrieveTargetInfo(
+  intent: IntentCreatedEventObject,
+  adapters: EcoMetadata["adapters"],
+  multiProvider: MultiProvider,
+): Promise<Array<string>> {
+  const erc20Interface = Erc20__factory.createInterface();
+
+  const targetInfo = await Promise.all(
+    intent._targets.map(async (tokenAddress, index) => {
+      const erc20 = Erc20__factory.connect(
+        tokenAddress,
+        multiProvider.getProvider(intent._destinationChain.toString()),
+      );
+      const [decimals, symbol] = await Promise.all([
+        erc20.decimals(),
+        erc20.symbol(),
+      ]);
+
+      const [, amount] = erc20Interface.decodeFunctionData(
+        "transfer",
+        intent._data[index],
+      ) as [string, BigNumber];
+
+      return { amount, decimals, symbol };
+    }),
+  );
+
+  const targetChain = adapters.find(
+    ({ chainName }) =>
+      chainIds[chainName] === intent._destinationChain.toNumber(),
+  );
+
+  return targetInfo.map(
+    ({ amount, decimals, symbol }) =>
+      `${formatUnits(amount, decimals)} ${symbol} out on ${targetChain?.chainName ?? "UNKNOWN_CHAIN"}`,
+  );
 }
