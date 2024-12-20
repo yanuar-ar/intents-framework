@@ -26,19 +26,6 @@ export abstract class BaseListener<
     private readonly log: Logger,
   ) {}
 
-  protected setup() {
-    if (
-      !this.metadata.contracts.every((c) => c.address) ||
-      !this.metadata.contracts.every((c) => c.chainName)
-    ) {
-      throw new Error("Origin contracts information must be provided");
-    }
-
-    if (!this.metadata.protocolName) {
-      throw new Error("Solver name must be provided");
-    }
-  }
-
   create() {
     return (handler: (args: TParsedArgs, originChainName: string) => void) => {
       const multiProvider = new MultiProvider(chainMetadata);
