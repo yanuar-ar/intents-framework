@@ -15,7 +15,7 @@ export const log = createLogger(metadata.protocolName);
 
 export async function withdrawRewards(
   intent: IntentCreatedEventObject,
-  intentSource: EcoMetadata["intentSource"],
+  originChainName: string,
   multiProvider: MultiProvider,
   protocolName: string,
 ) {
@@ -25,7 +25,7 @@ export async function withdrawRewards(
   });
 
   const { _hash, _prover } = intent;
-  const signer = multiProvider.getSigner(intentSource.chainName);
+  const signer = multiProvider.getSigner(originChainName);
   const claimantAddress = await signer.getAddress();
   const prover = HyperProver__factory.connect(_prover, signer);
 
@@ -36,13 +36,16 @@ export async function withdrawRewards(
         log.debug(`${protocolName} - Intent proven: ${_hash}`);
 
         const settler = IntentSource__factory.connect(
-          intentSource.address,
+          metadata.intentSources.find(
+            (source) => source.chainName == originChainName,
+          )!.address,
           signer,
         );
         const tx = await settler.withdrawRewards(_hash);
         const receipt = await tx.wait();
-        const baseUrl = multiProvider.getChainMetadata(intentSource.chainName)
-          .blockExplorers?.[0].url;
+        const baseUrl =
+          multiProvider.getChainMetadata(originChainName).blockExplorers?.[0]
+            .url;
 
         const txInfo = baseUrl
           ? `${baseUrl}/tx/${receipt.transactionHash}`
@@ -63,14 +66,14 @@ export async function withdrawRewards(
 
 export async function retrieveOriginInfo(
   intent: IntentCreatedEventObject,
-  intentSource: EcoMetadata["intentSource"],
+  originChainName: string,
   multiProvider: MultiProvider,
 ): Promise<Array<string>> {
   const originInfo = await Promise.all(
     intent._rewardTokens.map(async (tokenAddress, index) => {
       const erc20 = Erc20__factory.connect(
         tokenAddress,
-        multiProvider.getProvider(intentSource.chainName),
+        multiProvider.getProvider(originChainName),
       );
       const [decimals, symbol] = await Promise.all([
         erc20.decimals(),
@@ -84,7 +87,7 @@ export async function retrieveOriginInfo(
 
   return originInfo.map(
     ({ amount, decimals, symbol }) =>
-      `${formatUnits(amount, decimals)} ${symbol} in on ${intentSource.chainName}`,
+      `${formatUnits(amount, decimals)} ${symbol} in on ${originChainName}`,
   );
 }
 

@@ -17,47 +17,51 @@ export abstract class BaseListener<
     },
     private readonly eventName: Extract<keyof TContract["filters"], string>,
     private readonly metadata: {
-      address: string;
-      chainName: string;
+      contracts: Array<{
+        address: string;
+        chainName: string;
+      }>;
       protocolName: string;
     },
     private readonly log: Logger,
   ) {}
 
-  protected setup(): TContract {
-    if (!this.metadata.address || !this.metadata.chainName) {
-      throw new Error("Origin contract information must be provided");
+  protected setup() {
+    if (
+      !this.metadata.contracts.every((c) => c.address) ||
+      !this.metadata.contracts.every((c) => c.chainName)
+    ) {
+      throw new Error("Origin contracts information must be provided");
     }
 
     if (!this.metadata.protocolName) {
       throw new Error("Solver name must be provided");
     }
-
-    const multiProvider = new MultiProvider(chainMetadata);
-    const provider = multiProvider.getProvider(this.metadata.chainName);
-
-    return this.contractFactory.connect(this.metadata.address, provider);
   }
 
   create() {
-    const contract = this.setup();
+    return (handler: (args: TParsedArgs, originChainName: string) => void) => {
+      const multiProvider = new MultiProvider(chainMetadata);
 
-    return (handler: (args: TParsedArgs) => void) => {
-      const filter = contract.filters[this.eventName]();
+      this.metadata.contracts.forEach(({ address, chainName }) => {
+        const provider = multiProvider.getProvider(chainName);
+        const contract = this.contractFactory.connect(address, provider);
+        const filter = contract.filters[this.eventName]();
 
-      const listener: TypedListener<TEvent> = (...args) => {
-        handler(this.parseEventArgs(args));
-      };
+        const listener: TypedListener<TEvent> = (...args) => {
+          handler(this.parseEventArgs(args), chainName);
+        };
 
-      contract.on(filter, listener);
+        contract.on(filter, listener);
 
-      contract.provider.getNetwork().then((network) => {
-        this.log.info({
-          msg: "Listener started",
-          event: this.eventName,
-          protocol: this.metadata.protocolName,
-          chainId: network.chainId,
-          chainName: this.metadata.chainName,
+        contract.provider.getNetwork().then((network) => {
+          this.log.info({
+            msg: "Listener started",
+            event: this.eventName,
+            protocol: this.metadata.protocolName,
+            chainId: network.chainId,
+            chainName: chainName,
+          });
         });
       });
     };

@@ -22,12 +22,15 @@ import {
 } from "../../config/index.js";
 
 export const create = (multiProvider: MultiProvider) => {
-  const { adapters, intentSource, protocolName } = setup();
+  const { adapters, protocolName } = setup();
 
-  return async function eco(intent: IntentCreatedEventObject) {
+  return async function eco(
+    intent: IntentCreatedEventObject,
+    originChainName: string,
+  ) {
     const origin = await retrieveOriginInfo(
       intent,
-      intentSource,
+      originChainName,
       multiProvider,
     );
     const target = await retrieveTargetInfo(intent, adapters, multiProvider);
@@ -56,12 +59,12 @@ export const create = (multiProvider: MultiProvider) => {
     await fill(
       intent,
       result.data.adapter,
-      intentSource,
+      originChainName,
       multiProvider,
       protocolName,
     );
 
-    await withdrawRewards(intent, intentSource, multiProvider, protocolName);
+    await withdrawRewards(intent, originChainName, multiProvider, protocolName);
   };
 };
 
@@ -181,7 +184,7 @@ async function prepareIntent(
 async function fill(
   intent: IntentCreatedEventObject,
   adapter: EcoMetadata["adapters"][number],
-  intentSource: EcoMetadata["intentSource"],
+  originChainName: string,
   multiProvider: MultiProvider,
   protocolName: string,
 ): Promise<void> {
@@ -195,19 +198,17 @@ async function fill(
   const filler = multiProvider.getSigner(_chainId);
   const ecoAdapter = EcoAdapter__factory.connect(adapter.address, filler);
 
-  const claimantAddress = await multiProvider.getSignerAddress(
-    intentSource.chainName,
-  );
+  const claimantAddress = await multiProvider.getSignerAddress(originChainName);
 
   const { _targets, _data, _expiryTime, nonce, _hash, _prover } = intent;
   const value = await ecoAdapter.fetchFee(
-    chainIds[intentSource.chainName],
+    chainIds[originChainName],
     [_hash],
     [claimantAddress],
     _prover,
   );
   const tx = await ecoAdapter.fulfillHyperInstant(
-    chainIds[intentSource.chainName],
+    chainIds[originChainName],
     _targets,
     _data,
     _expiryTime,
