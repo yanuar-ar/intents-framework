@@ -23,6 +23,8 @@ event Open(bytes32 indexed orderId, ResolvedCrossChainOrder resolvedOrder);
 
 event Filled(bytes32 orderId, bytes originData, bytes fillerData);
 
+event Settle(bytes32[] orderIds, bytes[] ordersFillerData);
+
 contract Base7683ForTest is Base7683, StdCheats {
     bytes32 public counterpart;
 
@@ -36,15 +38,20 @@ contract Base7683ForTest is Base7683, StdCheats {
     bytes public filledFillerData;
 
     bytes32[] public settledOrderIds;
+    bytes[] public settledOrdersOriginData;
     bytes[] public settledOrdersFillerData;
 
+    bytes32[] public refundedOrderIds;
+
     constructor(
-      address _permit2,
-      uint32 _local,
-      uint32 _remote,
-      address _inputToken,
-      address _outputToken
-    ) Base7683(_permit2) {
+        address _permit2,
+        uint32 _local,
+        uint32 _remote,
+        address _inputToken,
+        address _outputToken
+    )
+        Base7683(_permit2)
+    {
         _origin = _local;
         _destination = _remote;
         inputToken = _inputToken;
@@ -61,12 +68,7 @@ contract Base7683ForTest is Base7683, StdCheats {
         override
         returns (ResolvedCrossChainOrder memory, bytes32 orderId, uint256 nonce)
     {
-        return _resolvedOrder(
-            order.user,
-            order.openDeadline,
-            order.fillDeadline,
-            order.orderData
-        );
+        return _resolvedOrder(order.user, order.openDeadline, order.fillDeadline, order.orderData);
     }
 
     function _resolveOrder(OnchainCrossChainOrder memory order)
@@ -75,12 +77,7 @@ contract Base7683ForTest is Base7683, StdCheats {
         override
         returns (ResolvedCrossChainOrder memory, bytes32 orderId, uint256 nonce)
     {
-        return _resolvedOrder(
-            msg.sender,
-            type(uint32).max,
-            order.fillDeadline,
-            order.orderData
-        );
+        return _resolvedOrder(msg.sender, type(uint32).max, order.fillDeadline, order.orderData);
     }
 
     function _resolvedOrder(
@@ -133,15 +130,39 @@ contract Base7683ForTest is Base7683, StdCheats {
         nonce = 1;
     }
 
+    function _getOrderId(GaslessCrossChainOrder memory) internal pure override returns (bytes32) {
+        return keccak256("someId");
+    }
+
+    function _getOrderId(OnchainCrossChainOrder memory) internal pure override returns (bytes32) {
+        return keccak256("someId");
+    }
+
     function _fillOrder(bytes32 _orderId, bytes calldata _originData, bytes calldata _fillerData) internal override {
         filledId = _orderId;
         filledOriginData = _originData;
         filledFillerData = _fillerData;
     }
 
-    function _settleOrders(bytes32[] calldata _orderIds, bytes[] memory _ordersFillerData) internal override {
+    function _settleOrders(
+        bytes32[] calldata _orderIds,
+        bytes[] memory _ordersOriginData,
+        bytes[] memory _ordersFillerData
+    )
+        internal
+        override
+    {
         settledOrderIds = _orderIds;
+        settledOrdersOriginData = _ordersOriginData;
         settledOrdersFillerData = _ordersFillerData;
+    }
+
+    function _refundOrders(GaslessCrossChainOrder[] memory, bytes32[] memory _orderIds) internal override {
+        refundedOrderIds = _orderIds;
+    }
+
+    function _refundOrders(OnchainCrossChainOrder[] memory, bytes32[] memory _orderIds) internal override {
+        refundedOrderIds = _orderIds;
     }
 
     function _localDomain() internal view override returns (uint32) {
@@ -225,11 +246,8 @@ contract Base7683Test is Test, DeployPermit2 {
         pure
         returns (OnchainCrossChainOrder memory)
     {
-        return OnchainCrossChainOrder({
-            fillDeadline: fillDeadline,
-            orderDataType: "someOrderType",
-            orderData: orderData
-        });
+        return
+            OnchainCrossChainOrder({ fillDeadline: fillDeadline, orderDataType: "someOrderType", orderData: orderData });
     }
 
     function prepareGaslessOrder(
@@ -367,8 +385,7 @@ contract Base7683Test is Test, DeployPermit2 {
     // open
     function test_open_works(uint32 _fillDeadline) public {
         bytes memory orderData = abi.encode("some order data");
-        OnchainCrossChainOrder memory order =
-            prepareOnchainOrder(orderData, _fillDeadline);
+        OnchainCrossChainOrder memory order = prepareOnchainOrder(orderData, _fillDeadline);
 
         vm.startPrank(kakaroto);
         inputToken.approve(address(base), amount);
@@ -473,8 +490,7 @@ contract Base7683Test is Test, DeployPermit2 {
 
         uint256 permitNonce = 0;
         bytes memory orderData = abi.encode("some order data");
-        GaslessCrossChainOrder memory order =
-            prepareGaslessOrder(orderData, permitNonce, _openDeadline, _fillDeadline);
+        GaslessCrossChainOrder memory order = prepareGaslessOrder(orderData, permitNonce, _openDeadline, _fillDeadline);
 
         bytes memory sig = getSignature(order, permitNonce, amount, _openDeadline);
 
@@ -504,8 +520,7 @@ contract Base7683Test is Test, DeployPermit2 {
     // resolve
     function test_resolve_works(uint32 _fillDeadline) public {
         bytes memory orderData = abi.encode("some order data");
-        OnchainCrossChainOrder memory order =
-            prepareOnchainOrder(orderData, _fillDeadline);
+        OnchainCrossChainOrder memory order = prepareOnchainOrder(orderData, _fillDeadline);
 
         vm.prank(kakaroto);
         ResolvedCrossChainOrder memory resolvedOrder = base.resolve(order);
@@ -516,8 +531,7 @@ contract Base7683Test is Test, DeployPermit2 {
     // resolveFor
     function test_resolveFor_works(uint32 _fillDeadline, uint32 _openDeadline) public {
         bytes memory orderData = abi.encode("some order data");
-        GaslessCrossChainOrder memory order =
-            prepareGaslessOrder(orderData, 0, _openDeadline, _fillDeadline);
+        GaslessCrossChainOrder memory order = prepareGaslessOrder(orderData, 0, _openDeadline, _fillDeadline);
 
         vm.prank(karpincho);
         ResolvedCrossChainOrder memory resolvedOrder = base.resolveFor(order, new bytes(0));
@@ -540,8 +554,11 @@ contract Base7683Test is Test, DeployPermit2 {
         base.fill(orderId, orderData, fillerData);
 
         assertEq(base.orderStatus(orderId), base.FILLED());
-        assertEq(base.filledOrders(orderId), orderData);
-        assertEq(base.orderFillerData(orderId), fillerData);
+
+        (bytes memory _originData, bytes memory _fillerData) = base.filledOrders(orderId);
+
+        assertEq(_originData, orderData);
+        assertEq(_fillerData, fillerData);
 
         assertEq(base.filledId(), orderId);
         assertEq(base.filledOriginData(), orderData);
@@ -551,4 +568,36 @@ contract Base7683Test is Test, DeployPermit2 {
     }
 
     // TODO test_fill_InvalidOrderStatus
+
+    // TODO test_settle
+    function test_settle_work() public {
+        bytes memory orderData = abi.encode("some order data");
+        bytes memory fillerData = abi.encode("some filler data");
+        bytes32 orderId = "someOrderId";
+
+        vm.startPrank(vegeta);
+
+        vm.expectEmit(false, false, false, true);
+        emit Filled(orderId, orderData, fillerData);
+
+        base.fill(orderId, orderData, fillerData);
+
+        bytes32[] memory orderIds = new bytes32[](1);
+        orderIds[0] = orderId;
+        bytes[] memory ordersFillerData = new bytes[](1);
+        ordersFillerData[0] = fillerData;
+
+        vm.expectEmit(false, false, false, true, address(base));
+        emit Settle(orderIds, ordersFillerData);
+
+        base.settle(orderIds);
+
+        assertEq(base.orderStatus(orderId), base.FILLED()); // settling does not change the status
+        assertEq(base.settledOrderIds(0), orderId);
+        assertEq(base.settledOrdersOriginData(0), orderData);
+        assertEq(base.settledOrdersFillerData(0), fillerData);
+        vm.stopPrank();
+    }
+
+    // TODO test_refund
 }

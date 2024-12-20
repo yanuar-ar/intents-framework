@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.27;
+pragma solidity 0.8.25;
+
+import { console2 } from "forge-std/console2.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -36,16 +38,20 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     bytes32 public constant UNKNOWN = "";
     bytes32 public constant OPENED = "OPENED";
     bytes32 public constant FILLED = "FILLED";
+    bytes32 public constant REFUNDED = "REFUNDED";
 
     // ============ Public Storage ============
+
+    struct FilledOrder {
+        bytes originData;
+        bytes fillerData;
+    }
 
     mapping(address => mapping(uint256 => uint256)) public nonceBitmap;
 
     mapping(bytes32 orderId => bytes resolvedOrder) public orders;
 
-    mapping(bytes32 orderId => bytes originData) public filledOrders;
-
-    mapping(bytes32 orderId => bytes fillerData) public orderFillerData;
+    mapping(bytes32 orderId => FilledOrder filledOrder) public filledOrders;
 
     mapping(bytes32 orderId => bytes32 status) public orderStatus;
 
@@ -57,11 +63,12 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
     event Filled(bytes32 orderId, bytes originData, bytes fillerData);
     event Settle(bytes32[] orderIds, bytes[] ordersFillerData);
+    event Refund(bytes32[] orderIds);
 
     /**
      * @notice Emits an event when the owner successfully invalidates an unordered nonce.
      */
-    event UnorderedNonceInvalidation(address indexed owner, uint256 nonce);
+    event NonceInvalidation(address indexed owner, uint256 nonce);
 
     // ============ Errors ============
 
@@ -71,6 +78,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     error InvalidGaslessOrderOrigin();
     error InvalidNonce();
     error InvalidOrderOrigin();
+    error OrderFillNotExpired();
 
     // ============ Constructor ============
 
@@ -104,7 +112,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
         orders[orderId] = abi.encode(resolvedOrder);
         orderStatus[orderId] = OPENED;
-        _useUnorderedNonce(order.user, nonce);
+        _useNonce(order.user, nonce);
 
         _permitTransferFrom(resolvedOrder, signature, order.nonce, address(this));
 
@@ -115,12 +123,13 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     /// @dev To be called by the user
     /// @dev This method must emit the Open event
     /// @param order The OnchainCrossChainOrder definition
+    // TODO - add support for native token
     function open(OnchainCrossChainOrder calldata order) external virtual {
         (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(order);
 
         orders[orderId] = abi.encode(resolvedOrder);
         orderStatus[orderId] = OPENED;
-        _useUnorderedNonce(msg.sender, nonce);
+        _useNonce(msg.sender, nonce);
 
         for (uint256 i = 0; i < resolvedOrder.minReceived.length; i++) {
             IERC20(TypeCasts.bytes32ToAddress(resolvedOrder.minReceived[i].token)).safeTransferFrom(
@@ -166,36 +175,73 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     /// @param _originData Data emitted on the origin to parameterize the fill
     /// @param _fillerData Data provided by the filler to inform the fill or express their preferences. It should
     /// contain the bytes32 encoded address of the receiver which is the used at settlement time
+    // TODO - add support for native token
     function fill(bytes32 _orderId, bytes calldata _originData, bytes calldata _fillerData) external virtual {
         if (orderStatus[_orderId] != UNKNOWN) revert InvalidOrderStatus();
 
         _fillOrder(_orderId, _originData, _fillerData);
 
         orderStatus[_orderId] = FILLED;
-        filledOrders[_orderId] = _originData;
-        orderFillerData[_orderId] = _fillerData;
+        // TODO - unify _originData and _fillerData into a single struct
+        filledOrders[_orderId] = FilledOrder(_originData, _fillerData);
 
         emit Filled(_orderId, _originData, _fillerData);
     }
 
     function settle(bytes32[] calldata _orderIds) external payable {
-        bytes memory originData = filledOrders[_orderIds[0]];
-
-        if (originData.length == 0) revert InvalidOrderOrigin();
-
+        bytes[] memory ordersOriginData = new bytes[](_orderIds.length);
         bytes[] memory ordersFillerData = new bytes[](_orderIds.length);
         for (uint256 i = 0; i < _orderIds.length; i += 1) {
+            // all orders must be FILLED
             if (orderStatus[_orderIds[i]] != FILLED) revert InvalidOrderStatus();
 
             // It may be good idea not to change the status here (on destination) but only on the origin.
             // If the filler fills the order and settles it before it is opened on the origin, there should be a way for
-            // the filler to retry settling the order.
-            ordersFillerData[i] = orderFillerData[_orderIds[i]];
+            // the filler to retry settling the order. Another scenario is some of the orders are not from the same
+            // origin domain as the first one which may be used to handle the settlement of the complete batch.
+            // Is caller responsibility to ensure the order hasn't been settled on origin yet
+            ordersOriginData[i] = filledOrders[_orderIds[i]].originData;
+            ordersFillerData[i] = filledOrders[_orderIds[i]].fillerData;
         }
 
-        _settleOrders(_orderIds, ordersFillerData);
+        _settleOrders(_orderIds, ordersOriginData, ordersFillerData);
 
         emit Settle(_orderIds, ordersFillerData);
+    }
+
+    // TODO - refactor this two
+    function refund(GaslessCrossChainOrder[] memory _orders) external payable {
+        bytes32[] memory orderIds = new bytes32[](_orders.length);
+        for (uint256 i = 0; i < _orders.length; i += 1) {
+            bytes32 orderId = _getOrderId(_orders[i]);
+            orderIds[i] = orderId;
+
+            if (orderStatus[orderId] != UNKNOWN) revert InvalidOrderStatus();
+            if (block.timestamp <= _orders[i].fillDeadline) revert OrderFillNotExpired();
+
+            orderStatus[orderId] = REFUNDED;
+        }
+
+        _refundOrders(_orders, orderIds);
+
+        emit Refund(orderIds);
+    }
+
+    function refund(OnchainCrossChainOrder[] memory _orders) external payable {
+        bytes32[] memory orderIds = new bytes32[](_orders.length);
+        for (uint256 i = 0; i < _orders.length; i += 1) {
+            bytes32 orderId = _getOrderId(_orders[i]);
+            orderIds[i] = orderId;
+
+            if (orderStatus[orderId] != UNKNOWN) revert InvalidOrderStatus();
+            if (block.timestamp <= _orders[i].fillDeadline) revert OrderFillNotExpired();
+
+            orderStatus[orderId] = REFUNDED;
+        }
+
+        _refundOrders(_orders, orderIds);
+
+        emit Refund(orderIds);
     }
 
     // ============ Public Functions ============
@@ -217,10 +263,10 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
     /// @notice Invalidates the a nonce for the user calling the function
     /// @param nonce The nonce to get the associated word and bit positions
-    function invalidateUnorderedNonces(uint256 nonce) external virtual {
-        _useUnorderedNonce(msg.sender, nonce);
+    function invalidateNonces(uint256 nonce) external virtual {
+        _useNonce(msg.sender, nonce);
 
-        emit UnorderedNonceInvalidation(msg.sender, nonce);
+        emit NonceInvalidation(msg.sender, nonce);
     }
 
     function isValidNonce(address from, uint256 nonce) external view virtual returns (bool) {
@@ -246,7 +292,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     /// @notice Checks whether a nonce is taken and sets the bit at the bit position in the bitmap at the word position
     /// @param from The address to use the nonce at
     /// @param nonce The nonce to spend
-    function _useUnorderedNonce(address from, uint256 nonce) internal {
+    function _useNonce(address from, uint256 nonce) internal {
         (uint256 wordPos, uint256 bitPos) = bitmapPositions(nonce);
         uint256 bit = 1 << bitPos;
         uint256 flipped = nonceBitmap[from][wordPos] ^= bit;
@@ -310,10 +356,26 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
     function _fillOrder(bytes32 _orderId, bytes calldata _originData, bytes calldata _fillerData) internal virtual;
 
-    function _settleOrders(bytes32[] calldata _orderIds, bytes[] memory ordersFillerData) internal virtual;
+    function _settleOrders(
+        bytes32[] calldata _orderIds,
+        bytes[] memory ordersOriginData,
+        bytes[] memory ordersFillerData
+    )
+        internal
+        virtual;
+
+    function _refundOrders(OnchainCrossChainOrder[] memory _orders, bytes32[] memory _orderIds) internal virtual;
+    function _refundOrders(GaslessCrossChainOrder[] memory _orders, bytes32[] memory _orderIds) internal virtual;
 
     /**
      * @dev To be implemented by the inheriting contract with specific logic, should return the local domain
      */
     function _localDomain() internal view virtual returns (uint32);
+
+    function _getOrderId(GaslessCrossChainOrder memory order) internal pure virtual returns (bytes32);
+    function _getOrderId(OnchainCrossChainOrder memory order) internal pure virtual returns (bytes32);
+
+    function getfilledOrder(bytes32 orderId) external view returns (FilledOrder memory) {
+        return filledOrders[orderId];
+    }
 }

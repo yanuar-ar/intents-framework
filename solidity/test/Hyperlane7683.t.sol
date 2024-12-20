@@ -239,6 +239,7 @@ contract Hyperlane7683Test is Hyperlane7683BaseTest {
             senderNonce: 1,
             originDomain: origin,
             destinationDomain: destination,
+            destinationSettler: destinationRouterB32,
             fillDeadline: uint32(block.timestamp + 100),
             data: new bytes(0)
         });
@@ -337,7 +338,7 @@ contract Hyperlane7683Test is Hyperlane7683BaseTest {
         uint256[] memory balancesAfter = balances(inputToken);
 
         assertTrue(originRouter.orderStatus(orderId) == originRouter.SETTLED());
-        assertTrue(destinationRouter.orderStatus(orderId) == destinationRouter.SETTLED());
+        assertTrue(destinationRouter.orderStatus(orderId) == destinationRouter.FILLED());
 
         assertEq(
             balancesBefore[balanceId[address(originRouter)]] - amount, balancesAfter[balanceId[address(originRouter)]]

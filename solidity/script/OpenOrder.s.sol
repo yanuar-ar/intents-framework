@@ -43,6 +43,7 @@ contract OpenOrder is Script {
             senderNonce,
             originDomain,
             uint32(destinationDomain),
+            TypeCasts.addressToBytes32(localRouter),
             fillDeadline,
             new bytes(0)
         );

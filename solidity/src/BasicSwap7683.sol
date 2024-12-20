@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.27;
+pragma solidity 0.8.25;
 
 import { GasRouter } from "@hyperlane-xyz/client/GasRouter.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -26,7 +26,6 @@ abstract contract BasicSwap7683 is Base7683 {
 
     // ============ Constants ============
     bytes32 public constant SETTLED = "SETTLED";
-    bytes32 public constant REFUNDED = "REFUNDED";
 
     // ============ Public Storage ============
 
@@ -35,19 +34,16 @@ abstract contract BasicSwap7683 is Base7683 {
     uint256[47] private __GAP;
 
     // ============ Events ============
-    event Refund(bytes32[] orderIds);
     event Settled(bytes32 orderId, address receiver);
     event Refunded(bytes32 orderId, address receiver);
 
     // ============ Errors ============
 
-    error InvalidOrderOrigin();
     error InvalidOrderType(bytes32 orderType);
     error InvalidOriginDomain(uint32 originDomain);
     error InvalidOrderId();
     error OrderFillExpired();
     error InvalidOrderDomain();
-    error OrderFillNotExpired();
     error InvalidDomain();
     error InvalidSender();
 
@@ -61,42 +57,37 @@ abstract contract BasicSwap7683 is Base7683 {
 
     // ============ External Functions ============
 
-    function refund(GaslessCrossChainOrder[] memory _orders) external payable {
-        bytes32[] memory orderIds = new bytes32[](_orders.length);
-        for (uint256 i = 0; i < _orders.length; i += 1) {
-            orderIds[i] = _refundOrder(_orders[i].orderData);
-        }
-
-        _dispatchRefund(OrderEncoder.decode(_orders[0].orderData).originDomain, orderIds);
-
-        emit Refund(orderIds);
-    }
-
-    function refund(OnchainCrossChainOrder[] memory _orders) external payable {
-        bytes32[] memory orderIds = new bytes32[](_orders.length);
-        for (uint256 i = 0; i < _orders.length; i += 1) {
-            orderIds[i] = _refundOrder(_orders[i].orderData);
-        }
-
-        _dispatchRefund(OrderEncoder.decode(_orders[0].orderData).originDomain, orderIds);
-
-        emit Refund(orderIds);
-    }
-
     // ============ Internal Functions ============
 
-    function _settleOrders(bytes32[] calldata _orderIds, bytes[] memory ordersFillerData) internal override {
-        uint32 originDomain = OrderEncoder.decode(ordersFillerData[0]).originDomain;
-
-        _dispatchSettle(OrderEncoder.decode(ordersFillerData[0]).originDomain, _orderIds, ordersFillerData);
+    function _settleOrders(
+        bytes32[] calldata _orderIds,
+        bytes[] memory ordersOriginData,
+        bytes[] memory ordersFillerData
+    )
+        internal
+        override
+    {
+        // at this point we are sure all orders are filled, use the first order to get the originDomain
+        // if some order differs on the originDomain ir can be re-settle later
+        _dispatchSettle(OrderEncoder.decode(ordersOriginData[0]).originDomain, _orderIds, ordersFillerData);
     }
 
-    /**
-     * @dev There is no need to check for if order destinationDomain is the _handle origin since it is checked when
-     * filling the order and only filled orders can be settled. Regarding the originDomain it gets checked indirectly
-     * on _handle with if (orderStatus[_orderIds[i]] != OPENED) continue;
-     */
+    function _refundOrders(OnchainCrossChainOrder[] memory _orders, bytes32[] memory _orderIds) internal override {
+        // at this point we are sure all orders are filled, use the first order to get the originDomain
+        // if some order differs on the originDomain ir can be re-refunded later
+        _dispatchRefund(OrderEncoder.decode(_orders[0].orderData).originDomain, _orderIds);
+    }
+
+    function _refundOrders(GaslessCrossChainOrder[] memory _orders, bytes32[] memory _orderIds) internal override {
+        // at this point we are sure all orders are filled, use the first order to get the originDomain
+        // if some order differs on the originDomain ir can be re-refunded later
+        _dispatchRefund(OrderEncoder.decode(_orders[0].orderData).originDomain, _orderIds);
+    }
+
     function _handleSettleOrder(bytes32 _orderId, bytes32 _receiver) internal {
+        // check if the order is opened to ensure it belongs to this domain, skip otherwise
+        if (orderStatus[_orderId] != OPENED) return;
+
         ResolvedCrossChainOrder memory resolvedOrder = abi.decode(orders[_orderId], (ResolvedCrossChainOrder));
 
         OrderData memory orderData = OrderEncoder.decode(resolvedOrder.fillInstructions[0].originData);
@@ -110,12 +101,10 @@ abstract contract BasicSwap7683 is Base7683 {
         IERC20(TypeCasts.bytes32ToAddress(orderData.inputToken)).safeTransfer(receiver, orderData.amountIn);
     }
 
-    /**
-     * @dev There is no need to check for if order destinationDomain is the _handle origin since it is checked on
-     * _refundOrder when the refund is requested. Regarding the originDomain it gets checked indirectly
-     * on _handle with if (orderStatus[_orderIds[i]] != OPENED) continue;
-     */
     function _handleRefundOrder(bytes32 _orderId) internal {
+        // check if the order is opened to ensure it belongs to this domain, skip otherwise
+        if (orderStatus[_orderId] != OPENED) return;
+
         ResolvedCrossChainOrder memory resolvedOrder = abi.decode(orders[_orderId], (ResolvedCrossChainOrder));
 
         OrderData memory orderData = OrderEncoder.decode(resolvedOrder.fillInstructions[0].originData);
@@ -129,29 +118,26 @@ abstract contract BasicSwap7683 is Base7683 {
         IERC20(TypeCasts.bytes32ToAddress(orderData.inputToken)).safeTransfer(orderSender, orderData.amountIn);
     }
 
-    function _refundOrder(bytes memory _orderData) internal virtual returns (bytes32 orderId) {
-        OrderData memory orderData = OrderEncoder.decode(_orderData);
-        orderId = OrderEncoder.id(orderData);
-
-        if (orderStatus[orderId] != UNKNOWN) revert InvalidOrderStatus();
-        if (block.timestamp <= orderData.fillDeadline) revert OrderFillNotExpired();
-        if (orderData.destinationDomain != _localDomain()) revert InvalidOrderDomain();
-        // _mustHaveRemoteCounterpart(orderData.originDomain);
-
-        orderStatus[orderId] = REFUNDED;
-        return orderId;
+    function _getOrderId(GaslessCrossChainOrder memory order) internal pure override returns (bytes32) {
+        return _getOrderId(order.orderDataType, order.orderData);
     }
 
-    // function _mustHaveRemoteCounterpart(uint32 _domain) internal view virtual returns (bytes32) {
-    //     return _mustHaveRemoteRouter(_domain);
-    // }
+    function _getOrderId(OnchainCrossChainOrder memory order) internal pure override returns (bytes32) {
+        return _getOrderId(order.orderDataType, order.orderData);
+    }
+
+    function _getOrderId(bytes32 _orderType, bytes memory _orderData) internal pure returns (bytes32 orderId) {
+        if (_orderType != OrderEncoder.orderDataType()) revert InvalidOrderType(_orderType);
+        OrderData memory orderData = OrderEncoder.decode(_orderData);
+        orderId = OrderEncoder.id(orderData);
+    }
 
     function _resolveOrder(GaslessCrossChainOrder memory order)
         internal
         view
         virtual
         override
-        returns (ResolvedCrossChainOrder memory, bytes32 orderId, uint256 nonce)
+        returns (ResolvedCrossChainOrder memory, bytes32, uint256)
     {
         return _resolvedOrder(order.orderDataType, order.user, order.openDeadline, order.fillDeadline, order.orderData);
     }
@@ -164,7 +150,7 @@ abstract contract BasicSwap7683 is Base7683 {
         view
         virtual
         override
-        returns (ResolvedCrossChainOrder memory, bytes32 orderId, uint256 nonce)
+        returns (ResolvedCrossChainOrder memory, bytes32, uint256)
     {
         return _resolvedOrder(order.orderDataType, msg.sender, type(uint32).max, order.fillDeadline, order.orderData);
     }
