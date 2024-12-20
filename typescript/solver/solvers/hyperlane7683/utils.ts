@@ -9,10 +9,8 @@ import type { Provider } from "@ethersproject/abstract-provider";
 import { bytes32ToAddress } from "@hyperlane-xyz/utils";
 import { createLogger } from "../../logger.js";
 import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
-import type {
-  Hyperlane7683Metadata,
-  ResolvedCrossChainOrder,
-} from "./types.js";
+import type { ResolvedCrossChainOrder } from "./types.js";
+import { chainIdsToName } from "../../config/index.js";
 import { metadata } from "./config/index.js";
 
 export const log = createLogger(metadata.protocolName);
@@ -136,7 +134,6 @@ export async function settleOrder(
 
 export async function retrieveOriginInfo(
   resolvedOrder: ResolvedCrossChainOrder,
-  originSettler: Hyperlane7683Metadata["originSettler"],
   multiProvider: MultiProvider,
 ): Promise<Array<string>> {
   const originInfo = await Promise.all(
@@ -154,7 +151,8 @@ export async function retrieveOriginInfo(
     }),
   );
 
-  const originChain = originSettler.chainName ?? "UNKNOWN_CHAIN";
+  const originChain =
+    chainIdsToName[resolvedOrder.originChainId.toNumber()] ?? "UNKNOWN_CHAIN";
 
   return originInfo.map(
     ({ amount, decimals, symbol }) =>
@@ -177,12 +175,13 @@ export async function retrieveTargetInfo(
         erc20.symbol(),
       ]);
 
-      return { amount, decimals, symbol };
+      return { amount, decimals, symbol, chainId };
     }),
   );
 
-  return targetInfo.map(
-    ({ amount, decimals, symbol }) =>
-      `${formatUnits(amount, decimals)} ${symbol} on base-sepolia`,
-  );
+  return targetInfo.map(({ amount, decimals, symbol, chainId }) => {
+    const destinationChain =
+      chainIdsToName[chainId.toNumber()] ?? "UNKNOWN_CHAIN";
+    return `${formatUnits(amount, decimals)} ${symbol} on ${destinationChain}`;
+  });
 }

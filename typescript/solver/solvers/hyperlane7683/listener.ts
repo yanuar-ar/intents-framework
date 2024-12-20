@@ -15,11 +15,8 @@ export class Hyperlane7683Listener extends BaseListener<
   OpenEventArgs
 > {
   constructor() {
-    const {
-      originSettler: { address, chainName },
-      protocolName,
-    } = metadata;
-    const hyperlane7683Metadata = { address, chainName, protocolName };
+    const { originSettlers, protocolName } = metadata;
+    const hyperlane7683Metadata = { contracts: originSettlers, protocolName };
 
     super(Hyperlane7683__factory, "Open", hyperlane7683Metadata, log);
   }

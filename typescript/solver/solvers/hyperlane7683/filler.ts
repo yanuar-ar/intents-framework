@@ -24,17 +24,13 @@ import { allowBlockLists, metadata } from "./config/index.js";
 import { chainIdsToName, isAllowedIntent } from "../../config/index.js";
 
 export const create = (multiProvider: MultiProvider) => {
-  const { originSettler, protocolName } = setup();
+  const { protocolName } = setup();
 
-  return async function hyperlane7683({
-    orderId,
-    resolvedOrder,
-  }: OpenEventArgs) {
-    const origin = await retrieveOriginInfo(
-      resolvedOrder,
-      originSettler,
-      multiProvider,
-    );
+  return async function hyperlane7683(
+    { orderId, resolvedOrder }: OpenEventArgs,
+    _originChainName: string,
+  ) {
+    const origin = await retrieveOriginInfo(resolvedOrder, multiProvider);
     const target = await retrieveTargetInfo(resolvedOrder, multiProvider);
 
     log.info({
