@@ -78,6 +78,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     error InvalidNonce();
     error InvalidOrderOrigin();
     error OrderFillNotExpired();
+    error InvalidNativeAmount();
 
     // ============ Constructor ============
 
@@ -123,18 +124,24 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     /// @dev This method must emit the Open event
     /// @param order The OnchainCrossChainOrder definition
     // TODO - add support for native token
-    function open(OnchainCrossChainOrder calldata order) external virtual {
+    function open(OnchainCrossChainOrder calldata order) external payable virtual {
         (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(order);
 
         orders[orderId] = abi.encode(resolvedOrder);
         orderStatus[orderId] = OPENED;
         _useNonce(msg.sender, nonce);
 
+        uint256 totalValue;
         for (uint256 i = 0; i < resolvedOrder.minReceived.length; i++) {
-            IERC20(TypeCasts.bytes32ToAddress(resolvedOrder.minReceived[i].token)).safeTransferFrom(
-                msg.sender, address(this), resolvedOrder.minReceived[i].amount
-            );
+            address token = TypeCasts.bytes32ToAddress(resolvedOrder.minReceived[i].token);
+            if (token == address(0)) {
+                totalValue += resolvedOrder.minReceived[i].amount;
+            } else {
+                IERC20(token).safeTransferFrom(msg.sender, address(this), resolvedOrder.minReceived[i].amount);
+            }
         }
+
+        if (msg.value != totalValue) revert InvalidNativeAmount();
 
         emit Open(orderId, resolvedOrder);
     }
@@ -175,7 +182,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     /// @param _fillerData Data provided by the filler to inform the fill or express their preferences. It should
     /// contain the bytes32 encoded address of the receiver which is the used at settlement time
     // TODO - add support for native token
-    function fill(bytes32 _orderId, bytes calldata _originData, bytes calldata _fillerData) external virtual {
+    function fill(bytes32 _orderId, bytes calldata _originData, bytes calldata _fillerData) external payable virtual {
         if (orderStatus[_orderId] != UNKNOWN) revert InvalidOrderStatus();
 
         _fillOrder(_orderId, _originData, _fillerData);

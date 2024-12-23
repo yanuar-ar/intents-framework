@@ -89,6 +89,7 @@ contract Base7683ForTest is Base7683, StdCheats {
         bytes memory _orderData
     )
         internal
+        virtual
         view
         returns (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce)
     {
@@ -176,8 +177,72 @@ contract Base7683ForTest is Base7683, StdCheats {
     }
 }
 
+contract Base7683ForTestNative is Base7683ForTest {
+    constructor(
+        address _permit2,
+        uint32 _local,
+        uint32 _remote,
+        address _inputToken,
+        address _outputToken
+    )
+        Base7683ForTest(_permit2, _local, _remote, _inputToken, _outputToken)
+    {}
+
+    function _resolvedOrder(
+        address _sender,
+        uint32 _openDeadline,
+        uint32 _fillDeadline,
+        bytes memory _orderData
+    )
+        internal
+        override
+        view
+        returns (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce)
+    {
+        // this can be used by the filler to approve the tokens to be spent on destination
+        Output[] memory maxSpent = new Output[](1);
+        maxSpent[0] = Output({
+            token: TypeCasts.addressToBytes32(address(0)),
+            amount: 100,
+            recipient: counterpart,
+            chainId: _destination
+        });
+
+        // this can be used by the filler know how much it can expect to receive
+        Output[] memory minReceived = new Output[](1);
+        minReceived[0] = Output({
+            token: TypeCasts.addressToBytes32(address(0)),
+            amount: 100,
+            recipient: bytes32(0),
+            chainId: _origin
+        });
+
+        // this can be user by the filler to know how to fill the order
+        FillInstruction[] memory fillInstructions = new FillInstruction[](1);
+        fillInstructions[0] = FillInstruction({
+            destinationChainId: _destination,
+            destinationSettler: counterpart,
+            originData: _orderData
+        });
+
+        resolvedOrder = ResolvedCrossChainOrder({
+            user: _sender,
+            originChainId: _origin,
+            openDeadline: _openDeadline,
+            fillDeadline: _fillDeadline,
+            minReceived: minReceived,
+            maxSpent: maxSpent,
+            fillInstructions: fillInstructions
+        });
+
+        orderId = keccak256("someId");
+        nonce = 1;
+    }
+}
+
 contract Base7683Test is Test, DeployPermit2 {
     Base7683ForTest internal base;
+    Base7683ForTestNative internal baseNative;
     // address permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address permit2;
     ERC20 internal inputToken;
@@ -224,7 +289,9 @@ contract Base7683Test is Test, DeployPermit2 {
         DOMAIN_SEPARATOR = IEIP712(permit2).DOMAIN_SEPARATOR();
 
         base = new Base7683ForTest(permit2, origin, destination, address(inputToken), address(outputToken));
+        baseNative = new Base7683ForTestNative(permit2, origin, destination, address(inputToken), address(outputToken));
         base.setCounterpart(TypeCasts.addressToBytes32(counterpart));
+        baseNative.setCounterpart(TypeCasts.addressToBytes32(counterpart));
 
         deal(address(inputToken), kakaroto, 1_000_000, true);
         deal(address(inputToken), karpincho, 1_000_000, true);
@@ -238,6 +305,7 @@ contract Base7683Test is Test, DeployPermit2 {
         balanceId[vegeta] = 2;
         balanceId[counterpart] = 3;
         balanceId[address(base)] = 4;
+        balanceId[address(baseNative)] = 5;
     }
 
     function prepareOnchainOrder(
@@ -308,6 +376,40 @@ contract Base7683Test is Test, DeployPermit2 {
         assertEq(resolvedOrder.fillDeadline, _fillDeadline);
     }
 
+    function assertResolvedOrderNative(
+        ResolvedCrossChainOrder memory resolvedOrder,
+        bytes memory orderData,
+        address _user,
+        uint32 _fillDeadline,
+        uint32 _openDeadline
+    )
+        internal
+        view
+    {
+        assertEq(resolvedOrder.maxSpent.length, 1);
+        assertEq(resolvedOrder.maxSpent[0].token, TypeCasts.addressToBytes32(address(0)));
+        assertEq(resolvedOrder.maxSpent[0].amount, amount);
+        assertEq(resolvedOrder.maxSpent[0].recipient, baseNative.counterpart());
+        assertEq(resolvedOrder.maxSpent[0].chainId, destination);
+
+        assertEq(resolvedOrder.minReceived.length, 1);
+        assertEq(resolvedOrder.minReceived[0].token, TypeCasts.addressToBytes32(address(0)));
+        assertEq(resolvedOrder.minReceived[0].amount, amount);
+        assertEq(resolvedOrder.minReceived[0].recipient, bytes32(0));
+        assertEq(resolvedOrder.minReceived[0].chainId, origin);
+
+        assertEq(resolvedOrder.fillInstructions.length, 1);
+        assertEq(resolvedOrder.fillInstructions[0].destinationChainId, destination);
+        assertEq(resolvedOrder.fillInstructions[0].destinationSettler, baseNative.counterpart());
+
+        assertEq(resolvedOrder.fillInstructions[0].originData, orderData);
+
+        assertEq(resolvedOrder.user, _user);
+        assertEq(resolvedOrder.originChainId, baseNative.localDomain());
+        assertEq(resolvedOrder.openDeadline, _openDeadline);
+        assertEq(resolvedOrder.fillDeadline, _fillDeadline);
+    }
+
     function getOrderIDFromLogs() internal returns (bytes32, ResolvedCrossChainOrder memory) {
         Vm.Log[] memory _logs = vm.getRecordedLogs();
 
@@ -329,18 +431,31 @@ contract Base7683Test is Test, DeployPermit2 {
     }
 
     function balances(ERC20 token) internal view returns (uint256[] memory) {
-        uint256[] memory _balances = new uint256[](5);
+        uint256[] memory _balances = new uint256[](6);
         _balances[0] = token.balanceOf(kakaroto);
         _balances[1] = token.balanceOf(karpincho);
         _balances[2] = token.balanceOf(vegeta);
         _balances[3] = token.balanceOf(counterpart);
         _balances[4] = token.balanceOf(address(base));
+        _balances[5] = token.balanceOf(address(baseNative));
 
         return _balances;
     }
 
-    function orderDataById(bytes32 orderId) internal view returns (bytes memory orderData) {
-        (ResolvedCrossChainOrder memory resolvedOrder) = abi.decode(base.orders(orderId), (ResolvedCrossChainOrder));
+    function balances() internal view returns (uint256[] memory) {
+        uint256[] memory _balances = new uint256[](6);
+        _balances[0] = kakaroto.balance;
+        _balances[1] = karpincho.balance;
+        _balances[2] = vegeta.balance;
+        _balances[3] = counterpart.balance;
+        _balances[4] = address(base).balance;
+        _balances[5] = address(baseNative).balance;
+
+        return _balances;
+    }
+
+    function orderDataById(bytes32 orderId, bool native) internal view returns (bytes memory orderData) {
+        (ResolvedCrossChainOrder memory resolvedOrder) = abi.decode(native ? baseNative.orders(orderId) : base.orders(orderId), (ResolvedCrossChainOrder));
         orderData = resolvedOrder.fillInstructions[0].originData;
     }
 
@@ -351,18 +466,19 @@ contract Base7683Test is Test, DeployPermit2 {
         ERC20 token,
         address sender,
         address receiver,
-        bytes32 expectedStatus
+        bytes32 expectedStatus,
+        bool native
     )
         internal
         view
     {
-        bytes memory savedOrderData = orderDataById(orderId);
-        bytes32 status = base.orderStatus(orderId);
+        bytes memory savedOrderData = orderDataById(orderId, native);
+        bytes32 status = native ? baseNative.orderStatus(orderId) : base.orderStatus(orderId);
 
         assertEq(savedOrderData, orderData);
         assertTrue(status == expectedStatus);
 
-        uint256[] memory balancesAfter = balances(token);
+        uint256[] memory balancesAfter = native ? balances() : balances(token);
         assertEq(balancesBefore[balanceId[sender]] - amount, balancesAfter[balanceId[sender]]);
         assertEq(balancesBefore[balanceId[receiver]] + amount, balancesAfter[balanceId[receiver]]);
     }
@@ -372,16 +488,17 @@ contract Base7683Test is Test, DeployPermit2 {
         address sender,
         bytes memory orderData,
         uint256[] memory balancesBefore,
-        address user
+        address user,
+        bool native
     )
         internal
         view
     {
-        bytes memory savedOrderData = orderDataById(orderId);
+        bytes memory savedOrderData = orderDataById(orderId, native);
 
-        assertFalse(base.isValidNonce(sender, 1));
+        assertFalse(native ? baseNative.isValidNonce(sender, 1) : base.isValidNonce(sender, 1));
         assertEq(savedOrderData, orderData);
-        assertOrder(orderId, orderData, balancesBefore, inputToken, user, address(base), base.OPENED());
+        assertOrder(orderId, orderData, balancesBefore, inputToken, user, address(native ? baseNative : base), base.OPENED(), native);
     }
 
     // open
@@ -402,7 +519,30 @@ contract Base7683Test is Test, DeployPermit2 {
 
         assertResolvedOrder(resolvedOrder, orderData, kakaroto, _fillDeadline, type(uint32).max);
 
-        assertOpenOrder(orderId, kakaroto, orderData, balancesBefore, kakaroto);
+        assertOpenOrder(orderId, kakaroto, orderData, balancesBefore, kakaroto, false);
+
+        vm.stopPrank();
+    }
+
+    function test_open_native_works(uint32 _fillDeadline) public {
+        bytes memory orderData = abi.encode("some order data");
+        OnchainCrossChainOrder memory order = prepareOnchainOrder(orderData, _fillDeadline);
+
+        deal(kakaroto, amount);
+
+        vm.startPrank(kakaroto);
+
+        assertTrue(base.isValidNonce(kakaroto, 1));
+        uint256[] memory balancesBefore = balances();
+
+        vm.recordLogs();
+        baseNative.open{value: amount}(order);
+
+        (bytes32 orderId, ResolvedCrossChainOrder memory resolvedOrder) = getOrderIDFromLogs();
+
+        assertResolvedOrderNative(resolvedOrder, orderData, kakaroto, _fillDeadline, type(uint32).max);
+
+        assertOpenOrder(orderId, kakaroto, orderData, balancesBefore, kakaroto, true);
 
         vm.stopPrank();
     }
@@ -509,7 +649,7 @@ contract Base7683Test is Test, DeployPermit2 {
 
         assertResolvedOrder(resolvedOrder, orderData, kakaroto, _fillDeadline, _openDeadline);
 
-        assertOpenOrder(orderId, kakaroto, orderData, balancesBefore, kakaroto);
+        assertOpenOrder(orderId, kakaroto, orderData, balancesBefore, kakaroto, false);
 
         vm.stopPrank();
     }

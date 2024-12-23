@@ -3,6 +3,7 @@ pragma solidity 0.8.25;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { TypeCasts } from "@hyperlane-xyz/libs/TypeCasts.sol";
 
 import { Base7683 } from "./Base7683.sol";
@@ -95,10 +96,15 @@ abstract contract BasicSwap7683 is Base7683 {
         orderStatus[_orderId] = SETTLED;
 
         address receiver = TypeCasts.bytes32ToAddress(_receiver);
+        address inputToken = TypeCasts.bytes32ToAddress(orderData.inputToken);
+
+        if (inputToken == address(0)) {
+            Address.sendValue(payable(receiver), orderData.amountIn);
+        } else {
+            IERC20(inputToken).safeTransfer(receiver, orderData.amountIn);
+        }
 
         emit Settled(_orderId, receiver);
-
-        IERC20(TypeCasts.bytes32ToAddress(orderData.inputToken)).safeTransfer(receiver, orderData.amountIn);
     }
 
     function _handleRefundOrder(bytes32 _orderId) internal {
@@ -112,10 +118,15 @@ abstract contract BasicSwap7683 is Base7683 {
         orderStatus[_orderId] = REFUNDED;
 
         address orderSender = TypeCasts.bytes32ToAddress(orderData.sender);
+        address inputToken = TypeCasts.bytes32ToAddress(orderData.inputToken);
+
+        if (inputToken == address(0)) {
+            Address.sendValue(payable(orderSender), orderData.amountIn);
+        } else {
+            IERC20(inputToken).safeTransfer(orderSender, orderData.amountIn);
+        }
 
         emit Refunded(_orderId, orderSender);
-
-        IERC20(TypeCasts.bytes32ToAddress(orderData.inputToken)).safeTransfer(orderSender, orderData.amountIn);
     }
 
     function _getOrderId(GaslessCrossChainOrder memory order) internal pure override returns (bytes32) {
@@ -228,9 +239,15 @@ abstract contract BasicSwap7683 is Base7683 {
         if (block.timestamp > orderData.fillDeadline) revert OrderFillExpired();
         if (orderData.destinationDomain != _localDomain()) revert InvalidOrderDomain();
 
-        IERC20(TypeCasts.bytes32ToAddress(orderData.outputToken)).safeTransferFrom(
-            msg.sender, TypeCasts.bytes32ToAddress(orderData.recipient), orderData.amountOut
-        );
+        address outputToken = TypeCasts.bytes32ToAddress(orderData.outputToken);
+        address recipient = TypeCasts.bytes32ToAddress(orderData.recipient);
+
+        if (outputToken == address(0)) {
+            if (orderData.amountOut != msg.value) revert InvalidNativeAmount();
+            Address.sendValue(payable(recipient), orderData.amountOut);
+        } else {
+            IERC20(outputToken).safeTransferFrom(msg.sender, recipient, orderData.amountOut);
+        }
     }
 
     function _dispatchSettle(

@@ -238,13 +238,24 @@ contract BasicSwap7683Test is BasicSwap7683BaseTest {
         });
     }
 
-        function balances(ERC20 token) internal view returns (uint256[] memory) {
+    function balances(ERC20 token) internal view returns (uint256[] memory) {
         uint256[] memory _balances = new uint256[](7);
         _balances[0] = token.balanceOf(kakaroto);
         _balances[1] = token.balanceOf(karpincho);
         _balances[2] = token.balanceOf(vegeta);
         _balances[3] = token.balanceOf(counterpart);
         _balances[4] = token.balanceOf(address(baseSwap));
+
+        return _balances;
+    }
+
+    function balances() internal view returns (uint256[] memory) {
+        uint256[] memory _balances = new uint256[](7);
+        _balances[0] = kakaroto.balance;
+        _balances[1] = karpincho.balance;
+        _balances[2] = vegeta.balance;
+        _balances[3] = counterpart.balance;
+        _balances[4] = address(baseSwap).balance;
 
         return _balances;
     }
@@ -379,6 +390,30 @@ contract BasicSwap7683Test is BasicSwap7683BaseTest {
         assertEq(balancesAfter[balanceId[karpincho]], balancesBefore[balanceId[karpincho]] + amount);
     }
 
+    function test__handleSettleOrder_native_works() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.inputToken = TypeCasts.addressToBytes32(address(0));
+        orderData.outputToken = TypeCasts.addressToBytes32(address(0));
+        bytes32 orderId = bytes32("order1");
+        ResolvedCrossChainOrder memory rOrder = baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
+        baseSwap.setOrder(orderId, rOrder);
+
+        deal(address(baseSwap), 1_000_000);
+
+        uint256[] memory balancesBefore = balances();
+
+        vm.expectEmit(false, false, false, true);
+        emit Settled(orderId, karpincho);
+
+        baseSwap.handleSettleOrder(orderId, TypeCasts.addressToBytes32(karpincho));
+
+        uint256[] memory balancesAfter = balances();
+
+        assertEq(baseSwap.orderStatus(orderId), baseSwap.SETTLED());
+        assertEq(balancesAfter[balanceId[address(baseSwap)]], balancesBefore[balanceId[address(baseSwap)]] - amount);
+        assertEq(balancesAfter[balanceId[karpincho]], balancesBefore[balanceId[karpincho]] + amount);
+    }
+
     function test__handleRefundOrder_works() public {
         OrderData memory orderData = prepareOrderData();
         bytes32 orderId = bytes32("order1");
@@ -395,6 +430,30 @@ contract BasicSwap7683Test is BasicSwap7683BaseTest {
         baseSwap.handleRefundOrder(orderId);
 
         uint256[] memory balancesAfter = balances(inputToken);
+
+        assertEq(baseSwap.orderStatus(orderId), baseSwap.REFUNDED());
+        assertEq(balancesAfter[balanceId[address(baseSwap)]], balancesBefore[balanceId[address(baseSwap)]] - amount);
+        assertEq(balancesAfter[balanceId[kakaroto]], balancesBefore[balanceId[kakaroto]] + amount);
+    }
+
+    function test__handleRefundOrder_native_works() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.inputToken = TypeCasts.addressToBytes32(address(0));
+        orderData.outputToken = TypeCasts.addressToBytes32(address(0));
+        bytes32 orderId = bytes32("order1");
+        ResolvedCrossChainOrder memory rOrder = baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
+        baseSwap.setOrder(orderId, rOrder);
+
+        deal(address(baseSwap), 1_000_000);
+
+        uint256[] memory balancesBefore = balances();
+
+        vm.expectEmit(false, false, false, true);
+        emit Refunded(orderId, kakaroto);
+
+        baseSwap.handleRefundOrder(orderId);
+
+        uint256[] memory balancesAfter = balances();
 
         assertEq(baseSwap.orderStatus(orderId), baseSwap.REFUNDED());
         assertEq(balancesAfter[balanceId[address(baseSwap)]], balancesBefore[balanceId[address(baseSwap)]] - amount);
