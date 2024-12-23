@@ -395,7 +395,7 @@ contract Hyperlane7683Test is Hyperlane7683BaseTest {
         uint256[] memory balancesAfter = balances(inputToken);
 
         assertTrue(originRouter.orderStatus(orderId) == originRouter.REFUNDED());
-        assertTrue(destinationRouter.orderStatus(orderId) == destinationRouter.REFUNDED());
+        assertTrue(destinationRouter.orderStatus(orderId) == destinationRouter.UNKNOWN());
 
         assertEq(
             balancesBefore[balanceId[address(originRouter)]] - amount, balancesAfter[balanceId[address(originRouter)]]

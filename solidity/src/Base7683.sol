@@ -38,7 +38,6 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     bytes32 public constant UNKNOWN = "";
     bytes32 public constant OPENED = "OPENED";
     bytes32 public constant FILLED = "FILLED";
-    bytes32 public constant REFUNDED = "REFUNDED";
 
     // ============ Public Storage ============
 
@@ -219,7 +218,9 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
             if (orderStatus[orderId] != UNKNOWN) revert InvalidOrderStatus();
             if (block.timestamp <= _orders[i].fillDeadline) revert OrderFillNotExpired();
 
-            orderStatus[orderId] = REFUNDED;
+            // the status is changed on origin, the caller responsibility to ensure the order hasn't been refunded
+            // on origin yet. In case one of the orders is not from the same origin domain as the first one, the caller
+            // can retry the refund
         }
 
         _refundOrders(_orders, orderIds);
@@ -236,7 +237,9 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
             if (orderStatus[orderId] != UNKNOWN) revert InvalidOrderStatus();
             if (block.timestamp <= _orders[i].fillDeadline) revert OrderFillNotExpired();
 
-            orderStatus[orderId] = REFUNDED;
+            // the status is changed on origin, the caller responsibility to ensure the order hasn't been refunded
+            // on origin yet. In case one of the orders is not from the same origin domain as the first one, the caller
+            // can retry the refund
         }
 
         _refundOrders(_orders, orderIds);

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.25;
 
-import { GasRouter } from "@hyperlane-xyz/client/GasRouter.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { TypeCasts } from "@hyperlane-xyz/libs/TypeCasts.sol";
@@ -26,6 +25,7 @@ abstract contract BasicSwap7683 is Base7683 {
 
     // ============ Constants ============
     bytes32 public constant SETTLED = "SETTLED";
+    bytes32 public constant REFUNDED = "REFUNDED";
 
     // ============ Public Storage ============
 
@@ -137,7 +137,7 @@ abstract contract BasicSwap7683 is Base7683 {
         view
         virtual
         override
-        returns (ResolvedCrossChainOrder memory, bytes32, uint256)
+        returns (ResolvedCrossChainOrder memory, bytes32 , uint256)
     {
         return _resolvedOrder(order.orderDataType, order.user, order.openDeadline, order.fillDeadline, order.orderData);
     }
@@ -150,7 +150,7 @@ abstract contract BasicSwap7683 is Base7683 {
         view
         virtual
         override
-        returns (ResolvedCrossChainOrder memory, bytes32, uint256)
+        returns (ResolvedCrossChainOrder memory, bytes32 orderId, uint256 nonce)
     {
         return _resolvedOrder(order.orderDataType, msg.sender, type(uint32).max, order.fillDeadline, order.orderData);
     }

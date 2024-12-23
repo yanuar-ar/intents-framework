@@ -2,29 +2,13 @@
 pragma solidity 0.8.25;
 
 import { GasRouter } from "@hyperlane-xyz/client/GasRouter.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { TypeCasts } from "@hyperlane-xyz/libs/TypeCasts.sol";
 
-import { Base7683 } from "./Base7683.sol";
-import { OrderData, OrderEncoder } from "./libs/OrderEncoder.sol";
 import { Hyperlane7683Message } from "./libs/Hyperlane7683Message.sol";
-
-import {
-    GaslessCrossChainOrder,
-    OnchainCrossChainOrder,
-    ResolvedCrossChainOrder,
-    Output,
-    FillInstruction,
-    IOriginSettler,
-    IDestinationSettler
-} from "./ERC7683/IERC7683.sol";
 
 import { BasicSwap7683 } from "./BasicSwap7683.sol";
 
 contract Hyperlane7683 is GasRouter, BasicSwap7683 {
     // ============ Libraries ============
-    using SafeERC20 for IERC20;
 
     // ============ Constants ============
 

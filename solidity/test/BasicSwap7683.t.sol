@@ -48,7 +48,7 @@ contract BasicSwap7683ForTest is BasicSwap7683 {
     )
         public
     {
-        _settleOrders(_orderIds, ordersOriginData, ordersFillerData);
+        _settleOrders(_orderIds,ordersOriginData,ordersFillerData);
     }
 
     function refundOrders(OnchainCrossChainOrder[] memory _orders, bytes32[] memory _orderIds) public {
@@ -106,10 +106,7 @@ contract BasicSwap7683ForTest is BasicSwap7683 {
         uint32 _originDomain,
         bytes32[] memory _orderIds,
         bytes[] memory _ordersFillerData
-    )
-        internal
-        override
-    {
+    ) internal override {
         dispatchedOriginDomain = _originDomain;
         dispatchedOrderIds = _orderIds;
         dispatchedOrdersFillerData = _ordersFillerData;
@@ -241,7 +238,7 @@ contract BasicSwap7683Test is BasicSwap7683BaseTest {
         });
     }
 
-    function balances(ERC20 token) internal view returns (uint256[] memory) {
+        function balances(ERC20 token) internal view returns (uint256[] memory) {
         uint256[] memory _balances = new uint256[](7);
         _balances[0] = token.balanceOf(kakaroto);
         _balances[1] = token.balanceOf(karpincho);
@@ -363,8 +360,7 @@ contract BasicSwap7683Test is BasicSwap7683BaseTest {
     function test__handleSettleOrder_works() public {
         OrderData memory orderData = prepareOrderData();
         bytes32 orderId = bytes32("order1");
-        ResolvedCrossChainOrder memory rOrder =
-            baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
+        ResolvedCrossChainOrder memory rOrder = baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
         baseSwap.setOrder(orderId, rOrder);
 
         deal(address(inputToken), address(baseSwap), 1_000_000, true);
@@ -386,8 +382,7 @@ contract BasicSwap7683Test is BasicSwap7683BaseTest {
     function test__handleRefundOrder_works() public {
         OrderData memory orderData = prepareOrderData();
         bytes32 orderId = bytes32("order1");
-        ResolvedCrossChainOrder memory rOrder =
-            baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
+        ResolvedCrossChainOrder memory rOrder = baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
         baseSwap.setOrder(orderId, rOrder);
 
         deal(address(inputToken), address(baseSwap), 1_000_000, true);
@@ -408,8 +403,7 @@ contract BasicSwap7683Test is BasicSwap7683BaseTest {
 
     function test__resolveOrder_onChain_works() public {
         OrderData memory orderData = prepareOrderData();
-        OnchainCrossChainOrder memory order =
-            prepareOnchainOrder(orderData, orderData.fillDeadline, OrderEncoder.orderDataType());
+        OnchainCrossChainOrder memory order = prepareOnchainOrder(orderData, orderData.fillDeadline, OrderEncoder.orderDataType());
 
         vm.prank(kakaroto);
         (ResolvedCrossChainOrder memory rOrder,,) = baseSwap.resolveOrder(order);
@@ -420,14 +414,15 @@ contract BasicSwap7683Test is BasicSwap7683BaseTest {
     function test__resolveOrder_gasless_works() public view {
         uint256 permitNonce = 0;
         OrderData memory orderData = prepareOrderData();
-        GaslessCrossChainOrder memory order = prepareGaslessOrder(
-            OrderEncoder.encode(orderData), permitNonce, uint32(block.timestamp + 10), orderData.fillDeadline
-        );
+        GaslessCrossChainOrder memory order = prepareGaslessOrder(OrderEncoder.encode(orderData), permitNonce, uint32(block.timestamp + 10), orderData.fillDeadline);
 
-        (ResolvedCrossChainOrder memory rOrder,,) = baseSwap.resolveOrder(order);
+        (ResolvedCrossChainOrder memory rOrder, , ) = baseSwap.resolveOrder(order);
 
         assertResolvedOrder(rOrder, order.orderData, kakaroto, orderData.fillDeadline, uint32(block.timestamp + 10));
     }
+
+
+
 
     // TODO test_refund_gasless_work
     // TODO tests refund reverts

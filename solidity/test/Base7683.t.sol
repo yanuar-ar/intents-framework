@@ -25,6 +25,8 @@ event Filled(bytes32 orderId, bytes originData, bytes fillerData);
 
 event Settle(bytes32[] orderIds, bytes[] ordersFillerData);
 
+event Refund(bytes32[] orderIds);
+
 contract Base7683ForTest is Base7683, StdCheats {
     bytes32 public counterpart;
 
@@ -600,4 +602,53 @@ contract Base7683Test is Test, DeployPermit2 {
     }
 
     // TODO test_refund
+    function test_refund_onChain_work() public {
+        bytes memory orderData = abi.encode("some order data");
+        uint32 fillDeadline = uint32(block.timestamp - 1);
+        bytes32 orderId = keccak256("someId");
+        OnchainCrossChainOrder memory order = prepareOnchainOrder(orderData, fillDeadline);
+
+        vm.startPrank(vegeta);
+
+        bytes32[] memory orderIds = new bytes32[](1);
+        orderIds[0] = orderId;
+
+        vm.expectEmit(false, false, false, true);
+        emit Refund(orderIds);
+
+        OnchainCrossChainOrder[] memory orders = new OnchainCrossChainOrder[](1);
+        orders[0] = order;
+
+        base.refund(orders);
+
+        assertEq(base.orderStatus(orderId), base.UNKNOWN()); // refunding does not change the status
+        assertEq(base.refundedOrderIds(0), orderId);
+        vm.stopPrank();
+    }
+
+    function test_refund_gasless_work() public {
+        uint256 permitNonce = 0;
+        bytes memory orderData = abi.encode("some order data");
+        uint32 fillDeadline = uint32(block.timestamp - 1);
+        uint32 openDeadline = uint32(block.timestamp - 10);
+        bytes32 orderId = keccak256("someId");
+        GaslessCrossChainOrder memory order = prepareGaslessOrder(orderData, permitNonce, openDeadline, fillDeadline);
+
+        vm.startPrank(vegeta);
+
+        bytes32[] memory orderIds = new bytes32[](1);
+        orderIds[0] = orderId;
+
+        vm.expectEmit(false, false, false, true);
+        emit Refund(orderIds);
+
+        GaslessCrossChainOrder[] memory orders = new GaslessCrossChainOrder[](1);
+        orders[0] = order;
+
+        base.refund(orders);
+
+        assertEq(base.orderStatus(orderId), base.UNKNOWN()); // refunding does not change the status
+        assertEq(base.refundedOrderIds(0), orderId);
+        vm.stopPrank();
+    }
 }
