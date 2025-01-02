@@ -7,11 +7,11 @@ import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__facto
 
 import type { Provider } from "@ethersproject/abstract-provider";
 import { bytes32ToAddress } from "@hyperlane-xyz/utils";
+import { chainIdsToName } from "../../config/index.js";
 import { createLogger } from "../../logger.js";
 import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
-import type { ResolvedCrossChainOrder } from "./types.js";
-import { chainIdsToName } from "../../config/index.js";
 import { metadata } from "./config/index.js";
+import type { ResolvedCrossChainOrder } from "./types.js";
 
 export const log = createLogger(metadata.protocolName);
 
@@ -138,8 +138,23 @@ export async function retrieveOriginInfo(
 ): Promise<Array<string>> {
   const originInfo = await Promise.all(
     resolvedOrder.minReceived.map(async ({ amount, chainId, token }) => {
+      const tokenAddress = bytes32ToAddress(token);
+
+      // native token
+      if (tokenAddress === AddressZero) {
+        const { nativeToken } = multiProvider.getChainMetadata(
+          chainId.toString(),
+        );
+
+        return {
+          amount,
+          decimals: nativeToken?.decimals ?? 18,
+          symbol: nativeToken?.symbol ?? "ETH",
+        };
+      }
+
       const erc20 = Erc20__factory.connect(
-        bytes32ToAddress(token),
+        tokenAddress,
         multiProvider.getProvider(chainId.toString()),
       );
       const [decimals, symbol] = await Promise.all([
@@ -166,8 +181,23 @@ export async function retrieveTargetInfo(
 ): Promise<Array<string>> {
   const targetInfo = await Promise.all(
     resolvedOrder.maxSpent.map(async ({ amount, chainId, token }) => {
+      const tokenAddress = bytes32ToAddress(token);
+
+      if (tokenAddress === AddressZero) {
+        const { nativeToken } = multiProvider.getChainMetadata(
+          chainId.toString(),
+        );
+
+        return {
+          amount,
+          chainId,
+          decimals: nativeToken?.decimals ?? 18,
+          symbol: nativeToken?.symbol ?? "ETH",
+        };
+      }
+
       const erc20 = Erc20__factory.connect(
-        bytes32ToAddress(token),
+        tokenAddress,
         multiProvider.getProvider(chainId.toString()),
       );
       const [decimals, symbol] = await Promise.all([
@@ -175,11 +205,11 @@ export async function retrieveTargetInfo(
         erc20.symbol(),
       ]);
 
-      return { amount, decimals, symbol, chainId };
+      return { amount, chainId, decimals, symbol };
     }),
   );
 
-  return targetInfo.map(({ amount, decimals, symbol, chainId }) => {
+  return targetInfo.map(({ amount, chainId, decimals, symbol }) => {
     const destinationChain =
       chainIdsToName[chainId.toNumber()] ?? "UNKNOWN_CHAIN";
     return `${formatUnits(amount, decimals)} ${symbol} on ${destinationChain}`;

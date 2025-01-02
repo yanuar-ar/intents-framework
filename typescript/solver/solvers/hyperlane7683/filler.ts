@@ -1,4 +1,5 @@
-import { type MultiProvider } from "@hyperlane-xyz/sdk";
+import { AddressZero } from "@ethersproject/constants";
+import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import {
   addressToBytes32,
   bytes32ToAddress,
@@ -20,8 +21,8 @@ import {
   settleOrder,
 } from "./utils.js";
 
-import { allowBlockLists, metadata } from "./config/index.js";
 import { chainIdsToName, isAllowedIntent } from "../../config/index.js";
+import { allowBlockLists, metadata } from "./config/index.js";
 
 export const create = (multiProvider: MultiProvider) => {
   const { protocolName } = setup();
@@ -146,38 +147,48 @@ async function fill(
   });
 
   await Promise.all(
-    maxSpent.map(async ({ chainId, token, amount, recipient }) => {
-      token = bytes32ToAddress(token);
-      recipient = bytes32ToAddress(recipient);
-      const _chainId = chainId.toString();
+    maxSpent.map(
+      async ({ amount, chainId, recipient, token: tokenAddress }) => {
+        tokenAddress = bytes32ToAddress(tokenAddress);
+        recipient = bytes32ToAddress(recipient);
+        const _chainId = chainId.toString();
 
-      const filler = multiProvider.getSigner(_chainId);
-      const tx = await Erc20__factory.connect(token, filler).approve(
-        recipient,
-        amount,
-      );
+        const filler = multiProvider.getSigner(_chainId);
 
-      const receipt = await tx.wait();
-      const baseUrl =
-        multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
+        if (tokenAddress === AddressZero) {
+          // native token
+          return;
+        }
 
-      if (baseUrl) {
-        log.debug(
-          `${protocolName} - Approval Tx: ${baseUrl}/tx/${receipt.transactionHash}`,
+        const tx = await Erc20__factory.connect(tokenAddress, filler).approve(
+          recipient,
+          amount,
         );
-      } else {
-        log.debug(`${protocolName} - Approval Tx: ${receipt.transactionHash}`);
-      }
 
-      log.debug(
-        `${protocolName} - Approved ${amount.toString()} of ${token} to ${recipient} on ${_chainId}`,
-      );
-    }),
+        const receipt = await tx.wait();
+        const baseUrl =
+          multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
+
+        if (baseUrl) {
+          log.debug(
+            `${protocolName} - Approval Tx: ${baseUrl}/tx/${receipt.transactionHash}`,
+          );
+        } else {
+          log.debug(
+            `${protocolName} - Approval Tx: ${receipt.transactionHash}`,
+          );
+        }
+
+        log.debug(
+          `${protocolName} - Approved ${amount.toString()} of ${tokenAddress} to ${recipient} on ${_chainId}`,
+        );
+      },
+    ),
   );
 
   await Promise.all(
     fillInstructions.map(
-      async ({ destinationChainId, destinationSettler, originData }) => {
+      async ({ destinationChainId, destinationSettler, originData }, index) => {
         destinationSettler = bytes32ToAddress(destinationSettler);
         const _chainId = destinationChainId.toString();
 
@@ -195,6 +206,7 @@ async function fill(
           orderId,
           originData,
           addressToBytes32(fillerAddress),
+          { value: maxSpent[index].amount },
         );
 
         const receipt = await tx.wait();
