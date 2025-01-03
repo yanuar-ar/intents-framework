@@ -19,6 +19,7 @@ import { InterchainGasPaymaster } from "@hyperlane-xyz/hooks/igp/InterchainGasPa
 import { DeployPermit2 } from "@uniswap/permit2/test/utils/DeployPermit2.sol";
 
 import { Hyperlane7683 } from "../src/Hyperlane7683.sol";
+import { Hyperlane7683Message } from "../src/libs/Hyperlane7683Message.sol";
 
 import {
     GaslessCrossChainOrder,
@@ -62,7 +63,32 @@ contract TestInterchainGasPaymaster is InterchainGasPaymaster {
 }
 
 contract Hyperlane7683ForTest is Hyperlane7683 {
+    bytes32[] public refundedOrderId;
+    bytes32[] public settledOrderId;
+    bytes32[] public settledOrderReceiver;
+
     constructor(address _mailbox, address permitt2) Hyperlane7683(_mailbox, permitt2) { }
+
+    function dispatchSettle(
+        uint32 _originDomain,
+        bytes32[] memory _orderIds,
+        bytes[] memory _ordersFillerData
+    ) public payable {
+        _dispatchSettle(_originDomain, _orderIds, _ordersFillerData);
+    }
+
+    function dispatchRefund(uint32 _originDomain, bytes32[] memory _orderIds) public payable {
+        _dispatchRefund(_originDomain, _orderIds);
+    }
+
+    function _handleSettleOrder(bytes32 _orderId, bytes32 _receiver) internal override {
+        settledOrderId.push(_orderId);
+        settledOrderReceiver.push(_receiver);
+    }
+
+    function _handleRefundOrder(bytes32 _orderId) internal override {
+        refundedOrderId.push(_orderId);
+    }
 
     function get7383LocalDomain() public view returns (uint32) {
         return _localDomain();
@@ -228,190 +254,94 @@ contract Hyperlane7683Test is Hyperlane7683BaseTest {
         assertEq(address(igp).balance, expectedGasPayment);
     }
 
-    function prepareOrderData() internal view returns (OrderData memory) {
-        return OrderData({
-            sender: TypeCasts.addressToBytes32(kakaroto),
-            recipient: TypeCasts.addressToBytes32(karpincho),
-            inputToken: TypeCasts.addressToBytes32(address(inputToken)),
-            outputToken: TypeCasts.addressToBytes32(address(outputToken)),
-            amountIn: amount,
-            amountOut: amount,
-            senderNonce: 1,
-            originDomain: origin,
-            destinationDomain: destination,
-            destinationSettler: destinationRouterB32,
-            fillDeadline: uint32(block.timestamp + 100),
-            data: new bytes(0)
-        });
+    function test__dispatchSettle_works() public enrollRouters {
+        address receiver1 = makeAddr("receiver1");
+        address receiver2 = makeAddr("receiver2");
+
+        bytes32[] memory orderIds = new bytes32[](2);
+        orderIds[0] = bytes32("someOrderId1");
+        orderIds[1] = bytes32("someOrderId2");
+        bytes[] memory ordersFillerData = new bytes[](2);
+        ordersFillerData[0] = abi.encode(receiver1);
+        ordersFillerData[1] = abi.encode(receiver2);
+
+        deal(kakaroto, 1_000_000);
+
+        vm.expectCall(
+            address(environment.mailboxes(origin)),
+            gasPaymentQuote,
+            abi.encodeCall(MockMailbox.dispatch, (
+                destination,
+                destinationRouterB32,
+                Hyperlane7683Message.encodeSettle(orderIds, ordersFillerData),
+                StandardHookMetadata.formatMetadata(uint256(0), originRouter.destinationGas(destination), kakaroto, ""),
+                IPostDispatchHook(address(originRouter.hook()))
+            ))
+        );
+
+        vm.prank(kakaroto);
+        originRouter.dispatchSettle{value: gasPaymentQuote}(destination, orderIds, ordersFillerData);
     }
 
-    function prepareOnchainOrder(
-        OrderData memory orderData,
-        uint32 fillDeadline,
-        bytes32 orderDataType
-    )
-        internal
-        pure
-        returns (OnchainCrossChainOrder memory)
-    {
-        return OnchainCrossChainOrder({
-            fillDeadline: fillDeadline,
-            orderDataType: orderDataType,
-            orderData: OrderEncoder.encode(orderData)
-        });
+    function test__dispatchRefund_works() public enrollRouters {
+        bytes32[] memory orderIds = new bytes32[](2);
+        orderIds[0] = bytes32("someOrderId1");
+        orderIds[1] = bytes32("someOrderId2");
+
+        deal(kakaroto, 1_000_000);
+
+        vm.expectCall(
+            address(environment.mailboxes(origin)),
+            gasPaymentQuote,
+            abi.encodeCall(MockMailbox.dispatch, (
+                destination,
+                destinationRouterB32,
+                Hyperlane7683Message.encodeRefund(orderIds),
+                StandardHookMetadata.formatMetadata(uint256(0), originRouter.destinationGas(destination), kakaroto, ""),
+                IPostDispatchHook(address(originRouter.hook()))
+            ))
+        );
+
+        vm.prank(kakaroto);
+        originRouter.dispatchRefund{value: gasPaymentQuote}(destination, orderIds);
     }
 
-    function getOrderIDFromLogs() internal returns (bytes32, ResolvedCrossChainOrder memory) {
-        Vm.Log[] memory _logs = vm.getRecordedLogs();
+    function test__handle_settle_works() public enrollRouters {
+        address receiver1 = makeAddr("receiver1");
+        address receiver2 = makeAddr("receiver2");
 
-        ResolvedCrossChainOrder memory resolvedOrder;
-        bytes32 orderID;
+        bytes32[] memory orderIds = new bytes32[](2);
+        orderIds[0] = bytes32("someOrderId1");
+        orderIds[1] = bytes32("someOrderId2");
+        bytes[] memory ordersFillerData = new bytes[](2);
+        ordersFillerData[0] = abi.encode(receiver1);
+        ordersFillerData[1] = abi.encode(receiver2);
 
-        for (uint256 i = 0; i < _logs.length; i++) {
-            Vm.Log memory _log = _logs[i];
-            // // Open(bytes32 indexed orderId, ResolvedCrossChainOrder resolvedOrder)
-
-            if (_log.topics[0] != Open.selector) {
-                continue;
-            }
-            orderID = _log.topics[1];
-
-            (resolvedOrder) = abi.decode(_log.data, (ResolvedCrossChainOrder));
-        }
-        return (orderID, resolvedOrder);
-    }
-
-    function balances(ERC20 token) internal view returns (uint256[] memory) {
-        uint256[] memory _balances = new uint256[](7);
-        _balances[0] = token.balanceOf(kakaroto);
-        _balances[1] = token.balanceOf(karpincho);
-        _balances[2] = token.balanceOf(vegeta);
-        _balances[3] = token.balanceOf(counterpart);
-        _balances[4] = token.balanceOf(address(originRouter));
-        _balances[5] = token.balanceOf(address(destinationRouter));
-        _balances[6] = token.balanceOf(address(igp));
-
-        return _balances;
-    }
-
-    function test_settle_work() public enrollRouters {
-        OrderData memory orderData = prepareOrderData();
-        OnchainCrossChainOrder memory order =
-            prepareOnchainOrder(orderData, orderData.fillDeadline, OrderEncoder.orderDataType());
-
-        vm.startPrank(kakaroto);
-        inputToken.approve(address(originRouter), amount);
-
-        vm.recordLogs();
-        originRouter.open(order);
-
-        (bytes32 orderId,) = getOrderIDFromLogs();
-
-        vm.stopPrank();
-
-        bytes memory fillerData = abi.encode(TypeCasts.addressToBytes32(vegeta));
-
-        vm.startPrank(vegeta);
-        outputToken.approve(address(destinationRouter), amount);
-        destinationRouter.fill(orderId, OrderEncoder.encode(orderData), fillerData);
-
-        bytes32[] memory orderIds = new bytes32[](1);
-        orderIds[0] = orderId;
-        bytes[] memory ordersFillerData = new bytes[](1);
-        ordersFillerData[0] = fillerData;
-
-        uint256[] memory balancesBefore = balances(inputToken);
-
-        vm.expectEmit(false, false, false, true, address(destinationRouter));
-        emit Settle(orderIds, ordersFillerData);
-
-        vm.deal(vegeta, gasPaymentQuote);
-        uint256 balanceBefore = address(vegeta).balance;
-
-        destinationRouter.settle{ value: gasPaymentQuote }(orderIds);
-
-        vm.expectEmit(false, false, false, true, address(originRouter));
-        emit Settled(orderId, vegeta);
+        deal(kakaroto, 1_000_000);
+        vm.prank(kakaroto);
+        destinationRouter.dispatchSettle{value: gasPaymentQuote}(origin, orderIds, ordersFillerData);
 
         environment.processNextPendingMessageFromDestination();
 
-        uint256[] memory balancesAfter = balances(inputToken);
-
-        assertTrue(originRouter.orderStatus(orderId) == originRouter.SETTLED());
-        assertTrue(destinationRouter.orderStatus(orderId) == destinationRouter.FILLED());
-
-        assertEq(
-            balancesBefore[balanceId[address(originRouter)]] - amount, balancesAfter[balanceId[address(originRouter)]]
-        );
-        assertEq(balancesBefore[balanceId[vegeta]] + amount, balancesAfter[balanceId[vegeta]]);
-
-        uint256 balanceAfter = address(vegeta).balance;
-        assertIgpPayment(balanceBefore, balanceAfter);
-
-        vm.stopPrank();
+        assertEq(originRouter.settledOrderId(0), orderIds[0]);
+        assertEq(originRouter.settledOrderId(1), orderIds[1]);
+        assertEq(originRouter.settledOrderReceiver(0), TypeCasts.addressToBytes32(receiver1));
+        assertEq(originRouter.settledOrderReceiver(1), TypeCasts.addressToBytes32(receiver2));
     }
 
-    // TODO tests settle reverts
+    function test__handle_refund_works() public enrollRouters {
+        bytes32[] memory orderIds = new bytes32[](2);
+        orderIds[0] = bytes32("someOrderId1");
+        orderIds[1] = bytes32("someOrderId2");
 
-    function test_refund_onchain_work() public enrollRouters {
-        OrderData memory orderData = prepareOrderData();
-        OnchainCrossChainOrder memory order =
-            prepareOnchainOrder(orderData, orderData.fillDeadline, OrderEncoder.orderDataType());
+        deal(kakaroto, 1_000_000);
 
-        vm.startPrank(kakaroto);
-        inputToken.approve(address(originRouter), amount);
-
-        vm.recordLogs();
-        originRouter.open(order);
-
-        (bytes32 orderId,) = getOrderIDFromLogs();
-
-        vm.warp(orderData.fillDeadline + 1);
-
-        OrderData[] memory ordersData = new OrderData[](1);
-        ordersData[0] = orderData;
-
-        bytes32[] memory orderIds = new bytes32[](1);
-        orderIds[0] = orderId;
-
-        OnchainCrossChainOrder[] memory orders = new OnchainCrossChainOrder[](1);
-        orders[0] = order;
-
-        uint256[] memory balancesBefore = balances(inputToken);
-
-        vm.expectEmit(false, false, false, true, address(destinationRouter));
-        emit Refund(orderIds);
-
-        vm.deal(kakaroto, gasPaymentQuote);
-        uint256 balanceBefore = address(kakaroto).balance;
-
-        destinationRouter.refund{ value: gasPaymentQuote }(orders);
-
-        vm.expectEmit(false, false, false, true, address(originRouter));
-        emit Refunded(orderId, kakaroto);
+        vm.prank(kakaroto);
+        destinationRouter.dispatchRefund{value: gasPaymentQuote}(origin, orderIds);
 
         environment.processNextPendingMessageFromDestination();
 
-        uint256[] memory balancesAfter = balances(inputToken);
-
-        assertTrue(originRouter.orderStatus(orderId) == originRouter.REFUNDED());
-        assertTrue(destinationRouter.orderStatus(orderId) == destinationRouter.UNKNOWN());
-
-        assertEq(
-            balancesBefore[balanceId[address(originRouter)]] - amount, balancesAfter[balanceId[address(originRouter)]]
-        );
-        assertEq(balancesBefore[balanceId[kakaroto]] + amount, balancesAfter[balanceId[kakaroto]]);
-
-        uint256 balanceAfter = address(kakaroto).balance;
-        assertIgpPayment(balanceBefore, balanceAfter);
-
-        vm.stopPrank();
+        assertEq(originRouter.refundedOrderId(0), orderIds[0]);
+        assertEq(originRouter.refundedOrderId(1), orderIds[1]);
     }
-
-    // TODO test_refund_gasless_work
-    // TODO tests refund reverts
-
-    // TODO test_resolve_onchain
-
-    // TODO test_resolve_gassless
 }

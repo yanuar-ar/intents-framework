@@ -85,7 +85,7 @@ abstract contract BasicSwap7683 is Base7683 {
         _dispatchRefund(OrderEncoder.decode(_orders[0].orderData).originDomain, _orderIds);
     }
 
-    function _handleSettleOrder(bytes32 _orderId, bytes32 _receiver) internal {
+    function _handleSettleOrder(bytes32 _orderId, bytes32 _receiver) internal virtual {
         // check if the order is opened to ensure it belongs to this domain, skip otherwise
         if (orderStatus[_orderId] != OPENED) return;
 
@@ -107,7 +107,7 @@ abstract contract BasicSwap7683 is Base7683 {
         emit Settled(_orderId, receiver);
     }
 
-    function _handleRefundOrder(bytes32 _orderId) internal {
+    function _handleRefundOrder(bytes32 _orderId) internal virtual {
         // check if the order is opened to ensure it belongs to this domain, skip otherwise
         if (orderStatus[_orderId] != OPENED) return;
 
