@@ -3,12 +3,13 @@ pragma solidity ^0.8.25;
 
 import { Test, Vm } from "forge-std/Test.sol";
 import { console2 } from "forge-std/console2.sol";
+import { StdCheats } from "forge-std/StdCheats.sol";
+
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { DeployPermit2 } from "@uniswap/permit2/test/utils/DeployPermit2.sol";
 import { ISignatureTransfer } from "@uniswap/permit2/src/interfaces/ISignatureTransfer.sol";
+import { DeployPermit2 } from "@uniswap/permit2/test/utils/DeployPermit2.sol";
 import { IEIP712 } from "@uniswap/permit2/src/interfaces/IEIP712.sol";
 import { TypeCasts } from "@hyperlane-xyz/libs/TypeCasts.sol";
-import { StdCheats } from "forge-std/StdCheats.sol";
 
 import {
     GaslessCrossChainOrder,
@@ -89,8 +90,8 @@ contract Base7683ForTest is Base7683, StdCheats {
         bytes memory _orderData
     )
         internal
-        virtual
         view
+        virtual
         returns (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce)
     {
         // this can be used by the filler to approve the tokens to be spent on destination
@@ -186,7 +187,7 @@ contract Base7683ForTestNative is Base7683ForTest {
         address _outputToken
     )
         Base7683ForTest(_permit2, _local, _remote, _inputToken, _outputToken)
-    {}
+    { }
 
     function _resolvedOrder(
         address _sender,
@@ -195,8 +196,8 @@ contract Base7683ForTestNative is Base7683ForTest {
         bytes memory _orderData
     )
         internal
-        override
         view
+        override
         returns (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce)
     {
         // this can be used by the filler to approve the tokens to be spent on destination
@@ -455,7 +456,8 @@ contract Base7683Test is Test, DeployPermit2 {
     }
 
     function orderDataById(bytes32 orderId, bool native) internal view returns (bytes memory orderData) {
-        (ResolvedCrossChainOrder memory resolvedOrder) = abi.decode(native ? baseNative.orders(orderId) : base.orders(orderId), (ResolvedCrossChainOrder));
+        (ResolvedCrossChainOrder memory resolvedOrder) =
+            abi.decode(native ? baseNative.orders(orderId) : base.orders(orderId), (ResolvedCrossChainOrder));
         orderData = resolvedOrder.fillInstructions[0].originData;
     }
 
@@ -498,7 +500,16 @@ contract Base7683Test is Test, DeployPermit2 {
 
         assertFalse(native ? baseNative.isValidNonce(sender, 1) : base.isValidNonce(sender, 1));
         assertEq(savedOrderData, orderData);
-        assertOrder(orderId, orderData, balancesBefore, inputToken, user, address(native ? baseNative : base), base.OPENED(), native);
+        assertOrder(
+            orderId,
+            orderData,
+            balancesBefore,
+            inputToken,
+            user,
+            address(native ? baseNative : base),
+            base.OPENED(),
+            native
+        );
     }
 
     // open
@@ -536,7 +547,7 @@ contract Base7683Test is Test, DeployPermit2 {
         uint256[] memory balancesBefore = balances();
 
         vm.recordLogs();
-        baseNative.open{value: amount}(order);
+        baseNative.open{ value: amount }(order);
 
         (bytes32 orderId, ResolvedCrossChainOrder memory resolvedOrder) = getOrderIDFromLogs();
 

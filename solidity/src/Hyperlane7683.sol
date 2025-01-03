@@ -4,7 +4,6 @@ pragma solidity 0.8.25;
 import { GasRouter } from "@hyperlane-xyz/client/GasRouter.sol";
 
 import { Hyperlane7683Message } from "./libs/Hyperlane7683Message.sol";
-
 import { BasicSwap7683 } from "./BasicSwap7683.sol";
 
 contract Hyperlane7683 is GasRouter, BasicSwap7683 {

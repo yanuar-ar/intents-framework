@@ -73,7 +73,10 @@ contract Hyperlane7683ForTest is Hyperlane7683 {
         uint32 _originDomain,
         bytes32[] memory _orderIds,
         bytes[] memory _ordersFillerData
-    ) public payable {
+    )
+        public
+        payable
+    {
         _dispatchSettle(_originDomain, _orderIds, _ordersFillerData);
     }
 
@@ -270,17 +273,22 @@ contract Hyperlane7683Test is Hyperlane7683BaseTest {
         vm.expectCall(
             address(environment.mailboxes(origin)),
             gasPaymentQuote,
-            abi.encodeCall(MockMailbox.dispatch, (
-                destination,
-                destinationRouterB32,
-                Hyperlane7683Message.encodeSettle(orderIds, ordersFillerData),
-                StandardHookMetadata.formatMetadata(uint256(0), originRouter.destinationGas(destination), kakaroto, ""),
-                IPostDispatchHook(address(originRouter.hook()))
-            ))
+            abi.encodeCall(
+                MockMailbox.dispatch,
+                (
+                    destination,
+                    destinationRouterB32,
+                    Hyperlane7683Message.encodeSettle(orderIds, ordersFillerData),
+                    StandardHookMetadata.formatMetadata(
+                        uint256(0), originRouter.destinationGas(destination), kakaroto, ""
+                    ),
+                    IPostDispatchHook(address(originRouter.hook()))
+                )
+            )
         );
 
         vm.prank(kakaroto);
-        originRouter.dispatchSettle{value: gasPaymentQuote}(destination, orderIds, ordersFillerData);
+        originRouter.dispatchSettle{ value: gasPaymentQuote }(destination, orderIds, ordersFillerData);
     }
 
     function test__dispatchRefund_works() public enrollRouters {
@@ -293,17 +301,22 @@ contract Hyperlane7683Test is Hyperlane7683BaseTest {
         vm.expectCall(
             address(environment.mailboxes(origin)),
             gasPaymentQuote,
-            abi.encodeCall(MockMailbox.dispatch, (
-                destination,
-                destinationRouterB32,
-                Hyperlane7683Message.encodeRefund(orderIds),
-                StandardHookMetadata.formatMetadata(uint256(0), originRouter.destinationGas(destination), kakaroto, ""),
-                IPostDispatchHook(address(originRouter.hook()))
-            ))
+            abi.encodeCall(
+                MockMailbox.dispatch,
+                (
+                    destination,
+                    destinationRouterB32,
+                    Hyperlane7683Message.encodeRefund(orderIds),
+                    StandardHookMetadata.formatMetadata(
+                        uint256(0), originRouter.destinationGas(destination), kakaroto, ""
+                    ),
+                    IPostDispatchHook(address(originRouter.hook()))
+                )
+            )
         );
 
         vm.prank(kakaroto);
-        originRouter.dispatchRefund{value: gasPaymentQuote}(destination, orderIds);
+        originRouter.dispatchRefund{ value: gasPaymentQuote }(destination, orderIds);
     }
 
     function test__handle_settle_works() public enrollRouters {
@@ -319,7 +332,7 @@ contract Hyperlane7683Test is Hyperlane7683BaseTest {
 
         deal(kakaroto, 1_000_000);
         vm.prank(kakaroto);
-        destinationRouter.dispatchSettle{value: gasPaymentQuote}(origin, orderIds, ordersFillerData);
+        destinationRouter.dispatchSettle{ value: gasPaymentQuote }(origin, orderIds, ordersFillerData);
 
         environment.processNextPendingMessageFromDestination();
 
@@ -337,7 +350,7 @@ contract Hyperlane7683Test is Hyperlane7683BaseTest {
         deal(kakaroto, 1_000_000);
 
         vm.prank(kakaroto);
-        destinationRouter.dispatchRefund{value: gasPaymentQuote}(origin, orderIds);
+        destinationRouter.dispatchRefund{ value: gasPaymentQuote }(origin, orderIds);
 
         environment.processNextPendingMessageFromDestination();
 

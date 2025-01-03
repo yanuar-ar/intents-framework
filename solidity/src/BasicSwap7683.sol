@@ -8,7 +8,6 @@ import { TypeCasts } from "@hyperlane-xyz/libs/TypeCasts.sol";
 
 import { Base7683 } from "./Base7683.sol";
 import { OrderData, OrderEncoder } from "./libs/OrderEncoder.sol";
-import { Hyperlane7683Message } from "./libs/Hyperlane7683Message.sol";
 
 import {
     GaslessCrossChainOrder,
@@ -148,7 +147,7 @@ abstract contract BasicSwap7683 is Base7683 {
         view
         virtual
         override
-        returns (ResolvedCrossChainOrder memory, bytes32 , uint256)
+        returns (ResolvedCrossChainOrder memory, bytes32, uint256)
     {
         return _resolvedOrder(order.orderDataType, order.user, order.openDeadline, order.fillDeadline, order.orderData);
     }
