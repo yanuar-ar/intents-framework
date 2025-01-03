@@ -31,7 +31,7 @@ export class NonceKeeperWallet extends Wallet {
       transaction.nonce = this.getNextNonce();
     }
 
-    log.debug("transaction", transaction);
+    log.debug({ msg: "transaction", transaction });
 
     return super.sendTransaction(transaction);
   }
