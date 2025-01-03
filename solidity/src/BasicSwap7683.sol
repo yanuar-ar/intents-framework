@@ -19,22 +19,43 @@ import {
     IDestinationSettler
 } from "./ERC7683/IERC7683.sol";
 
+/**
+ * @title BasicSwap7683
+ * @author BootNode
+ * @notice This contract builds on top of Base7683 as a second layer, implementing logic to handle a specific type of
+ * order for swapping a single token.
+ * @dev This is an abstract contract intended to be inherited by a third contract that will function as the messaging
+ * layer.
+ */
 abstract contract BasicSwap7683 is Base7683 {
     // ============ Libraries ============
     using SafeERC20 for IERC20;
 
     // ============ Constants ============
+    /// @notice Status constant indicating that an order has been settled.
     bytes32 public constant SETTLED = "SETTLED";
+    /// @notice Status constant indicating that an order has been refunded.
     bytes32 public constant REFUNDED = "REFUNDED";
 
     // ============ Public Storage ============
 
     // ============ Upgrade Gap ============
-
+    /// @dev Reserved storage slots for upgradeability.
     uint256[47] private __GAP;
 
     // ============ Events ============
+    /**
+     * @notice Emitted when an order is settled.
+     * @param orderId The ID of the settled order.
+     * @param receiver The address of the order's input token receiver.
+     */
     event Settled(bytes32 orderId, address receiver);
+
+    /**
+     * @notice Emitted when an order is refunded.
+     * @param orderId The ID of the refunded order.
+     * @param receiver The address of the order's input token receiver.
+     */
     event Refunded(bytes32 orderId, address receiver);
 
     // ============ Errors ============
@@ -50,7 +71,10 @@ abstract contract BasicSwap7683 is Base7683 {
     // ============ Modifiers ============
 
     // ============ Constructor ============
-
+    /**
+     * @dev Initializes the contract by calling the constructor of Base7683 with the permit2 address.
+     * @param _permit2 The address of the PERMIT2 contract.
+     */
     constructor(address _permit2) Base7683(_permit2) { }
 
     // ============ Initializers ============
@@ -59,31 +83,53 @@ abstract contract BasicSwap7683 is Base7683 {
 
     // ============ Internal Functions ============
 
+    /**
+     * @dev Settles multiple orders by dispatching the settlement instructions.
+     * @param _orderIds The IDs of the orders to settle.
+     * @param _ordersOriginData The original data of the orders.
+     * @param _ordersFillerData The filler data for the orders.
+     */
     function _settleOrders(
         bytes32[] calldata _orderIds,
-        bytes[] memory ordersOriginData,
-        bytes[] memory ordersFillerData
+        bytes[] memory _ordersOriginData,
+        bytes[] memory _ordersFillerData
     )
         internal
         override
     {
         // at this point we are sure all orders are filled, use the first order to get the originDomain
         // if some order differs on the originDomain ir can be re-settle later
-        _dispatchSettle(OrderEncoder.decode(ordersOriginData[0]).originDomain, _orderIds, ordersFillerData);
+        _dispatchSettle(OrderEncoder.decode(_ordersOriginData[0]).originDomain, _orderIds, _ordersFillerData);
     }
 
+    /**
+     * @dev Refunds multiple OnchainCrossChain orders by dispatching refund instructions.
+     * @param _orders The orders to refund.
+     * @param _orderIds The IDs of the orders to refund.
+     */
     function _refundOrders(OnchainCrossChainOrder[] memory _orders, bytes32[] memory _orderIds) internal override {
         // at this point we are sure all orders are filled, use the first order to get the originDomain
         // if some order differs on the originDomain ir can be re-refunded later
         _dispatchRefund(OrderEncoder.decode(_orders[0].orderData).originDomain, _orderIds);
     }
 
+    /**
+     * @dev Refunds multiple GaslessCrossChain orders by dispatching refund instructions.
+     * @param _orders The orders to refund.
+     * @param _orderIds The IDs of the orders to refund.
+     */
     function _refundOrders(GaslessCrossChainOrder[] memory _orders, bytes32[] memory _orderIds) internal override {
         // at this point we are sure all orders are filled, use the first order to get the originDomain
         // if some order differs on the originDomain ir can be re-refunded later
         _dispatchRefund(OrderEncoder.decode(_orders[0].orderData).originDomain, _orderIds);
     }
 
+    /**
+     * @dev Handles settling an individual order, should be called by the inheriting contract when receiving a setting
+     * instruction from a remote chain.
+     * @param _orderId The ID of the order to settle.
+     * @param _receiver The receiver address (encoded as bytes32).
+     */
     function _handleSettleOrder(bytes32 _orderId, bytes32 _receiver) internal virtual {
         // check if the order is opened to ensure it belongs to this domain, skip otherwise
         if (orderStatus[_orderId] != OPENED) return;
@@ -106,6 +152,11 @@ abstract contract BasicSwap7683 is Base7683 {
         emit Settled(_orderId, receiver);
     }
 
+    /**
+     * @dev Handles refunding an individual order, should be called by the inheriting contract when receiving a
+     * refunding instruction from a remote chain.
+     * @param _orderId The ID of the order to refund.
+     */
     function _handleRefundOrder(bytes32 _orderId) internal virtual {
         // check if the order is opened to ensure it belongs to this domain, skip otherwise
         if (orderStatus[_orderId] != OPENED) return;
@@ -128,43 +179,83 @@ abstract contract BasicSwap7683 is Base7683 {
         emit Refunded(_orderId, orderSender);
     }
 
-    function _getOrderId(GaslessCrossChainOrder memory order) internal pure override returns (bytes32) {
-        return _getOrderId(order.orderDataType, order.orderData);
+    /**
+     * @dev Gets the ID of a GaslessCrossChainOrder.
+     * @param _order The GaslessCrossChainOrder to compute the ID for.
+     * @return The computed order ID.
+     */
+    function _getOrderId(GaslessCrossChainOrder memory _order) internal pure override returns (bytes32) {
+        return _getOrderId(_order.orderDataType, _order.orderData);
     }
 
-    function _getOrderId(OnchainCrossChainOrder memory order) internal pure override returns (bytes32) {
-        return _getOrderId(order.orderDataType, order.orderData);
+    /**
+     * @dev Gets the ID of an OnchainCrossChainOrder.
+     * @param _order The OnchainCrossChainOrder to compute the ID for.
+     * @return The computed order ID.
+     */
+    function _getOrderId(OnchainCrossChainOrder memory _order) internal pure override returns (bytes32) {
+        return _getOrderId(_order.orderDataType, _order.orderData);
     }
 
+    /**
+     * @dev Computes the ID of an order given its type and data.
+     * @param _orderType The type of the order.
+     * @param _orderData The data of the order.
+     * @return orderId The computed order ID.
+     */
     function _getOrderId(bytes32 _orderType, bytes memory _orderData) internal pure returns (bytes32 orderId) {
         if (_orderType != OrderEncoder.orderDataType()) revert InvalidOrderType(_orderType);
         OrderData memory orderData = OrderEncoder.decode(_orderData);
         orderId = OrderEncoder.id(orderData);
     }
 
-    function _resolveOrder(GaslessCrossChainOrder memory order)
+    /**
+     * @dev Resolves a GaslessCrossChainOrder.
+     * @param _order The GaslessCrossChainOrder to resolve.
+     * @return A ResolvedCrossChainOrder structure.
+     * @return The order ID.
+     * @return The order nonce.
+     */
+    function _resolveOrder(GaslessCrossChainOrder memory _order)
         internal
         view
         virtual
         override
         returns (ResolvedCrossChainOrder memory, bytes32, uint256)
     {
-        return _resolvedOrder(order.orderDataType, order.user, order.openDeadline, order.fillDeadline, order.orderData);
+        return _resolvedOrder(
+            _order.orderDataType, _order.user, _order.openDeadline, _order.fillDeadline, _order.orderData
+        );
     }
 
     /**
-     * @dev To be implemented by the inheriting contract with specific logic fot the orderDataType and orderData
+     * @notice Resolves a OnchainCrossChainOrder.
+     * @param _order The OnchainCrossChainOrder to resolve.
+     * @return A ResolvedCrossChainOrder structure.
+     * @return The order ID.
+     * @return The order nonce.
      */
-    function _resolveOrder(OnchainCrossChainOrder memory order)
+    function _resolveOrder(OnchainCrossChainOrder memory _order)
         internal
         view
         virtual
         override
-        returns (ResolvedCrossChainOrder memory, bytes32 orderId, uint256 nonce)
+        returns (ResolvedCrossChainOrder memory, bytes32, uint256)
     {
-        return _resolvedOrder(order.orderDataType, msg.sender, type(uint32).max, order.fillDeadline, order.orderData);
+        return _resolvedOrder(_order.orderDataType, msg.sender, type(uint32).max, _order.fillDeadline, _order.orderData);
     }
 
+    /**
+     * @dev Resolves an order into a ResolvedCrossChainOrder structure.
+     * @param _orderType The type of the order.
+     * @param _sender The sender of the order.
+     * @param _openDeadline The open deadline of the order.
+     * @param _fillDeadline The fill deadline of the order.
+     * @param _orderData The data of the order.
+     * @return resolvedOrder A ResolvedCrossChainOrder structure.
+     * @return orderId The order ID.
+     * @return nonce The order nonce.
+     */
     function _resolvedOrder(
         bytes32 _orderType,
         address _sender,
@@ -231,6 +322,12 @@ abstract contract BasicSwap7683 is Base7683 {
         nonce = orderData.senderNonce;
     }
 
+    /**
+     * @dev Fills an order on the current domain.
+     * @param _orderId The ID of the order to fill.
+     * @param _originData The origin data of the order.
+     * Additional data related to the order (unused).
+     */
     function _fillOrder(bytes32 _orderId, bytes calldata _originData, bytes calldata) internal override {
         OrderData memory orderData = OrderEncoder.decode(_originData);
 
@@ -249,6 +346,13 @@ abstract contract BasicSwap7683 is Base7683 {
         }
     }
 
+    /**
+     * @dev Should be implemented by the messaging layer for dispatching a settlement instruction the remote domain
+     * where the orders where created.
+     * @param _originDomain The origin domain of the orders.
+     * @param _orderIds The IDs of the orders to settle.
+     * @param _ordersFillerData The filler data for the orders.
+     */
     function _dispatchSettle(
         uint32 _originDomain,
         bytes32[] memory _orderIds,
@@ -257,5 +361,11 @@ abstract contract BasicSwap7683 is Base7683 {
         internal
         virtual;
 
+    /**
+     * @dev Should be implemented by the messaging layer for dispatching a refunding instruction the remote domain
+     * where the orders where created.
+     * @param _originDomain The origin domain of the orders.
+     * @param _orderIds The IDs of the orders to refund.
+     */
     function _dispatchRefund(uint32 _originDomain, bytes32[] memory _orderIds) internal virtual;
 }

@@ -16,54 +16,99 @@ import {
     IDestinationSettler
 } from "./ERC7683/IERC7683.sol";
 
+/**
+ * @title Base7683
+ * @author BootNode
+ * @dev This contract implements the ERC7683 and contains all the logic related to opening, resolving, filling,
+ * settling and refunding orders that can be done without knowing the specifics of the order data type.
+ * Notice that settling and refunding is not described in the ERC7683 but it is included here to provide a common
+ * interface for solvers to use.
+ */
+/**
+ * @title Base7683
+ * @notice Implements the ERC7683 standard for cross-chain order resolution, settlement, and refunding.
+ * @author BootNode
+ * @dev Contains logic for managing orders without requiring specifics of the order data type.
+ * Notice that settling and refunding is not described in the ERC7683 but it is included here to provide a common
+ * interface for solvers to use.
+ */
 abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     // ============ Libraries ============
     using SafeERC20 for IERC20;
 
     // ============ Constants ============
-
+    /// @notice The instance of the Permit2 contract.
     IPermit2 public immutable PERMIT2;
 
+    /// @notice Type hash used for encoding ResolvedCrossChainOrder.
     bytes32 public constant RESOLVED_CROSS_CHAIN_ORDER_TYPEHASH = keccak256(
         "ResolvedCrossChainOrder(address user, uint64 originChainId, uint32 openDeadline, uint32 fillDeadline, Output[] maxSpent, Output[] minReceived, FillInstruction[] fillInstructions)Output(bytes32 token, uint256 amount, bytes32 recipient, uint64 chainId)FillInstruction(uint64 destinationChainId, bytes32 destinationSettler, bytes originData)"
     );
 
+    /// @notice The witness type string used in PERMIT2 transactions.
     string public constant witnessTypeString =
         "ResolvedCrossChainOrder witness)ResolvedCrossChainOrder(address user, uint64 originChainId, uint32 openDeadline, uint32 fillDeadline, Output[] maxSpent, Output[] minReceived, FillInstruction[] fillInstructions)Output(bytes32 token, uint256 amount, bytes32 recipient, uint64 chainId)FillInstruction(uint64 destinationChainId, bytes32 destinationSettler, bytes originData)TokenPermissions(address token,uint256 amount)";
 
-    // to be used to check the status of the order on orderStatus mapping. Other possible statuses should be defined in
-    // the inheriting contract
+    /// @notice Possible statuses for an order. Other possible statuses should be defined in the inheriting contract.
     bytes32 public constant UNKNOWN = "";
     bytes32 public constant OPENED = "OPENED";
     bytes32 public constant FILLED = "FILLED";
 
-    // ============ Public Storage ============
-
+    // ============ Structs ============
+    /**
+     * @dev Represents data for an order that has been filled.
+     * @param originData The origin-specific data for the order.
+     * @param fillerData The filler-specific data for the order.
+     */
     struct FilledOrder {
         bytes originData;
         bytes fillerData;
     }
 
+    // ============ Public Storage ============
+
+    /// @notice Tracks the bitmap of used nonces for each address.
     mapping(address => mapping(uint256 => uint256)) public nonceBitmap;
 
+    /// @notice Stores the resolved orders by their ID.
     mapping(bytes32 orderId => bytes resolvedOrder) public orders;
 
+    /// @notice Tracks filled orders and their associated data.
     mapping(bytes32 orderId => FilledOrder filledOrder) public filledOrders;
 
+    /// @notice Tracks the status of each order by its ID.
     mapping(bytes32 orderId => bytes32 status) public orderStatus;
 
     // ============ Upgrade Gap ============
-
+    /// @dev Reserved space for future storage variables to ensure upgradeability.
     uint256[47] private __GAP;
 
     // ============ Events ============
-
+    /**
+     * @notice Emitted when an order is filled.
+     * @param orderId The ID of the filled order.
+     * @param originData The origin-specific data for the order.
+     * @param fillerData The filler-specific data for the order.
+     */
     event Filled(bytes32 orderId, bytes originData, bytes fillerData);
+
+    /**
+     * @notice Emitted when a batch of orders is settled.
+     * @param orderIds The IDs of the orders being settled.
+     * @param ordersFillerData The filler data for the settled orders.
+     */
     event Settle(bytes32[] orderIds, bytes[] ordersFillerData);
+
+    /**
+     * @notice Emitted when a batch of orders is refunded.
+     * @param orderIds The IDs of the refunded orders.
+     */
     event Refund(bytes32[] orderIds);
 
     /**
-     * @notice Emits an event when the owner successfully invalidates an unordered nonce.
+     * @notice Emitted when a nonce is invalidated for an address.
+     * @param owner The address whose nonce was invalidated.
+     * @param nonce The invalidated nonce.
      */
     event NonceInvalidation(address indexed owner, uint256 nonce);
 
@@ -79,7 +124,10 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     error InvalidNativeAmount();
 
     // ============ Constructor ============
-
+    /**
+     * @notice Initializes the contract with the given Permit2 contract address.
+     * @param _permit2 The address of the Permit2 contract.
+     */
     constructor(address _permit2) {
         PERMIT2 = IPermit2(_permit2);
     }
@@ -88,42 +136,45 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
     // ============ External Functions ============
 
-    /// @notice Opens a gasless cross-chain order on behalf of a user.
-    /// @dev To be called by the filler.
-    /// @dev This method must emit the Open event
-    /// @param order The GaslessCrossChainOrder definition
-    /// @param signature The user's signature over the order
-    /// NOT USED originFillerData Any filler-defined data required by the settler
+    /**
+     * @notice Opens a gasless cross-chain order on behalf of a user.
+     * @dev To be called by the filler.
+     * @dev This method must emit the Open event
+     * @param _order The GaslessCrossChainOrder definition
+     * @param _signature The user's signature over the order
+     * NOT USED originFillerData Any filler-defined data required by the settler
+     */
     function openFor(
-        GaslessCrossChainOrder calldata order,
-        bytes calldata signature,
+        GaslessCrossChainOrder calldata _order,
+        bytes calldata _signature,
         bytes calldata
     )
         external
         virtual
     {
-        if (block.timestamp > order.openDeadline) revert OrderOpenExpired();
-        if (order.originSettler != address(this)) revert InvalidGaslessOrderSettler();
-        if (order.originChainId != _localDomain()) revert InvalidGaslessOrderOrigin();
+        if (block.timestamp > _order.openDeadline) revert OrderOpenExpired();
+        if (_order.originSettler != address(this)) revert InvalidGaslessOrderSettler();
+        if (_order.originChainId != _localDomain()) revert InvalidGaslessOrderOrigin();
 
-        (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(order);
+        (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(_order);
 
         orders[orderId] = abi.encode(resolvedOrder);
         orderStatus[orderId] = OPENED;
-        _useNonce(order.user, nonce);
+        _useNonce(_order.user, nonce);
 
-        _permitTransferFrom(resolvedOrder, signature, order.nonce, address(this));
+        _permitTransferFrom(resolvedOrder, _signature, _order.nonce, address(this));
 
         emit Open(orderId, resolvedOrder);
     }
 
-    /// @notice Opens a cross-chain order
-    /// @dev To be called by the user
-    /// @dev This method must emit the Open event
-    /// @param order The OnchainCrossChainOrder definition
-    // TODO - add support for native token
-    function open(OnchainCrossChainOrder calldata order) external payable virtual {
-        (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(order);
+    /**
+     * @notice Opens a cross-chain order
+     * @dev To be called by the user
+     * @dev This method must emit the Open event
+     * @param _order The OnchainCrossChainOrder definition
+     */
+    function open(OnchainCrossChainOrder calldata _order) external payable virtual {
+        (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(_order);
 
         orders[orderId] = abi.encode(resolvedOrder);
         orderStatus[orderId] = OPENED;
@@ -144,54 +195,66 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         emit Open(orderId, resolvedOrder);
     }
 
-    /// @notice Resolves a specific GaslessCrossChainOrder into a generic ResolvedCrossChainOrder
-    /// @dev Intended to improve standardized integration of various order types and settlement contracts
-    /// @param order The GaslessCrossChainOrder definition
-    /// NOT USED originFillerData Any filler-defined data required by the settler
-    /// @return resolvedOrder ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
+    /**
+     * @notice Resolves a specific GaslessCrossChainOrder into a generic ResolvedCrossChainOrder
+     * @dev Intended to improve standardized integration of various order types and settlement contracts
+     * @param _order The GaslessCrossChainOrder definition
+     * NOT USED originFillerData Any filler-defined data required by the settler
+     * @return _resolvedOrder ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
+     */
     function resolveFor(
-        GaslessCrossChainOrder calldata order,
+        GaslessCrossChainOrder calldata _order,
         bytes calldata
     )
         public
         view
         virtual
-        returns (ResolvedCrossChainOrder memory resolvedOrder)
+        returns (ResolvedCrossChainOrder memory _resolvedOrder)
     {
-        (resolvedOrder,,) = _resolveOrder(order);
+        (_resolvedOrder,,) = _resolveOrder(_order);
     }
 
-    /// @notice Resolves a specific OnchainCrossChainOrder into a generic ResolvedCrossChainOrder
-    /// @dev Intended to improve standardized integration of various order types and settlement contracts
-    /// @param order The OnchainCrossChainOrder definition
-    /// @return resolvedOrder ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
-    function resolve(OnchainCrossChainOrder calldata order)
+    /**
+     * @notice Resolves a specific OnchainCrossChainOrder into a generic ResolvedCrossChainOrder
+     * @dev Intended to improve standardized integration of various order types and settlement contracts
+     * @param _order The OnchainCrossChainOrder definition
+     * @return _resolvedOrder ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
+     */
+    function resolve(OnchainCrossChainOrder calldata _order)
         public
         view
         virtual
-        returns (ResolvedCrossChainOrder memory resolvedOrder)
+        returns (ResolvedCrossChainOrder memory _resolvedOrder)
     {
-        (resolvedOrder,,) = _resolveOrder(order);
+        (_resolvedOrder,,) = _resolveOrder(_order);
     }
 
-    /// @notice Fills a single leg of a particular order on the destination chain
-    /// @param _orderId Unique order identifier for this order
-    /// @param _originData Data emitted on the origin to parameterize the fill
-    /// @param _fillerData Data provided by the filler to inform the fill or express their preferences. It should
-    /// contain the bytes32 encoded address of the receiver which is the used at settlement time
-    // TODO - add support for native token
+    /**
+     * @notice Fills a single leg of a particular order on the destination chain
+     * @param _orderId Unique order identifier for this order
+     * @param _originData Data emitted on the origin to parameterize the fill
+     * @param _fillerData Data provided by the filler to inform the fill or express their preferences. It should
+     * contain the bytes32 encoded address of the receiver which is the used at settlement time
+     */
     function fill(bytes32 _orderId, bytes calldata _originData, bytes calldata _fillerData) external payable virtual {
         if (orderStatus[_orderId] != UNKNOWN) revert InvalidOrderStatus();
 
         _fillOrder(_orderId, _originData, _fillerData);
 
         orderStatus[_orderId] = FILLED;
-        // TODO - unify _originData and _fillerData into a single struct
         filledOrders[_orderId] = FilledOrder(_originData, _fillerData);
 
         emit Filled(_orderId, _originData, _fillerData);
     }
 
+    /**
+     * @notice Settles a batch of filled orders on the chain where the orders were opened.
+     * @dev Pays the filler the amount locked when the orders were opened.
+     * The settled status should not be changed here but rather on the origin chain. To allow the filler to retry in
+     * case some error occurs.
+     * Ensuring the order is not settled in the origin chain is the responsibility of the caller.
+     * @param _orderIds An array of IDs for the orders to settle.
+     */
     function settle(bytes32[] calldata _orderIds) external payable {
         bytes[] memory ordersOriginData = new bytes[](_orderIds.length);
         bytes[] memory ordersFillerData = new bytes[](_orderIds.length);
@@ -199,11 +262,6 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
             // all orders must be FILLED
             if (orderStatus[_orderIds[i]] != FILLED) revert InvalidOrderStatus();
 
-            // It may be good idea not to change the status here (on destination) but only on the origin.
-            // If the filler fills the order and settles it before it is opened on the origin, there should be a way for
-            // the filler to retry settling the order. Another scenario is some of the orders are not from the same
-            // origin domain as the first one which may be used to handle the settlement of the complete batch.
-            // Is caller responsibility to ensure the order hasn't been settled on origin yet
             ordersOriginData[i] = filledOrders[_orderIds[i]].originData;
             ordersFillerData[i] = filledOrders[_orderIds[i]].fillerData;
         }
@@ -213,7 +271,13 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         emit Settle(_orderIds, ordersFillerData);
     }
 
-    // TODO - refactor this two
+    /**
+     * @notice Refunds a batch of expired GaslessCrossChainOrders on the chain where the orders were opened.
+     * The refunded status should not be changed here but rather on the origin chain. To allow the user to retry in
+     * case some error occurs.
+     * Ensuring the order is not refunded in the origin chain is the responsibility of the caller.
+     * @param _orders An array of GaslessCrossChainOrders to refund.
+     */
     function refund(GaslessCrossChainOrder[] memory _orders) external payable {
         bytes32[] memory orderIds = new bytes32[](_orders.length);
         for (uint256 i = 0; i < _orders.length; i += 1) {
@@ -222,10 +286,6 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
             if (orderStatus[orderId] != UNKNOWN) revert InvalidOrderStatus();
             if (block.timestamp <= _orders[i].fillDeadline) revert OrderFillNotExpired();
-
-            // the status is changed on origin, the caller responsibility to ensure the order hasn't been refunded
-            // on origin yet. In case one of the orders is not from the same origin domain as the first one, the caller
-            // can retry the refund
         }
 
         _refundOrders(_orders, orderIds);
@@ -233,6 +293,13 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         emit Refund(orderIds);
     }
 
+    /**
+     * @notice Refunds a batch of expired OnchainCrossChainOrder on the chain where the orders were opened.
+     * The refunded status should not be changed here but rather on the origin chain. To allow the user to retry in
+     * case some error occurs.
+     * Ensuring the order is not refunded in the origin chain is the responsibility of the caller.
+     * @param _orders An array of GaslessCrossChainOrders to refund.
+     */
     function refund(OnchainCrossChainOrder[] memory _orders) external payable {
         bytes32[] memory orderIds = new bytes32[](_orders.length);
         for (uint256 i = 0; i < _orders.length; i += 1) {
@@ -241,10 +308,6 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
             if (orderStatus[orderId] != UNKNOWN) revert InvalidOrderStatus();
             if (block.timestamp <= _orders[i].fillDeadline) revert OrderFillNotExpired();
-
-            // the status is changed on origin, the caller responsibility to ensure the order hasn't been refunded
-            // on origin yet. In case one of the orders is not from the same origin domain as the first one, the caller
-            // can retry the refund
         }
 
         _refundOrders(_orders, orderIds);
@@ -252,138 +315,212 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         emit Refund(orderIds);
     }
 
+    /**
+     * @notice Invalidates a nonce for the user calling the function.
+     * @param _nonce The nonce to invalidate.
+     */
+    function invalidateNonces(uint256 _nonce) external virtual {
+        _useNonce(msg.sender, _nonce);
+
+        emit NonceInvalidation(msg.sender, _nonce);
+    }
+
+    /**
+     * @notice Checks whether a given nonce is valid.
+     * @param _from The address whose nonce validity is being checked.
+     * @param _nonce The nonce to check.
+     * @return isValid True if the nonce is valid, false otherwise.
+     */
+    function isValidNonce(address _from, uint256 _nonce) external view virtual returns (bool) {
+        (uint256 wordPos, uint256 bitPos) = bitmapPositions(_nonce);
+        uint256 bit = 1 << bitPos;
+
+        return nonceBitmap[_from][wordPos] & bit == 0;
+    }
+
     // ============ Public Functions ============
 
-    function witnessHash(ResolvedCrossChainOrder memory resolvedOrder) public pure virtual returns (bytes32) {
+    /**
+     * @notice Computes the Permit2 witness hash for a given ResolvedCrossChainOrder.
+     * @param _resolvedOrder The ResolvedCrossChainOrder to compute the witness hash for.
+     * @return The computed witness hash.
+     */
+    function witnessHash(ResolvedCrossChainOrder memory _resolvedOrder) public pure virtual returns (bytes32) {
         return keccak256(
             abi.encode(
                 RESOLVED_CROSS_CHAIN_ORDER_TYPEHASH,
-                resolvedOrder.user,
-                resolvedOrder.originChainId,
-                resolvedOrder.openDeadline,
-                resolvedOrder.fillDeadline,
-                resolvedOrder.maxSpent,
-                resolvedOrder.minReceived,
-                resolvedOrder.fillInstructions
+                _resolvedOrder.user,
+                _resolvedOrder.originChainId,
+                _resolvedOrder.openDeadline,
+                _resolvedOrder.fillDeadline,
+                _resolvedOrder.maxSpent,
+                _resolvedOrder.minReceived,
+                _resolvedOrder.fillInstructions
             )
         );
     }
 
-    /// @notice Invalidates the a nonce for the user calling the function
-    /// @param nonce The nonce to get the associated word and bit positions
-    function invalidateNonces(uint256 nonce) external virtual {
-        _useNonce(msg.sender, nonce);
-
-        emit NonceInvalidation(msg.sender, nonce);
-    }
-
-    function isValidNonce(address from, uint256 nonce) external view virtual returns (bool) {
-        (uint256 wordPos, uint256 bitPos) = bitmapPositions(nonce);
-        uint256 bit = 1 << bitPos;
-
-        return nonceBitmap[from][wordPos] & bit == 0;
-    }
-
     // ============ Internal Functions ============
 
-    /// @notice Returns the index of the bitmap and the bit position within the bitmap. Used for unordered nonces
-    /// @param nonce The nonce to get the associated word and bit positions
-    /// @return wordPos The word position or index into the nonceBitmap
-    /// @return bitPos The bit position
-    /// @dev The first 248 bits of the nonce value is the index of the desired bitmap
-    /// @dev The last 8 bits of the nonce value is the position of the bit in the bitmap
-    function bitmapPositions(uint256 nonce) private pure returns (uint256 wordPos, uint256 bitPos) {
-        wordPos = uint248(nonce >> 8);
-        bitPos = uint8(nonce);
+    /**
+     * @notice Computes the index of the bitmap and the bit position within the bitmap for a given nonce.
+     * @dev Used for unordered nonces to map a nonce to a specific word and bit position.
+     * @param _nonce The nonce to derive the word and bit positions.
+     * @return _wordPos The index of the bitmap in the nonce mapping.
+     * @return _bitPos The bit position within the bitmap word.
+     */
+    function bitmapPositions(uint256 _nonce) private pure returns (uint256 _wordPos, uint256 _bitPos) {
+        _wordPos = uint248(_nonce >> 8);
+        _bitPos = uint8(_nonce);
     }
 
-    /// @notice Checks whether a nonce is taken and sets the bit at the bit position in the bitmap at the word position
-    /// @param from The address to use the nonce at
-    /// @param nonce The nonce to spend
-    function _useNonce(address from, uint256 nonce) internal {
-        (uint256 wordPos, uint256 bitPos) = bitmapPositions(nonce);
+    /**
+     * @notice Marks a nonce as used by setting its bit in the appropriate bitmap.
+     * @dev Ensures that a nonce cannot be reused by flipping the corresponding bit in the bitmap.
+     * Reverts if the nonce is already used.
+     * @param _from The address for which the nonce is being used.
+     * @param _nonce The nonce to mark as used.
+     */
+    function _useNonce(address _from, uint256 _nonce) internal {
+        (uint256 wordPos, uint256 bitPos) = bitmapPositions(_nonce);
         uint256 bit = 1 << bitPos;
-        uint256 flipped = nonceBitmap[from][wordPos] ^= bit;
+        uint256 flipped = nonceBitmap[_from][wordPos] ^= bit;
 
         if (flipped & bit == 0) revert InvalidNonce();
     }
 
+    /**
+     * @notice Executes a batch token transfer using the Permit2 `permitWitnessTransferFrom` method.
+     * @dev Transfers tokens specified in a resolved cross-chain order to the receiver.
+     * @param _resolvedOrder The resolved order specifying tokens and amounts to transfer.
+     * @param _signature The user's signature for the permit.
+     * @param _nonce The unique nonce associated with the order.
+     * @param _receiver The address that will receive the tokens.
+     */
     function _permitTransferFrom(
-        ResolvedCrossChainOrder memory resolvedOrder,
-        bytes calldata signature,
-        uint256 nonce,
-        address receiver
+        ResolvedCrossChainOrder memory _resolvedOrder,
+        bytes calldata _signature,
+        uint256 _nonce,
+        address _receiver
     )
         internal
     {
         ISignatureTransfer.TokenPermissions[] memory permitted =
-            new ISignatureTransfer.TokenPermissions[](resolvedOrder.minReceived.length);
+            new ISignatureTransfer.TokenPermissions[](_resolvedOrder.minReceived.length);
 
         ISignatureTransfer.SignatureTransferDetails[] memory transferDetails =
-            new ISignatureTransfer.SignatureTransferDetails[](resolvedOrder.minReceived.length);
+            new ISignatureTransfer.SignatureTransferDetails[](_resolvedOrder.minReceived.length);
 
-        for (uint256 i = 0; i < resolvedOrder.minReceived.length; i++) {
+        for (uint256 i = 0; i < _resolvedOrder.minReceived.length; i++) {
             permitted[i] = ISignatureTransfer.TokenPermissions({
-                token: TypeCasts.bytes32ToAddress(resolvedOrder.minReceived[i].token),
-                amount: resolvedOrder.minReceived[i].amount
+                token: TypeCasts.bytes32ToAddress(_resolvedOrder.minReceived[i].token),
+                amount: _resolvedOrder.minReceived[i].amount
             });
             transferDetails[i] = ISignatureTransfer.SignatureTransferDetails({
-                to: receiver,
-                requestedAmount: resolvedOrder.minReceived[i].amount
+                to: _receiver,
+                requestedAmount: _resolvedOrder.minReceived[i].amount
             });
         }
 
         ISignatureTransfer.PermitBatchTransferFrom memory permit = ISignatureTransfer.PermitBatchTransferFrom({
             permitted: permitted,
-            nonce: nonce,
-            deadline: resolvedOrder.openDeadline
+            nonce: _nonce,
+            deadline: _resolvedOrder.openDeadline
         });
 
         PERMIT2.permitWitnessTransferFrom(
-            permit, transferDetails, resolvedOrder.user, witnessHash(resolvedOrder), witnessTypeString, signature
+            permit, transferDetails, _resolvedOrder.user, witnessHash(_resolvedOrder), witnessTypeString, _signature
         );
     }
 
     /**
-     * @dev To be implemented by the inheriting contract with specific logic fot the orderDataType and orderData
+     * @notice Resolves a GaslessCrossChainOrder into a ResolvedCrossChainOrder.
+     * @dev To be implemented by the inheriting contract. Contains logic specific to the order type and data.
+     * @param _order The GaslessCrossChainOrder to resolve.
+     * @return _resolvedOrder A ResolvedCrossChainOrder with hydrated data.
+     * @return _orderId The unique identifier for the order.
+     * @return _nonce The nonce associated with the order.
      */
-    function _resolveOrder(GaslessCrossChainOrder memory order)
+    function _resolveOrder(GaslessCrossChainOrder memory _order)
         internal
         view
         virtual
-        returns (ResolvedCrossChainOrder memory, bytes32 orderId, uint256 nonce);
+        returns (ResolvedCrossChainOrder memory _resolvedOrder, bytes32 _orderId, uint256 _nonce);
 
     /**
-     * @dev To be implemented by the inheriting contract with specific logic fot the orderDataType and orderData
+     * @notice Resolves an OnchainCrossChainOrder into a ResolvedCrossChainOrder.
+     * @dev To be implemented by the inheriting contract. Contains logic specific to the order type and data.
+     * @param _order The OnchainCrossChainOrder to resolve.
+     * @return _resolvedOrder A ResolvedCrossChainOrder with hydrated data.
+     * @return _orderId The unique identifier for the order.
+     * @return _nonce The nonce associated with the order.
      */
-    function _resolveOrder(OnchainCrossChainOrder memory order)
+    function _resolveOrder(OnchainCrossChainOrder memory _order)
         internal
         view
         virtual
-        returns (ResolvedCrossChainOrder memory, bytes32 orderId, uint256 nonce);
+        returns (ResolvedCrossChainOrder memory _resolvedOrder, bytes32 _orderId, uint256 _nonce);
 
+    /**
+     * @notice Fills an order with specific origin and filler data.
+     * @dev To be implemented by the inheriting contract. Defines how to process the origin and filler data.
+     * @param _orderId The unique identifier for the order to fill.
+     * @param _originData Data emitted on the origin chain to parameterize the fill.
+     * @param _fillerData Data provided by the filler, including preferences and additional information.
+     */
     function _fillOrder(bytes32 _orderId, bytes calldata _originData, bytes calldata _fillerData) internal virtual;
 
+    /**
+     * @notice Settles a batch of orders using their origin and filler data.
+     * @dev To be implemented by the inheriting contract. Contains the specific logic for settlement.
+     * @param _orderIds An array of order IDs to settle.
+     * @param _ordersOriginData The origin data for the orders being settled.
+     * @param _ordersFillerData The filler data for the orders being settled.
+     */
     function _settleOrders(
         bytes32[] calldata _orderIds,
-        bytes[] memory ordersOriginData,
-        bytes[] memory ordersFillerData
+        bytes[] memory _ordersOriginData,
+        bytes[] memory _ordersFillerData
     )
         internal
         virtual;
 
+    /**
+     * @notice Refunds a batch of OnchainCrossChainOrders.
+     * @dev To be implemented by the inheriting contract. Contains logic specific to refunds.
+     * @param _orders An array of OnchainCrossChainOrders to refund.
+     * @param _orderIds An array of IDs for the orders to refund.
+     */
     function _refundOrders(OnchainCrossChainOrder[] memory _orders, bytes32[] memory _orderIds) internal virtual;
+
+    /**
+     * @notice Refunds a batch of GaslessCrossChainOrders.
+     * @dev To be implemented by the inheriting contract. Contains logic specific to refunds.
+     * @param _orders An array of GaslessCrossChainOrders to refund.
+     * @param _orderIds An array of IDs for the orders to refund.
+     */
     function _refundOrders(GaslessCrossChainOrder[] memory _orders, bytes32[] memory _orderIds) internal virtual;
 
     /**
-     * @dev To be implemented by the inheriting contract with specific logic, should return the local domain
+     * @notice Retrieves the local domain identifier.
+     * @dev To be implemented by the inheriting contract. Specifies the logic to determine the local domain.
+     * @return The local domain ID.
      */
     function _localDomain() internal view virtual returns (uint32);
 
-    function _getOrderId(GaslessCrossChainOrder memory order) internal pure virtual returns (bytes32);
-    function _getOrderId(OnchainCrossChainOrder memory order) internal pure virtual returns (bytes32);
+    /**
+     * @notice Computes the unique identifier for a GaslessCrossChainOrder.
+     * @dev To be implemented by the inheriting contract. Specifies the logic to compute the order ID.
+     * @param _order The GaslessCrossChainOrder to compute the ID for.
+     * @return The unique identifier for the order.
+     */
+    function _getOrderId(GaslessCrossChainOrder memory _order) internal pure virtual returns (bytes32);
 
-    function getfilledOrder(bytes32 orderId) external view returns (FilledOrder memory) {
-        return filledOrders[orderId];
-    }
+    /**
+     * @notice Computes the unique identifier for an OnchainCrossChainOrder.
+     * @dev To be implemented by the inheriting contract. Specifies the logic to compute the order ID.
+     * @param _order The OnchainCrossChainOrder to compute the ID for.
+     * @return The unique identifier for the order.
+     */
+    function _getOrderId(OnchainCrossChainOrder memory _order) internal pure virtual returns (bytes32);
 }
