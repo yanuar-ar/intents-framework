@@ -1,5 +1,5 @@
 import { AddressZero } from "@ethersproject/constants";
-import type { MultiProvider } from "@hyperlane-xyz/sdk";
+import { type MultiProvider } from "@hyperlane-xyz/sdk";
 import {
   addressToBytes32,
   bytes32ToAddress,
@@ -199,6 +199,11 @@ async function fill(
           filler,
         );
 
+        const value =
+          bytes32ToAddress(maxSpent[index].token) === AddressZero
+            ? maxSpent[index].amount
+            : undefined;
+
         // Depending on the implementation we may call `destination.fill` directly or call some other
         // contract that will produce the funds needed to execute this leg and then in turn call
         // `destination.fill`
@@ -206,7 +211,7 @@ async function fill(
           orderId,
           originData,
           addressToBytes32(fillerAddress),
-          { value: maxSpent[index].amount },
+          { value },
         );
 
         const receipt = await tx.wait();
