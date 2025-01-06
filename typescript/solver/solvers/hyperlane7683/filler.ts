@@ -8,11 +8,7 @@ import {
 
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
-import type {
-  IntentData,
-  OpenEventArgs,
-  ResolvedCrossChainOrder,
-} from "./types.js";
+import type { IntentData, OpenEventArgs } from "./types.js";
 import {
   getChainIdsWithEnoughTokens,
   log,
@@ -22,213 +18,211 @@ import {
 } from "./utils.js";
 
 import { chainIdsToName, isAllowedIntent } from "../../config/index.js";
+import { BaseFiller } from "../BaseFiller.js";
 import { allowBlockLists, metadata } from "./config/index.js";
 
-export const create = (multiProvider: MultiProvider) => {
-  const { protocolName } = setup();
+class Hyperlane7683Filler extends BaseFiller<
+  { protocolName: string },
+  OpenEventArgs,
+  IntentData
+> {
+  constructor(multiProvider: MultiProvider) {
+    const { protocolName } = metadata;
+    const hyperlane7683FillerMetadata = { protocolName };
 
-  return async function hyperlane7683(
-    { orderId, resolvedOrder }: OpenEventArgs,
-    _originChainName: string,
-  ) {
-    const origin = await retrieveOriginInfo(resolvedOrder, multiProvider);
-    const target = await retrieveTargetInfo(resolvedOrder, multiProvider);
+    super(multiProvider, hyperlane7683FillerMetadata, log);
+  }
 
-    log.info({
-      msg: "Intent Indexed",
-      intent: `${protocolName}-${orderId}`,
-      origin: origin.join(", "),
-      target: target.join(", "),
+  protected async retrieveOriginInfo(parsedArgs: OpenEventArgs) {
+    return retrieveOriginInfo(parsedArgs.resolvedOrder, this.multiProvider);
+  }
+
+  protected async retrieveTargetInfo(parsedArgs: OpenEventArgs) {
+    return retrieveTargetInfo(parsedArgs.resolvedOrder, this.multiProvider);
+  }
+
+  protected async prepareIntent(
+    parsedArgs: OpenEventArgs,
+  ): Promise<Result<IntentData>> {
+    this.log.info({
+      msg: "Evaluating filling Intent",
+      intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
     });
 
-    const result = await prepareIntent(
-      orderId,
-      resolvedOrder,
-      multiProvider,
-      protocolName,
-    );
+    try {
+      if (
+        !parsedArgs.resolvedOrder.maxSpent.every((maxSpent) =>
+          isAllowedIntent(allowBlockLists, {
+            senderAddress: parsedArgs.resolvedOrder.user,
+            destinationDomain: chainIdsToName[maxSpent.chainId.toString()],
+            recipientAddress: maxSpent.recipient,
+          }),
+        )
+      ) {
+        return {
+          error: "Not allowed intent",
+          success: false,
+        };
+      }
 
-    if (!result.success) {
-      log.error(
-        `${protocolName} Failed evaluating filling Intent: ${result.error}`,
+      const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(
+        parsedArgs.resolvedOrder,
+        this.multiProvider,
       );
-      return;
-    }
 
-    const { fillInstructions, maxSpent } = result.data;
+      this.log.debug({
+        msg: "Chain IDs with enough tokens",
+        protocolName: this.metadata.protocolName,
+        chainIdsWithEnoughTokens,
+      });
 
-    await fill(
-      orderId,
-      fillInstructions,
-      maxSpent,
-      multiProvider,
-      protocolName,
-    );
+      const fillInstructions = parsedArgs.resolvedOrder.fillInstructions.filter(
+        ({ destinationChainId }) =>
+          chainIdsWithEnoughTokens.includes(destinationChainId.toString()),
+      );
 
-    await settleOrder(fillInstructions, orderId, multiProvider, protocolName);
-  };
-};
+      this.log.debug({
+        msg: "Fill instructions",
+        protocolName: this.metadata.protocolName,
+        fillInstructions: JSON.stringify(fillInstructions),
+      });
 
-function setup() {
-  return metadata;
-}
+      const maxSpent = parsedArgs.resolvedOrder.maxSpent.filter(({ chainId }) =>
+        chainIdsWithEnoughTokens.includes(chainId.toString()),
+      );
 
-// We're assuming the filler will pay out of their own stock, but in reality they may have to
-// produce the funds before executing each leg.
-async function prepareIntent(
-  orderId: string,
-  resolvedOrder: ResolvedCrossChainOrder,
-  multiProvider: MultiProvider,
-  protocolName: string,
-): Promise<Result<IntentData>> {
-  log.info({
-    msg: "Evaluating filling Intent",
-    intent: `${protocolName}-${orderId}`,
-  });
+      this.log.debug({
+        msg: "Max spent",
+        protocolName: this.metadata.protocolName,
+        maxSpent: JSON.stringify(maxSpent),
+      });
 
-  try {
-    if (
-      !resolvedOrder.maxSpent.every((maxSpent) =>
-        isAllowedIntent(allowBlockLists, {
-          senderAddress: resolvedOrder.user,
-          destinationDomain: chainIdsToName[maxSpent.chainId.toString()],
-          recipientAddress: maxSpent.recipient,
-        }),
-      )
-    ) {
+      return { data: { fillInstructions, maxSpent }, success: true };
+    } catch (error: any) {
       return {
-        error: "Not allowed intent",
+        error:
+          error.message ?? "Failed find chain IDs with enough tokens to fill.",
         success: false,
       };
     }
+  }
 
-    const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(
-      resolvedOrder,
-      multiProvider,
+  protected async fill(parsedArgs: OpenEventArgs, data: IntentData) {
+    this.log.info({
+      msg: "Filling Intent",
+      intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
+    });
+
+    await Promise.all(
+      data.maxSpent.map(
+        async ({ amount, chainId, recipient, token: tokenAddress }) => {
+          tokenAddress = bytes32ToAddress(tokenAddress);
+          recipient = bytes32ToAddress(recipient);
+          const _chainId = chainId.toString();
+
+          const filler = this.multiProvider.getSigner(_chainId);
+
+          if (tokenAddress === AddressZero) {
+            // native token
+            return;
+          }
+
+          const tx = await Erc20__factory.connect(tokenAddress, filler).approve(
+            recipient,
+            amount,
+          );
+
+          const receipt = await tx.wait();
+          const baseUrl =
+            this.multiProvider.getChainMetadata(_chainId).blockExplorers?.[0]
+              .url;
+
+          if (baseUrl) {
+            this.log.debug({
+              msg: "Approval",
+              protocolName: this.metadata.protocolName,
+              tx: `${baseUrl}/tx/${receipt.transactionHash}`,
+            });
+          } else {
+            this.log.debug({
+              msg: "Approval",
+              protocolName: this.metadata.protocolName,
+              tx: `${receipt.transactionHash}`,
+            });
+          }
+
+          this.log.debug({
+            msg: "Approval",
+            protocolName: this.metadata.protocolName,
+            amount: amount.toString(),
+            tokenAddress,
+            recipient,
+            chainId: _chainId,
+          });
+        },
+      ),
     );
 
-    log.debug(
-      `${protocolName} - Chain IDs with enough tokens: ${chainIdsWithEnoughTokens}`,
-    );
+    await Promise.all(
+      data.fillInstructions.map(
+        async (
+          { destinationChainId, destinationSettler, originData },
+          index,
+        ) => {
+          destinationSettler = bytes32ToAddress(destinationSettler);
+          const _chainId = destinationChainId.toString();
 
-    const fillInstructions = resolvedOrder.fillInstructions.filter(
-      ({ destinationChainId }) =>
-        chainIdsWithEnoughTokens.includes(destinationChainId.toString()),
-    );
-    log.debug(
-      `${protocolName} - fillInstructions: ${JSON.stringify(fillInstructions)}`,
-    );
+          const filler = this.multiProvider.getSigner(_chainId);
+          const fillerAddress = await filler.getAddress();
+          const destination = Hyperlane7683__factory.connect(
+            destinationSettler,
+            filler,
+          );
 
-    const maxSpent = resolvedOrder.maxSpent.filter(({ chainId }) =>
-      chainIdsWithEnoughTokens.includes(chainId.toString()),
-    );
-    log.debug(`${protocolName} - maxSpent: ${JSON.stringify(maxSpent)}`);
+          const value =
+            bytes32ToAddress(data.maxSpent[index].token) === AddressZero
+              ? data.maxSpent[index].amount
+              : undefined;
 
-    return { data: { fillInstructions, maxSpent }, success: true };
-  } catch (error: any) {
-    return {
-      error:
-        error.message ?? "Failed find chain IDs with enough tokens to fill.",
-      success: false,
-    };
+          // Depending on the implementation we may call `destination.fill` directly or call some other
+          // contract that will produce the funds needed to execute this leg and then in turn call
+          // `destination.fill`
+          const tx = await destination.fill(
+            parsedArgs.orderId,
+            originData,
+            addressToBytes32(fillerAddress),
+            { value },
+          );
+
+          const receipt = await tx.wait();
+          const baseUrl =
+            this.multiProvider.getChainMetadata(_chainId).blockExplorers?.[0]
+              .url;
+
+          const txInfo = baseUrl
+            ? `${baseUrl}/tx/${receipt.transactionHash}`
+            : receipt.transactionHash;
+
+          log.info({
+            msg: "Filled Intent",
+            intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
+            txDetails: txInfo,
+            txHash: receipt.transactionHash,
+          });
+        },
+      ),
+    );
+  }
+
+  settleOrder(parsedArgs: OpenEventArgs, data: IntentData) {
+    return settleOrder(
+      data.fillInstructions,
+      parsedArgs.orderId,
+      this.multiProvider,
+      this.metadata.protocolName,
+    );
   }
 }
 
-async function fill(
-  orderId: string,
-  fillInstructions: ResolvedCrossChainOrder["fillInstructions"],
-  maxSpent: ResolvedCrossChainOrder["maxSpent"],
-  multiProvider: MultiProvider,
-  protocolName: string,
-): Promise<void> {
-  log.info({
-    msg: "Filling Intent",
-    intent: `${protocolName}-${orderId}`,
-  });
-
-  await Promise.all(
-    maxSpent.map(
-      async ({ amount, chainId, recipient, token: tokenAddress }) => {
-        tokenAddress = bytes32ToAddress(tokenAddress);
-        recipient = bytes32ToAddress(recipient);
-        const _chainId = chainId.toString();
-
-        const filler = multiProvider.getSigner(_chainId);
-
-        if (tokenAddress === AddressZero) {
-          // native token
-          return;
-        }
-
-        const tx = await Erc20__factory.connect(tokenAddress, filler).approve(
-          recipient,
-          amount,
-        );
-
-        const receipt = await tx.wait();
-        const baseUrl =
-          multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
-
-        if (baseUrl) {
-          log.debug(
-            `${protocolName} - Approval Tx: ${baseUrl}/tx/${receipt.transactionHash}`,
-          );
-        } else {
-          log.debug(
-            `${protocolName} - Approval Tx: ${receipt.transactionHash}`,
-          );
-        }
-
-        log.debug(
-          `${protocolName} - Approved ${amount.toString()} of ${tokenAddress} to ${recipient} on ${_chainId}`,
-        );
-      },
-    ),
-  );
-
-  await Promise.all(
-    fillInstructions.map(
-      async ({ destinationChainId, destinationSettler, originData }, index) => {
-        destinationSettler = bytes32ToAddress(destinationSettler);
-        const _chainId = destinationChainId.toString();
-
-        const filler = multiProvider.getSigner(_chainId);
-        const fillerAddress = await filler.getAddress();
-        const destination = Hyperlane7683__factory.connect(
-          destinationSettler,
-          filler,
-        );
-
-        const value =
-          bytes32ToAddress(maxSpent[index].token) === AddressZero
-            ? maxSpent[index].amount
-            : undefined;
-
-        // Depending on the implementation we may call `destination.fill` directly or call some other
-        // contract that will produce the funds needed to execute this leg and then in turn call
-        // `destination.fill`
-        const tx = await destination.fill(
-          orderId,
-          originData,
-          addressToBytes32(fillerAddress),
-          { value },
-        );
-
-        const receipt = await tx.wait();
-        const baseUrl =
-          multiProvider.getChainMetadata(_chainId).blockExplorers?.[0].url;
-
-        const txInfo = baseUrl
-          ? `${baseUrl}/tx/${receipt.transactionHash}`
-          : receipt.transactionHash;
-
-        log.info({
-          msg: "Filled Intent",
-          intent: `${protocolName}-${orderId}`,
-          txDetails: txInfo,
-          txHash: receipt.transactionHash,
-        });
-      },
-    ),
-  );
-}
+export const create = (multiProvider: MultiProvider) =>
+  new Hyperlane7683Filler(multiProvider).create();
