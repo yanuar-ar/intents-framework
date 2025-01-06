@@ -16,6 +16,7 @@ import { IPostDispatchHook } from "@hyperlane-xyz/interfaces/hooks/IPostDispatch
 import { InterchainGasPaymaster } from "@hyperlane-xyz/hooks/igp/InterchainGasPaymaster.sol";
 import { DeployPermit2 } from "@uniswap/permit2/test/utils/DeployPermit2.sol";
 
+import { BaseTest } from "./BaseTest.sol";
 import { Hyperlane7683 } from "../src/Hyperlane7683.sol";
 import { Hyperlane7683Message } from "../src/libs/Hyperlane7683Message.sol";
 
@@ -75,15 +76,10 @@ contract Hyperlane7683ForTest is Hyperlane7683 {
     }
 }
 
-contract Hyperlane7683BaseTest is Test, DeployPermit2 {
+contract Hyperlane7683BaseTest is BaseTest {
     using TypeCasts for address;
 
     MockHyperlaneEnvironment internal environment;
-
-    address permit2;
-
-    uint32 internal origin = 1;
-    uint32 internal destination = 2;
 
     TestInterchainGasPaymaster internal igp;
 
@@ -102,22 +98,7 @@ contract Hyperlane7683BaseTest is Test, DeployPermit2 {
     address internal owner = makeAddr("owner");
     address internal sender = makeAddr("sender");
 
-    ERC20 internal inputToken;
-    ERC20 internal outputToken;
-
-    address internal kakaroto;
-    uint256 internal kakarotoPK;
-    address internal karpincho;
-    uint256 internal karpinchoPK;
-    address internal vegeta;
-    uint256 internal vegetaPK;
-    address internal counterpart = makeAddr("counterpart");
-
-    uint256 internal amount = 100;
-
-    mapping(address => uint256) internal balanceId;
-
-    function deployProxiedRouter(MockMailbox _mailbox, address _owner) public returns (Hyperlane7683ForTest) {
+    function _deployProxiedRouter(MockMailbox _mailbox, address _owner) internal returns (Hyperlane7683ForTest) {
         Hyperlane7683ForTest implementation = new Hyperlane7683ForTest(address(_mailbox), permit2);
 
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -129,18 +110,18 @@ contract Hyperlane7683BaseTest is Test, DeployPermit2 {
         return Hyperlane7683ForTest(address(proxy));
     }
 
-    function setUp() public virtual {
-        environment = new MockHyperlaneEnvironment(origin, destination);
+    function setUp() public override {
+        super.setUp();
 
-        permit2 = deployPermit2();
+        environment = new MockHyperlaneEnvironment(origin, destination);
 
         igp = new TestInterchainGasPaymaster();
 
         gasPaymentQuote = igp.quoteGasPayment(destination, GAS_LIMIT);
 
-        originRouter = deployProxiedRouter(environment.mailboxes(origin), owner);
+        originRouter = _deployProxiedRouter(environment.mailboxes(origin), owner);
 
-        destinationRouter = deployProxiedRouter(environment.mailboxes(destination), owner);
+        destinationRouter = _deployProxiedRouter(environment.mailboxes(destination), owner);
 
         environment.mailboxes(origin).setDefaultHook(address(igp));
         environment.mailboxes(destination).setDefaultHook(address(igp));
@@ -148,27 +129,13 @@ contract Hyperlane7683BaseTest is Test, DeployPermit2 {
         originRouterB32 = TypeCasts.addressToBytes32(address(originRouter));
         destinationRouterB32 = TypeCasts.addressToBytes32(address(destinationRouter));
 
-        (kakaroto, kakarotoPK) = makeAddrAndKey("kakaroto");
-        (karpincho, karpinchoPK) = makeAddrAndKey("karpincho");
-        (vegeta, vegetaPK) = makeAddrAndKey("vegeta");
-
-        inputToken = new ERC20("Input Token", "IN");
-        outputToken = new ERC20("Output Token", "OUT");
-
-        deal(address(inputToken), kakaroto, 1_000_000, true);
-        deal(address(inputToken), karpincho, 1_000_000, true);
-        deal(address(inputToken), vegeta, 1_000_000, true);
-        deal(address(outputToken), kakaroto, 1_000_000, true);
-        deal(address(outputToken), karpincho, 1_000_000, true);
-        deal(address(outputToken), vegeta, 1_000_000, true);
-
-        balanceId[kakaroto] = 0;
-        balanceId[karpincho] = 1;
-        balanceId[vegeta] = 2;
-        balanceId[counterpart] = 3;
         balanceId[address(originRouter)] = 4;
         balanceId[address(destinationRouter)] = 5;
         balanceId[address(igp)] = 6;
+
+        users.push(address(originRouter));
+        users.push(address(destinationRouter));
+        users.push(address(igp));
     }
 
     receive() external payable { }
