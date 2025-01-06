@@ -18,15 +18,7 @@ import {
 
 /**
  * @title Base7683
- * @author BootNode
- * @dev This contract implements the ERC7683 and contains all the logic related to opening, resolving, filling,
- * settling and refunding orders that can be done without knowing the specifics of the order data type.
- * Notice that settling and refunding is not described in the ERC7683 but it is included here to provide a common
- * interface for solvers to use.
- */
-/**
- * @title Base7683
- * @notice Implements the ERC7683 standard for cross-chain order resolution, settlement, and refunding.
+ * @notice Implements the ERC7683 standard for cross-chain order resolution, filling, settlement, and refunding.
  * @author BootNode
  * @dev Contains logic for managing orders without requiring specifics of the order data type.
  * Notice that settling and refunding is not described in the ERC7683 but it is included here to provide a common
