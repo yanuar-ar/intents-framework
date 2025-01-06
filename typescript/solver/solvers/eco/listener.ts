@@ -1,18 +1,18 @@
 import type { TypedListener } from "../../typechain/common.js";
 import type {
   IntentCreatedEvent,
-  IntentCreatedEventObject,
   IntentSource,
 } from "../../typechain/eco/contracts/IntentSource.js";
 import { IntentSource__factory } from "../../typechain/factories/eco/contracts/IntentSource__factory.js";
 import { BaseListener } from "../BaseListener.js";
-import { log } from "./utils.js";
 import { metadata } from "./config/index.js";
+import type { ParsedArgs } from "./types.js";
+import { log } from "./utils.js";
 
 export class EcoListener extends BaseListener<
   IntentSource,
   IntentCreatedEvent,
-  IntentCreatedEventObject
+  ParsedArgs
 > {
   constructor() {
     const { intentSources, protocolName } = metadata;
@@ -34,6 +34,7 @@ export class EcoListener extends BaseListener<
     _prover,
   ]: Parameters<TypedListener<IntentCreatedEvent>>) {
     return {
+      orderId: _hash,
       _hash,
       _creator,
       _destinationChain,

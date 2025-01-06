@@ -4,227 +4,223 @@ import { type Result } from "@hyperlane-xyz/utils";
 
 import { type BigNumber } from "ethers";
 
-import type { IntentCreatedEventObject } from "../../typechain/eco/contracts/IntentSource.js";
+import {
+  chainIds,
+  chainIdsToName,
+  isAllowedIntent,
+} from "../../config/index.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { EcoAdapter__factory } from "../../typechain/factories/eco/contracts/EcoAdapter__factory.js";
-import type { EcoMetadata, IntentData } from "./types.js";
+import { BaseFiller } from "../BaseFiller.js";
+import { allowBlockLists, metadata } from "./config/index.js";
+import type { EcoMetadata, IntentData, ParsedArgs } from "./types.js";
 import {
   log,
   retrieveOriginInfo,
   retrieveTargetInfo,
   withdrawRewards,
 } from "./utils.js";
-import { metadata, allowBlockLists } from "./config/index.js";
-import {
-  chainIds,
-  chainIdsToName,
-  isAllowedIntent,
-} from "../../config/index.js";
 
-export const create = (multiProvider: MultiProvider) => {
-  const { adapters, protocolName } = setup();
+export class EcoFiller extends BaseFiller<
+  {
+    adapters: EcoMetadata["adapters"];
+    protocolName: EcoMetadata["protocolName"];
+  },
+  ParsedArgs,
+  IntentData
+> {
+  constructor(multiProvider: MultiProvider) {
+    const { adapters, protocolName } = metadata;
+    const ecoFillerMetadata = { adapters, protocolName };
 
-  return async function eco(
-    intent: IntentCreatedEventObject,
+    super(multiProvider, ecoFillerMetadata, log);
+  }
+
+  protected retrieveOriginInfo(
+    parsedArgs: ParsedArgs,
     originChainName: string,
   ) {
-    const origin = await retrieveOriginInfo(
-      intent,
-      originChainName,
-      multiProvider,
-    );
-    const target = await retrieveTargetInfo(intent, adapters, multiProvider);
+    return retrieveOriginInfo(parsedArgs, originChainName, this.multiProvider);
+  }
 
-    log.info({
-      msg: "Intent Indexed",
-      intent: `${protocolName}-${intent._hash}`,
-      origin: origin.join(", "),
-      target: target.join(", "),
+  protected retrieveTargetInfo(parsedArgs: ParsedArgs) {
+    return retrieveTargetInfo(
+      parsedArgs,
+      this.metadata.adapters,
+      this.multiProvider,
+    );
+  }
+
+  protected async prepareIntent(
+    parsedArgs: ParsedArgs,
+  ): Promise<Result<IntentData>> {
+    this.log.info({
+      msg: "Evaluating filling Intent",
+      intent: `${this.metadata.protocolName}-${parsedArgs._hash}`,
     });
 
-    const result = await prepareIntent(
-      intent,
-      adapters,
-      multiProvider,
-      protocolName,
-    );
-
-    if (!result.success) {
-      log.error(
-        `${protocolName} Failed evaluating filling Intent: ${result.error}`,
+    try {
+      const destinationChainId = parsedArgs._destinationChain.toNumber();
+      const adapter = this.metadata.adapters.find(
+        ({ chainName }) => chainIds[chainName] === destinationChainId,
       );
-      return;
-    }
 
-    await fill(
-      intent,
-      result.data.adapter,
-      originChainName,
-      multiProvider,
-      protocolName,
-    );
+      if (!adapter) {
+        return {
+          error: "No adapter found for destination chain",
+          success: false,
+        };
+      }
 
-    await withdrawRewards(intent, originChainName, multiProvider, protocolName);
-  };
-};
+      const signer = this.multiProvider.getSigner(destinationChainId);
+      const erc20Interface = Erc20__factory.createInterface();
 
-function setup() {
-  return metadata;
-}
+      const { requiredAmountsByTarget, receivers } =
+        parsedArgs._targets.reduce<{
+          requiredAmountsByTarget: { [tokenAddress: string]: BigNumber };
+          receivers: string[];
+        }>(
+          (acc, target, index) => {
+            const [receiver, amount] = erc20Interface.decodeFunctionData(
+              "transfer",
+              parsedArgs._data[index],
+            ) as [string, BigNumber];
 
-// We're assuming the filler will pay out of their own stock, but in reality they may have to
-// produce the funds before executing each leg.
-async function prepareIntent(
-  intent: IntentCreatedEventObject,
-  adapters: EcoMetadata["adapters"],
-  multiProvider: MultiProvider,
-  protocolName: string,
-): Promise<Result<IntentData>> {
-  log.info({
-    msg: "Evaluating filling Intent",
-    intent: `${protocolName}-${intent._hash}`,
-  });
+            acc.requiredAmountsByTarget[target] ||= Zero;
+            acc.requiredAmountsByTarget[target] =
+              acc.requiredAmountsByTarget[target].add(amount);
 
-  try {
-    const destinationChainId = intent._destinationChain.toNumber();
-    const adapter = adapters.find(
-      ({ chainName }) => chainIds[chainName] === destinationChainId,
-    );
+            acc.receivers.push(receiver);
 
-    if (!adapter) {
+            return acc;
+          },
+          {
+            requiredAmountsByTarget: {},
+            receivers: [],
+          },
+        );
+
+      if (
+        !receivers.every((recipientAddress) =>
+          isAllowedIntent(allowBlockLists, {
+            senderAddress: parsedArgs._creator,
+            destinationDomain: chainIdsToName[destinationChainId.toString()],
+            recipientAddress,
+          }),
+        )
+      ) {
+        return {
+          error: "Not allowed intent",
+          success: false,
+        };
+      }
+
+      const fillerAddress =
+        await this.multiProvider.getSignerAddress(destinationChainId);
+
+      const areTargetFundsAvailable = await Promise.all(
+        Object.entries(requiredAmountsByTarget).map(
+          async ([target, requiredAmount]) => {
+            const erc20 = Erc20__factory.connect(target, signer);
+
+            const balance = await erc20.balanceOf(fillerAddress);
+            return balance.gte(requiredAmount);
+          },
+        ),
+      );
+
+      if (!areTargetFundsAvailable.every(Boolean)) {
+        return { error: "Not enough tokens", success: false };
+      }
+
+      this.log.debug({
+        msg: "Approving tokens",
+        protocolName: this.metadata.protocolName,
+        intentHash: parsedArgs._hash,
+        adapterAddress: adapter.address,
+      });
+
+      await Promise.all(
+        Object.entries(requiredAmountsByTarget).map(
+          async ([target, requiredAmount]) => {
+            const erc20 = Erc20__factory.connect(target, signer);
+
+            const tx = await erc20.approve(adapter.address, requiredAmount);
+            await tx.wait();
+          },
+        ),
+      );
+
+      return { data: { adapter }, success: true };
+    } catch (error: any) {
       return {
-        error: "No adapter found for destination chain",
+        error: error.message ?? "Failed to prepare Eco Intent.",
         success: false,
       };
     }
+  }
 
-    const signer = multiProvider.getSigner(destinationChainId);
-    const erc20Interface = Erc20__factory.createInterface();
+  protected async fill(
+    parsedArgs: ParsedArgs,
+    data: IntentData,
+    originChainName: string,
+  ) {
+    this.log.info({
+      msg: "Filling Intent",
+      intent: `${this.metadata.protocolName}-${parsedArgs._hash}`,
+    });
 
-    const { requiredAmountsByTarget, receivers } = intent._targets.reduce<{
-      requiredAmountsByTarget: { [tokenAddress: string]: BigNumber };
-      receivers: string[];
-    }>(
-      (acc, target, index) => {
-        const [receiver, amount] = erc20Interface.decodeFunctionData(
-          "transfer",
-          intent._data[index],
-        ) as [string, BigNumber];
+    const _chainId = parsedArgs._destinationChain.toString();
 
-        acc.requiredAmountsByTarget[target] ||= Zero;
-        acc.requiredAmountsByTarget[target] =
-          acc.requiredAmountsByTarget[target].add(amount);
-
-        acc.receivers.push(receiver);
-
-        return acc;
-      },
-      {
-        requiredAmountsByTarget: {},
-        receivers: [],
-      },
+    const filler = this.multiProvider.getSigner(_chainId);
+    const ecoAdapter = EcoAdapter__factory.connect(
+      data.adapter.address,
+      filler,
     );
 
-    if (
-      !receivers.every((recipientAddress) =>
-        isAllowedIntent(allowBlockLists, {
-          senderAddress: intent._creator,
-          destinationDomain: chainIdsToName[destinationChainId.toString()],
-          recipientAddress,
-        }),
-      )
-    ) {
-      return {
-        error: "Not allowed intent",
-        success: false,
-      };
-    }
+    const claimantAddress =
+      await this.multiProvider.getSignerAddress(originChainName);
 
-    const fillerAddress =
-      await multiProvider.getSignerAddress(destinationChainId);
+    const { _targets, _data, _expiryTime, nonce, _hash, _prover } = parsedArgs;
 
-    const areTargetFundsAvailable = await Promise.all(
-      Object.entries(requiredAmountsByTarget).map(
-        async ([target, requiredAmount]) => {
-          const erc20 = Erc20__factory.connect(target, signer);
-
-          const balance = await erc20.balanceOf(fillerAddress);
-          return balance.gte(requiredAmount);
-        },
-      ),
+    const value = await ecoAdapter.fetchFee(
+      chainIds[originChainName],
+      [_hash],
+      [claimantAddress],
+      _prover,
     );
 
-    if (!areTargetFundsAvailable.every(Boolean)) {
-      return { error: "Not enough tokens", success: false };
-    }
-
-    log.debug(
-      `${protocolName} - Approving tokens: ${intent._hash}, for ${adapter.address}`,
-    );
-    await Promise.all(
-      Object.entries(requiredAmountsByTarget).map(
-        async ([target, requiredAmount]) => {
-          const erc20 = Erc20__factory.connect(target, signer);
-
-          const tx = await erc20.approve(adapter.address, requiredAmount);
-          await tx.wait();
-        },
-      ),
+    const tx = await ecoAdapter.fulfillHyperInstant(
+      chainIds[originChainName],
+      _targets,
+      _data,
+      _expiryTime,
+      nonce,
+      claimantAddress,
+      _hash,
+      _prover,
+      { value },
     );
 
-    return { data: { adapter }, success: true };
-  } catch (error: any) {
-    return {
-      error: error.message ?? "Failed to prepare Eco Intent.",
-      success: false,
-    };
+    const receipt = await tx.wait();
+
+    this.log.info({
+      msg: "Filled Intent",
+      intent: `${this.metadata.protocolName}-${parsedArgs._hash}`,
+      txDetails: receipt.transactionHash,
+      txHash: receipt.transactionHash,
+    });
+  }
+
+  settleOrder(parsedArgs: ParsedArgs, data: IntentData) {
+    return withdrawRewards(
+      parsedArgs,
+      data.adapter.chainName,
+      this.multiProvider,
+      this.metadata.protocolName,
+    );
   }
 }
 
-async function fill(
-  intent: IntentCreatedEventObject,
-  adapter: EcoMetadata["adapters"][number],
-  originChainName: string,
-  multiProvider: MultiProvider,
-  protocolName: string,
-): Promise<void> {
-  log.info({
-    msg: "Filling Intent",
-    intent: `${protocolName}-${intent._hash}`,
-  });
-
-  const _chainId = intent._destinationChain.toString();
-
-  const filler = multiProvider.getSigner(_chainId);
-  const ecoAdapter = EcoAdapter__factory.connect(adapter.address, filler);
-
-  const claimantAddress = await multiProvider.getSignerAddress(originChainName);
-
-  const { _targets, _data, _expiryTime, nonce, _hash, _prover } = intent;
-  const value = await ecoAdapter.fetchFee(
-    chainIds[originChainName],
-    [_hash],
-    [claimantAddress],
-    _prover,
-  );
-  const tx = await ecoAdapter.fulfillHyperInstant(
-    chainIds[originChainName],
-    _targets,
-    _data,
-    _expiryTime,
-    nonce,
-    claimantAddress,
-    _hash,
-    _prover,
-    { value },
-  );
-
-  const receipt = await tx.wait();
-
-  log.info({
-    msg: "Filled Intent",
-    intent: `${protocolName}-${intent._hash}`,
-    txDetails: receipt.transactionHash,
-    txHash: receipt.transactionHash,
-  });
-}
+export const create = (multiProvider: MultiProvider) =>
+  new EcoFiller(multiProvider).create();
