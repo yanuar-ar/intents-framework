@@ -13,6 +13,7 @@ import { DeployPermit2 } from "@uniswap/permit2/test/utils/DeployPermit2.sol";
 
 import { BaseTest } from "./BaseTest.sol";
 
+import { Base7683 } from "../src/Base7683.sol";
 import { BasicSwap7683 } from "../src/BasicSwap7683.sol";
 
 import {
@@ -38,6 +39,10 @@ contract BasicSwap7683ForTest is BasicSwap7683 {
     uint32 public dispatchedOriginDomain;
     bytes32[] public dispatchedOrderIds;
     bytes[] public dispatchedOrdersFillerData;
+
+    function fillOrder(bytes32 _orderId, bytes calldata _originData, bytes calldata _empty) public payable {
+        _fillOrder(_orderId, _originData, _empty);
+    }
 
     function settleOrders(
         bytes32[] calldata _orderIds,
@@ -95,9 +100,17 @@ contract BasicSwap7683ForTest is BasicSwap7683 {
         _handleRefundOrder(_orderId);
     }
 
-    function setOrder(bytes32 _orderId, ResolvedCrossChainOrder memory rOrder) public {
+    function setOrderOpened(bytes32 _orderId, ResolvedCrossChainOrder memory rOrder) public {
         orders[_orderId] = abi.encode(rOrder);
         orderStatus[_orderId] = OPENED;
+    }
+
+    function getOrderId(GaslessCrossChainOrder memory _order) public pure returns (bytes32) {
+        return _getOrderId(_order);
+    }
+
+    function getOrderId(OnchainCrossChainOrder memory _order) public pure returns (bytes32) {
+        return _getOrderId(_order);
     }
 
     function _dispatchSettle(
@@ -265,7 +278,9 @@ contract BasicSwap7683Test is BaseTest {
         bytes32 orderId = bytes32("order1");
         ResolvedCrossChainOrder memory rOrder =
             baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
-        baseSwap.setOrder(orderId, rOrder);
+
+        // set the order as opened
+        baseSwap.setOrderOpened(orderId, rOrder);
 
         deal(address(inputToken), address(baseSwap), 1_000_000, true);
 
@@ -290,7 +305,9 @@ contract BasicSwap7683Test is BaseTest {
         bytes32 orderId = bytes32("order1");
         ResolvedCrossChainOrder memory rOrder =
             baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
-        baseSwap.setOrder(orderId, rOrder);
+
+        // set the order as opened
+        baseSwap.setOrderOpened(orderId, rOrder);
 
         deal(address(baseSwap), 1_000_000);
 
@@ -308,12 +325,31 @@ contract BasicSwap7683Test is BaseTest {
         assertEq(balancesAfter[balanceId[karpincho]], balancesBefore[balanceId[karpincho]] + amount);
     }
 
+    function test__handleSettleOrder_not_OPENED() public {
+        bytes32 orderId = bytes32("order1");
+        // don't set the order as opened
+
+        deal(address(inputToken), address(baseSwap), 1_000_000, true);
+
+        uint256[] memory balancesBefore = _balances(inputToken);
+
+        baseSwap.handleSettleOrder(orderId, TypeCasts.addressToBytes32(karpincho));
+
+        uint256[] memory balancesAfter = _balances(inputToken);
+
+        assertEq(baseSwap.orderStatus(orderId), baseSwap.UNKNOWN());
+        assertEq(balancesAfter[balanceId[address(baseSwap)]], balancesBefore[balanceId[address(baseSwap)]]);
+        assertEq(balancesAfter[balanceId[karpincho]], balancesBefore[balanceId[karpincho]]);
+    }
+
     function test__handleRefundOrder_works() public {
         OrderData memory orderData = prepareOrderData();
         bytes32 orderId = bytes32("order1");
         ResolvedCrossChainOrder memory rOrder =
             baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
-        baseSwap.setOrder(orderId, rOrder);
+
+        // set the order as opened
+        baseSwap.setOrderOpened(orderId, rOrder);
 
         deal(address(inputToken), address(baseSwap), 1_000_000, true);
 
@@ -338,7 +374,9 @@ contract BasicSwap7683Test is BaseTest {
         bytes32 orderId = bytes32("order1");
         ResolvedCrossChainOrder memory rOrder =
             baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
-        baseSwap.setOrder(orderId, rOrder);
+
+        // set the order as opened
+        baseSwap.setOrderOpened(orderId, rOrder);
 
         deal(address(baseSwap), 1_000_000);
 
@@ -354,6 +392,24 @@ contract BasicSwap7683Test is BaseTest {
         assertEq(baseSwap.orderStatus(orderId), baseSwap.REFUNDED());
         assertEq(balancesAfter[balanceId[address(baseSwap)]], balancesBefore[balanceId[address(baseSwap)]] - amount);
         assertEq(balancesAfter[balanceId[kakaroto]], balancesBefore[balanceId[kakaroto]] + amount);
+    }
+
+    function test__handleRefundOrder_not_OPENED() public {
+        bytes32 orderId = bytes32("order1");
+
+        // don't set the order as opened
+
+        deal(address(inputToken), address(baseSwap), 1_000_000, true);
+
+        uint256[] memory balancesBefore = _balances(inputToken);
+
+        baseSwap.handleRefundOrder(orderId);
+
+        uint256[] memory balancesAfter = _balances(inputToken);
+
+        assertEq(baseSwap.orderStatus(orderId), baseSwap.UNKNOWN());
+        assertEq(balancesAfter[balanceId[address(baseSwap)]], balancesBefore[balanceId[address(baseSwap)]]);
+        assertEq(balancesAfter[balanceId[karpincho]], balancesBefore[balanceId[karpincho]]);
     }
 
     function test__resolveOrder_onChain_works() public {
@@ -401,10 +457,162 @@ contract BasicSwap7683Test is BaseTest {
         );
     }
 
-    // TODO test_refund_gasless_work
-    // TODO tests refund reverts
+    function test__resolveOrder_InvalidOrderType() public {
+        bytes32 wrongOrderType = bytes32("wrongOrderType");
+        OrderData memory orderData = prepareOrderData();
+        OnchainCrossChainOrder memory order =
+            _prepareOnchainOrder(OrderEncoder.encode(orderData), orderData.fillDeadline, wrongOrderType);
 
-    // TODO test_resolve_onchain
+        vm.expectRevert(abi.encodeWithSelector(BasicSwap7683.InvalidOrderType.selector, wrongOrderType));
+        baseSwap.resolveOrder(order);
+    }
 
-    // TODO test_resolve_gassless
+    function test__resolveOrder_InvalidOriginDomain() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.originDomain = 0;
+        OnchainCrossChainOrder memory order =
+            _prepareOnchainOrder(OrderEncoder.encode(orderData), orderData.fillDeadline, OrderEncoder.orderDataType());
+
+        vm.expectRevert(abi.encodeWithSelector(BasicSwap7683.InvalidOriginDomain.selector, orderData.originDomain));
+        baseSwap.resolveOrder(order);
+    }
+
+    function test__getOrderId_gasless_works() public view {
+        OrderData memory orderData = prepareOrderData();
+
+        OnchainCrossChainOrder memory order =
+            _prepareOnchainOrder(
+                OrderEncoder.encode(orderData),
+                orderData.fillDeadline,
+                OrderEncoder.orderDataType()
+            );
+
+        assertEq(baseSwap.getOrderId(order), OrderEncoder.id(orderData));
+    }
+
+    function test__getOrderId_onchain_works() public view {
+        OrderData memory orderData = prepareOrderData();
+
+        GaslessCrossChainOrder memory order = _prepareGaslessOrder(OrderEncoder.encode(orderData), 0, 0, 0);
+
+        assertEq(baseSwap.getOrderId(order), OrderEncoder.id(orderData));
+    }
+
+    function test__getOrderId_onchain_InvalidOrderType() public {
+        bytes32 wrongOrderType = bytes32("wrongOrderType");
+
+        OrderData memory orderData = prepareOrderData();
+
+        OnchainCrossChainOrder memory order =
+            _prepareOnchainOrder(
+                OrderEncoder.encode(orderData),
+                orderData.fillDeadline,
+                wrongOrderType
+            );
+
+        vm.expectRevert(abi.encodeWithSelector(BasicSwap7683.InvalidOrderType.selector, wrongOrderType));
+        baseSwap.getOrderId(order);
+    }
+
+    function test__fillOrder_ERC20_works() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.destinationDomain = origin;
+        bytes32 orderId = OrderEncoder.id(orderData);
+        bytes memory originData = OrderEncoder.encode(orderData);
+
+        uint256[] memory balancesBefore = _balances(outputToken);
+
+        vm.startPrank(kakaroto);
+
+        outputToken.approve(address(baseSwap), amount);
+
+        baseSwap.fillOrder(orderId, originData, new bytes(0));
+
+        uint256[] memory balancesAfter = _balances(outputToken);
+
+        assertEq(balancesAfter[balanceId[kakaroto]], balancesBefore[balanceId[kakaroto]] - amount);
+        assertEq(balancesAfter[balanceId[karpincho]], balancesBefore[balanceId[karpincho]] + amount);
+
+        vm.stopPrank();
+    }
+
+    function test__fillOrder_native_works() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.inputToken = TypeCasts.addressToBytes32(address(0));
+        orderData.outputToken = TypeCasts.addressToBytes32(address(0));
+        orderData.destinationDomain = origin;
+        bytes32 orderId = OrderEncoder.id(orderData);
+        bytes memory originData = OrderEncoder.encode(orderData);
+
+        uint256[] memory balancesBefore = _balances();
+
+        vm.startPrank(kakaroto);
+
+        baseSwap.fillOrder{value: amount}(orderId, originData, new bytes(0));
+
+        uint256[] memory balancesAfter = _balances();
+
+        assertEq(balancesAfter[balanceId[kakaroto]], balancesBefore[balanceId[kakaroto]] - amount);
+        assertEq(balancesAfter[balanceId[karpincho]], balancesBefore[balanceId[karpincho]] + amount);
+
+        vm.stopPrank();
+    }
+
+    function test__fillOrder_native_InvalidNativeAmount() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.inputToken = TypeCasts.addressToBytes32(address(0));
+        orderData.outputToken = TypeCasts.addressToBytes32(address(0));
+        orderData.destinationDomain = origin;
+        bytes32 orderId = OrderEncoder.id(orderData);
+        bytes memory originData = OrderEncoder.encode(orderData);
+
+        vm.startPrank(kakaroto);
+
+        vm.expectRevert(Base7683.InvalidNativeAmount.selector);
+        baseSwap.fillOrder{value: amount -1}(orderId, originData, new bytes(0));
+
+        vm.stopPrank();
+    }
+
+    function test__fillOrder_InvalidOrderId() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.destinationDomain = origin;
+        bytes32 orderId = bytes32("wrongId");
+        bytes memory originData = OrderEncoder.encode(orderData);
+
+        vm.startPrank(kakaroto);
+
+        vm.expectRevert(BasicSwap7683.InvalidOrderId.selector);
+        baseSwap.fillOrder(orderId, originData, new bytes(0));
+
+        vm.stopPrank();
+    }
+
+    function test__fillOrder_OrderFillExpired() public {
+        OrderData memory orderData = prepareOrderData();
+        orderData.fillDeadline = uint32(block.timestamp - 1);
+        orderData.destinationDomain = origin;
+        bytes32 orderId = OrderEncoder.id(orderData);
+        bytes memory originData = OrderEncoder.encode(orderData);
+
+        vm.startPrank(kakaroto);
+
+        vm.expectRevert(BasicSwap7683.OrderFillExpired.selector);
+        baseSwap.fillOrder(orderId, originData, new bytes(0));
+
+        vm.stopPrank();
+    }
+
+    function test__fillOrder_InvalidOrderDomain() public {
+        OrderData memory orderData = prepareOrderData();
+        bytes32 orderId = OrderEncoder.id(orderData);
+        bytes memory originData = OrderEncoder.encode(orderData);
+
+        vm.startPrank(kakaroto);
+
+        vm.expectRevert(BasicSwap7683.InvalidOrderDomain.selector);
+        baseSwap.fillOrder(orderId, originData, new bytes(0));
+
+        vm.stopPrank();
+    }
 }
