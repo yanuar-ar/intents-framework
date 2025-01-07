@@ -220,17 +220,9 @@ contract BasicSwap7683Test is BaseTest {
         orderData2.originDomain = destination;
 
         OnchainCrossChainOrder memory order1 =
-            _prepareOnchainOrder(
-                OrderEncoder.encode(orderData1),
-                orderData1.fillDeadline,
-                OrderEncoder.orderDataType()
-            );
+            _prepareOnchainOrder(OrderEncoder.encode(orderData1), orderData1.fillDeadline, OrderEncoder.orderDataType());
         OnchainCrossChainOrder memory order2 =
-            _prepareOnchainOrder(
-                OrderEncoder.encode(orderData2),
-                orderData2.fillDeadline,
-                OrderEncoder.orderDataType()
-            );
+            _prepareOnchainOrder(OrderEncoder.encode(orderData2), orderData2.fillDeadline, OrderEncoder.orderDataType());
 
         bytes32[] memory _orderIds = new bytes32[](2);
         _orderIds[0] = bytes32("order1");
@@ -481,11 +473,7 @@ contract BasicSwap7683Test is BaseTest {
         OrderData memory orderData = prepareOrderData();
 
         OnchainCrossChainOrder memory order =
-            _prepareOnchainOrder(
-                OrderEncoder.encode(orderData),
-                orderData.fillDeadline,
-                OrderEncoder.orderDataType()
-            );
+            _prepareOnchainOrder(OrderEncoder.encode(orderData), orderData.fillDeadline, OrderEncoder.orderDataType());
 
         assertEq(baseSwap.getOrderId(order), OrderEncoder.id(orderData));
     }
@@ -504,11 +492,7 @@ contract BasicSwap7683Test is BaseTest {
         OrderData memory orderData = prepareOrderData();
 
         OnchainCrossChainOrder memory order =
-            _prepareOnchainOrder(
-                OrderEncoder.encode(orderData),
-                orderData.fillDeadline,
-                wrongOrderType
-            );
+            _prepareOnchainOrder(OrderEncoder.encode(orderData), orderData.fillDeadline, wrongOrderType);
 
         vm.expectRevert(abi.encodeWithSelector(BasicSwap7683.InvalidOrderType.selector, wrongOrderType));
         baseSwap.getOrderId(order);
@@ -548,7 +532,7 @@ contract BasicSwap7683Test is BaseTest {
 
         vm.startPrank(kakaroto);
 
-        baseSwap.fillOrder{value: amount}(orderId, originData, new bytes(0));
+        baseSwap.fillOrder{ value: amount }(orderId, originData, new bytes(0));
 
         uint256[] memory balancesAfter = _balances();
 
@@ -569,7 +553,7 @@ contract BasicSwap7683Test is BaseTest {
         vm.startPrank(kakaroto);
 
         vm.expectRevert(Base7683.InvalidNativeAmount.selector);
-        baseSwap.fillOrder{value: amount -1}(orderId, originData, new bytes(0));
+        baseSwap.fillOrder{ value: amount - 1 }(orderId, originData, new bytes(0));
 
         vm.stopPrank();
     }

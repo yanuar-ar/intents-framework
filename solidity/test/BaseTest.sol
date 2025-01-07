@@ -9,6 +9,7 @@ import { IEIP712 } from "@uniswap/permit2/src/interfaces/IEIP712.sol";
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { TypeCasts } from "@hyperlane-xyz/libs/TypeCasts.sol";
+import { InterchainGasPaymaster } from "@hyperlane-xyz/hooks/igp/InterchainGasPaymaster.sol";
 import { IPermit2, ISignatureTransfer } from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 
 import {
@@ -24,6 +25,26 @@ import { OrderData, OrderEncoder } from "../src/libs/OrderEncoder.sol";
 import { Base7683 } from "../src/Base7683.sol";
 
 event Open(bytes32 indexed orderId, ResolvedCrossChainOrder resolvedOrder);
+
+contract TestInterchainGasPaymaster is InterchainGasPaymaster {
+    uint256 public gasPrice = 10;
+
+    constructor() {
+        initialize(msg.sender, msg.sender);
+    }
+
+    function quoteGasPayment(uint32, uint256 gasAmount) public view override returns (uint256) {
+        return gasPrice * gasAmount;
+    }
+
+    function setGasPrice(uint256 _gasPrice) public {
+        gasPrice = _gasPrice;
+    }
+
+    function getDefaultGasUsage() public pure returns (uint256) {
+        return DEFAULT_GAS_USAGE;
+    }
+}
 
 contract BaseTest is Test, DeployPermit2 {
     Base7683 internal _base7683;

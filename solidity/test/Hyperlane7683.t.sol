@@ -13,32 +13,10 @@ import { MockMailbox } from "@hyperlane-xyz/mock/MockMailbox.sol";
 import { MockHyperlaneEnvironment } from "@hyperlane-xyz/mock/MockHyperlaneEnvironment.sol";
 import { TypeCasts } from "@hyperlane-xyz/libs/TypeCasts.sol";
 import { IPostDispatchHook } from "@hyperlane-xyz/interfaces/hooks/IPostDispatchHook.sol";
-import { InterchainGasPaymaster } from "@hyperlane-xyz/hooks/igp/InterchainGasPaymaster.sol";
-import { DeployPermit2 } from "@uniswap/permit2/test/utils/DeployPermit2.sol";
 
-import { BaseTest } from "./BaseTest.sol";
+import { BaseTest, TestInterchainGasPaymaster } from "./BaseTest.sol";
 import { Hyperlane7683 } from "../src/Hyperlane7683.sol";
 import { Hyperlane7683Message } from "../src/libs/Hyperlane7683Message.sol";
-
-contract TestInterchainGasPaymaster is InterchainGasPaymaster {
-    uint256 public gasPrice = 10;
-
-    constructor() {
-        initialize(msg.sender, msg.sender);
-    }
-
-    function quoteGasPayment(uint32, uint256 gasAmount) public view override returns (uint256) {
-        return gasPrice * gasAmount;
-    }
-
-    function setGasPrice(uint256 _gasPrice) public {
-        gasPrice = _gasPrice;
-    }
-
-    function getDefaultGasUsage() public pure returns (uint256) {
-        return DEFAULT_GAS_USAGE;
-    }
-}
 
 contract Hyperlane7683ForTest is Hyperlane7683 {
     bytes32[] public refundedOrderId;
@@ -76,7 +54,9 @@ contract Hyperlane7683ForTest is Hyperlane7683 {
     }
 }
 
-contract Hyperlane7683BaseTest is BaseTest {
+contract Hyperlane7683Test is BaseTest {
+    using TypeCasts for address;
+
     using TypeCasts for address;
 
     MockHyperlaneEnvironment internal environment;
@@ -139,10 +119,6 @@ contract Hyperlane7683BaseTest is BaseTest {
     }
 
     receive() external payable { }
-}
-
-contract Hyperlane7683Test is Hyperlane7683BaseTest {
-    using TypeCasts for address;
 
     modifier enrollRouters() {
         vm.startPrank(owner);

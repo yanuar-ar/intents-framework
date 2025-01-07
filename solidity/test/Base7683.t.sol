@@ -319,12 +319,7 @@ contract Base7683Test is BaseTest {
 
         uint256 permitNonce = 0;
         bytes memory orderData = abi.encode("some order data");
-        GaslessCrossChainOrder memory order = _prepareGaslessOrder(
-            orderData,
-            permitNonce,
-            _openDeadline,
-            _fillDeadline
-        );
+        GaslessCrossChainOrder memory order = _prepareGaslessOrder(orderData, permitNonce, _openDeadline, _fillDeadline);
 
         bytes32 witness = base.witnessHash(base.resolveFor(order, new bytes(0)));
         bytes memory sig =
@@ -363,12 +358,7 @@ contract Base7683Test is BaseTest {
 
         uint256 permitNonce = 0;
         bytes memory orderData = abi.encode("some order data");
-        GaslessCrossChainOrder memory order = _prepareGaslessOrder(
-            orderData,
-            permitNonce,
-            _openDeadline,
-            _fillDeadline
-        );
+        GaslessCrossChainOrder memory order = _prepareGaslessOrder(orderData, permitNonce, _openDeadline, _fillDeadline);
 
         bytes memory sig = new bytes(0);
 
@@ -385,12 +375,7 @@ contract Base7683Test is BaseTest {
 
         uint256 permitNonce = 0;
         bytes memory orderData = abi.encode("some order data");
-        GaslessCrossChainOrder memory order = _prepareGaslessOrder(
-            orderData,
-            permitNonce,
-            _openDeadline,
-            _fillDeadline
-        );
+        GaslessCrossChainOrder memory order = _prepareGaslessOrder(orderData, permitNonce, _openDeadline, _fillDeadline);
 
         order.originSettler = makeAddr("someOtherSettler");
 
@@ -409,12 +394,7 @@ contract Base7683Test is BaseTest {
 
         uint256 permitNonce = 0;
         bytes memory orderData = abi.encode("some order data");
-        GaslessCrossChainOrder memory order = _prepareGaslessOrder(
-            orderData,
-            permitNonce,
-            _openDeadline,
-            _fillDeadline
-        );
+        GaslessCrossChainOrder memory order = _prepareGaslessOrder(orderData, permitNonce, _openDeadline, _fillDeadline);
 
         order.originChainId = 3;
 
@@ -433,12 +413,7 @@ contract Base7683Test is BaseTest {
 
         uint256 permitNonce = 0;
         bytes memory orderData = abi.encode("some order data");
-        GaslessCrossChainOrder memory order = _prepareGaslessOrder(
-            orderData,
-            permitNonce,
-            _openDeadline,
-            _fillDeadline
-        );
+        GaslessCrossChainOrder memory order = _prepareGaslessOrder(orderData, permitNonce, _openDeadline, _fillDeadline);
 
         vm.startPrank(kakaroto);
         base.invalidateNonces(1);
@@ -770,21 +745,11 @@ contract Base7683Test is BaseTest {
 
         bytes memory orderData1 = abi.encode("some order data 1");
         bytes32 orderId1 = keccak256(orderData1);
-        GaslessCrossChainOrder memory order1 = _prepareGaslessOrder(
-            orderData1,
-            permitNonce,
-            openDeadline,
-            fillDeadline
-        );
+        GaslessCrossChainOrder memory order1 = _prepareGaslessOrder(orderData1, permitNonce, openDeadline, fillDeadline);
 
         bytes memory orderData2 = abi.encode("some order data2");
         bytes32 orderId2 = keccak256(orderData2);
-        GaslessCrossChainOrder memory order2 = _prepareGaslessOrder(
-            orderData2,
-            permitNonce,
-            openDeadline,
-            fillDeadline
-        );
+        GaslessCrossChainOrder memory order2 = _prepareGaslessOrder(orderData2, permitNonce, openDeadline, fillDeadline);
 
         vm.startPrank(vegeta);
 
