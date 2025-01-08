@@ -50,7 +50,7 @@ export abstract class BaseFiller<
 
   protected abstract retrieveOriginInfo(
     parsedArgs: TParsedArgs,
-    originChainName: string,
+    chainName: string,
   ): Promise<Array<string>>;
 
   protected abstract retrieveTargetInfo(

@@ -9,16 +9,11 @@ import {
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
 import type { IntentData, OpenEventArgs } from "./types.js";
-import {
-  getChainIdsWithEnoughTokens,
-  log,
-  retrieveOriginInfo,
-  retrieveTargetInfo,
-  settleOrder,
-} from "./utils.js";
+import { getChainIdsWithEnoughTokens, log, settleOrder } from "./utils.js";
 
 import { chainIdsToName, isAllowedIntent } from "../../config/index.js";
 import { BaseFiller } from "../BaseFiller.js";
+import { retrieveOriginInfo, retrieveTargetInfo } from "../utils.js";
 import { allowBlockLists, metadata } from "./config/index.js";
 
 class Hyperlane7683Filler extends BaseFiller<
@@ -34,11 +29,33 @@ class Hyperlane7683Filler extends BaseFiller<
   }
 
   protected async retrieveOriginInfo(parsedArgs: OpenEventArgs) {
-    return retrieveOriginInfo(parsedArgs.resolvedOrder, this.multiProvider);
+    const originTokens = parsedArgs.resolvedOrder.minReceived.map(
+      ({ amount, chainId, token }) => {
+        const tokenAddress = bytes32ToAddress(token);
+        const chainName = chainIdsToName[chainId.toString()];
+        return { amount, chainName, tokenAddress };
+      },
+    );
+
+    return retrieveOriginInfo({
+      multiProvider: this.multiProvider,
+      tokens: originTokens,
+    });
   }
 
   protected async retrieveTargetInfo(parsedArgs: OpenEventArgs) {
-    return retrieveTargetInfo(parsedArgs.resolvedOrder, this.multiProvider);
+    const targetTokens = parsedArgs.resolvedOrder.maxSpent.map(
+      ({ amount, chainId, token }) => {
+        const tokenAddress = bytes32ToAddress(token);
+        const chainName = chainIdsToName[chainId.toString()];
+        return { amount, chainName, tokenAddress };
+      },
+    );
+
+    return retrieveTargetInfo({
+      multiProvider: this.multiProvider,
+      tokens: targetTokens,
+    });
   }
 
   protected async prepareIntent(

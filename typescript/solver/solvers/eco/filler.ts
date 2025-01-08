@@ -12,14 +12,10 @@ import {
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { EcoAdapter__factory } from "../../typechain/factories/eco/contracts/EcoAdapter__factory.js";
 import { BaseFiller } from "../BaseFiller.js";
+import { retrieveOriginInfo, retrieveTargetInfo } from "../utils.js";
 import { allowBlockLists, metadata } from "./config/index.js";
 import type { EcoMetadata, IntentData, ParsedArgs } from "./types.js";
-import {
-  log,
-  retrieveOriginInfo,
-  retrieveTargetInfo,
-  withdrawRewards,
-} from "./utils.js";
+import { log, withdrawRewards } from "./utils.js";
 
 export class EcoFiller extends BaseFiller<
   {
@@ -36,19 +32,36 @@ export class EcoFiller extends BaseFiller<
     super(multiProvider, ecoFillerMetadata, log);
   }
 
-  protected retrieveOriginInfo(
-    parsedArgs: ParsedArgs,
-    originChainName: string,
-  ) {
-    return retrieveOriginInfo(parsedArgs, originChainName, this.multiProvider);
+  protected retrieveOriginInfo(parsedArgs: ParsedArgs, chainName: string) {
+    const originTokens = parsedArgs._rewardTokens.map((tokenAddress, index) => {
+      const amount = parsedArgs._rewardAmounts[index];
+      return { amount, chainName, tokenAddress };
+    });
+
+    return retrieveOriginInfo({
+      multiProvider: this.multiProvider,
+      tokens: originTokens,
+    });
   }
 
   protected retrieveTargetInfo(parsedArgs: ParsedArgs) {
-    return retrieveTargetInfo(
-      parsedArgs,
-      this.metadata.adapters,
-      this.multiProvider,
-    );
+    const chainId = parsedArgs._destinationChain.toString();
+    const chainName = chainIdsToName[chainId];
+    const erc20Interface = Erc20__factory.createInterface();
+
+    const targetTokens = parsedArgs._targets.map((tokenAddress, index) => {
+      const [, amount] = erc20Interface.decodeFunctionData(
+        "transfer",
+        parsedArgs._data[index],
+      ) as [string, BigNumber];
+
+      return { amount, chainName, tokenAddress };
+    });
+
+    return retrieveTargetInfo({
+      multiProvider: this.multiProvider,
+      tokens: targetTokens,
+    });
   }
 
   protected async prepareIntent(
