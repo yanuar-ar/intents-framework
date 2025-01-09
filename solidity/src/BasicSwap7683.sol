@@ -308,17 +308,19 @@ abstract contract BasicSwap7683 is Base7683 {
             originData: OrderEncoder.encode(orderData)
         });
 
+        orderId = OrderEncoder.id(orderData);
+
         resolvedOrder = ResolvedCrossChainOrder({
             user: _sender,
             originChainId: _localDomain(),
             openDeadline: _openDeadline,
             fillDeadline: _fillDeadline,
+            orderId: orderId,
             minReceived: minReceived,
             maxSpent: maxSpent,
             fillInstructions: fillInstructions
         });
 
-        orderId = OrderEncoder.id(orderData);
         nonce = orderData.senderNonce;
     }
 

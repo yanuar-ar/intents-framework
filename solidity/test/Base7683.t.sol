@@ -120,17 +120,19 @@ contract Base7683ForTest is Base7683, StdCheats {
             originData: _orderData
         });
 
+        orderId = keccak256("someId");
+
         resolvedOrder = ResolvedCrossChainOrder({
             user: _sender,
             originChainId: _origin,
             openDeadline: _openDeadline,
             fillDeadline: _fillDeadline,
+            orderId: orderId,
             minReceived: minReceived,
             maxSpent: maxSpent,
             fillInstructions: fillInstructions
         });
 
-        orderId = keccak256("someId");
         nonce = 1;
     }
 
