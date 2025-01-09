@@ -15,7 +15,7 @@ export { LOG_FORMAT, LOG_LEVEL, MNEMONIC, PRIVATE_KEY };
 
 type GenericAllowBlockListItem = z.infer<typeof ConfigSchema>;
 
-type GenericAllowBlockLists = {
+export type GenericAllowBlockLists = {
   allowList: GenericAllowBlockListItem[];
   blockList: GenericAllowBlockListItem[];
 };

@@ -1,5 +1,9 @@
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import type { Result } from "@hyperlane-xyz/utils";
+import {
+  type GenericAllowBlockLists,
+  isAllowedIntent,
+} from "../config/index.js";
 import type { Logger } from "../logger.js";
 
 type Metadata = {
@@ -8,6 +12,11 @@ type Metadata = {
 
 type ParsedArgs = {
   orderId: string;
+  senderAddress: string;
+  recipients: Array<{
+    destinationChainName: string;
+    recipientAddress: string;
+  }>;
 };
 
 export abstract class BaseFiller<
@@ -17,6 +26,7 @@ export abstract class BaseFiller<
 > {
   protected constructor(
     readonly multiProvider: MultiProvider,
+    readonly allowBlockLists: GenericAllowBlockLists,
     readonly metadata: TMetadata,
     readonly log: Logger,
   ) {}
@@ -57,9 +67,26 @@ export abstract class BaseFiller<
     parsedArgs: TParsedArgs,
   ): Promise<Array<string>>;
 
-  protected abstract prepareIntent(
+  protected async prepareIntent(
     parsedArgs: TParsedArgs,
-  ): Promise<Result<TIntentData>>;
+  ): Promise<Result<TIntentData>> {
+    this.log.info({
+      msg: "Evaluating filling Intent",
+      intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
+    });
+
+    const { senderAddress, recipients } = parsedArgs;
+
+    if (!this.isAllowedIntent({ senderAddress, recipients })) {
+      return {
+        error: "Not allowed intent",
+        success: false,
+      };
+    }
+
+    return { error: "Not implemented", success: false };
+  }
+
 
   protected abstract fill(
     parsedArgs: TParsedArgs,
@@ -69,5 +96,24 @@ export abstract class BaseFiller<
 
   protected async settleOrder(parsedArgs: TParsedArgs, data: TIntentData) {
     return;
+  }
+
+  protected isAllowedIntent({
+    senderAddress,
+    recipients,
+  }: {
+    senderAddress: string;
+    recipients: Array<{
+      destinationChainName: string;
+      recipientAddress: string;
+    }>;
+  }) {
+    return recipients.every(({ destinationChainName, recipientAddress }) =>
+      isAllowedIntent(this.allowBlockLists, {
+        senderAddress,
+        destinationDomain: destinationChainName,
+        recipientAddress,
+      }),
+    );
   }
 }
