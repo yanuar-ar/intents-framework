@@ -1,5 +1,5 @@
 import { AddressZero } from "@ethersproject/constants";
-import { type MultiProvider } from "@hyperlane-xyz/sdk";
+import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import {
   addressToBytes32,
   bytes32ToAddress,
@@ -11,7 +11,7 @@ import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/
 import type { IntentData, OpenEventArgs } from "./types.js";
 import { getChainIdsWithEnoughTokens, log, settleOrder } from "./utils.js";
 
-import { chainIdsToName, isAllowedIntent } from "../../config/index.js";
+import { chainIdsToName } from "../../config/index.js";
 import { BaseFiller } from "../BaseFiller.js";
 import { retrieveOriginInfo, retrieveTargetInfo } from "../utils.js";
 import { allowBlockLists, metadata } from "./config/index.js";
@@ -25,7 +25,7 @@ class Hyperlane7683Filler extends BaseFiller<
     const { protocolName } = metadata;
     const hyperlane7683FillerMetadata = { protocolName };
 
-    super(multiProvider, hyperlane7683FillerMetadata, log);
+    super(multiProvider, allowBlockLists, hyperlane7683FillerMetadata, log);
   }
 
   protected async retrieveOriginInfo(parsedArgs: OpenEventArgs) {
@@ -61,27 +61,9 @@ class Hyperlane7683Filler extends BaseFiller<
   protected async prepareIntent(
     parsedArgs: OpenEventArgs,
   ): Promise<Result<IntentData>> {
-    this.log.info({
-      msg: "Evaluating filling Intent",
-      intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
-    });
+    await super.prepareIntent(parsedArgs);
 
     try {
-      if (
-        !parsedArgs.resolvedOrder.maxSpent.every((maxSpent) =>
-          isAllowedIntent(allowBlockLists, {
-            senderAddress: parsedArgs.resolvedOrder.user,
-            destinationDomain: chainIdsToName[maxSpent.chainId.toString()],
-            recipientAddress: maxSpent.recipient,
-          }),
-        )
-      ) {
-        return {
-          error: "Not allowed intent",
-          success: false,
-        };
-      }
-
       const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(
         parsedArgs.resolvedOrder,
         this.multiProvider,
@@ -117,8 +99,7 @@ class Hyperlane7683Filler extends BaseFiller<
       return { data: { fillInstructions, maxSpent }, success: true };
     } catch (error: any) {
       return {
-        error:
-          error.message ?? "Failed find chain IDs with enough tokens to fill.",
+        error: error.message ?? "Failed to prepare Hyperlane7683 Intent.",
         success: false,
       };
     }
