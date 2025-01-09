@@ -4,11 +4,7 @@ import { type Result } from "@hyperlane-xyz/utils";
 
 import { type BigNumber } from "ethers";
 
-import {
-  chainIds,
-  chainIdsToName,
-  isAllowedIntent,
-} from "../../config/index.js";
+import { chainIds, chainIdsToName } from "../../config/index.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { EcoAdapter__factory } from "../../typechain/factories/eco/contracts/EcoAdapter__factory.js";
 import { BaseFiller } from "../BaseFiller.js";
@@ -17,19 +13,28 @@ import { allowBlockLists, metadata } from "./config/index.js";
 import type { EcoMetadata, IntentData, ParsedArgs } from "./types.js";
 import { log, withdrawRewards } from "./utils.js";
 
-export class EcoFiller extends BaseFiller<
-  {
-    adapters: EcoMetadata["adapters"];
-    protocolName: EcoMetadata["protocolName"];
-  },
-  ParsedArgs,
-  IntentData
-> {
+type Metadata = {
+  adapters: { [chainId: string]: EcoMetadata["adapters"][number] };
+  protocolName: EcoMetadata["protocolName"];
+};
+
+export class EcoFiller extends BaseFiller<Metadata, ParsedArgs, IntentData> {
   constructor(multiProvider: MultiProvider) {
     const { adapters, protocolName } = metadata;
-    const ecoFillerMetadata = { adapters, protocolName };
+    const ecoFillerMetadata = {
+      adapters: adapters.reduce<{
+        [chainId: string]: EcoMetadata["adapters"][number];
+      }>(
+        (acc, adapter) => ({
+          ...acc,
+          [chainIds[adapter.chainName]]: adapter,
+        }),
+        {},
+      ),
+      protocolName,
+    };
 
-    super(multiProvider, ecoFillerMetadata, log);
+    super(multiProvider, allowBlockLists, ecoFillerMetadata, log);
   }
 
   protected retrieveOriginInfo(parsedArgs: ParsedArgs, chainName: string) {
@@ -53,7 +58,7 @@ export class EcoFiller extends BaseFiller<
       const [, amount] = erc20Interface.decodeFunctionData(
         "transfer",
         parsedArgs._data[index],
-      ) as [string, BigNumber];
+      ) as [unknown, BigNumber];
 
       return { amount, chainName, tokenAddress };
     });
@@ -67,69 +72,39 @@ export class EcoFiller extends BaseFiller<
   protected async prepareIntent(
     parsedArgs: ParsedArgs,
   ): Promise<Result<IntentData>> {
-    this.log.info({
-      msg: "Evaluating filling Intent",
-      intent: `${this.metadata.protocolName}-${parsedArgs._hash}`,
-    });
+    const adapter =
+      this.metadata.adapters[parsedArgs._destinationChain.toString()];
+
+    if (!adapter) {
+      return {
+        error: "No adapter found for destination chain",
+        success: false,
+      };
+    }
+
+    await super.prepareIntent(parsedArgs);
 
     try {
-      const destinationChainId = parsedArgs._destinationChain.toNumber();
-      const adapter = this.metadata.adapters.find(
-        ({ chainName }) => chainIds[chainName] === destinationChainId,
-      );
-
-      if (!adapter) {
-        return {
-          error: "No adapter found for destination chain",
-          success: false,
-        };
-      }
-
-      const signer = this.multiProvider.getSigner(destinationChainId);
       const erc20Interface = Erc20__factory.createInterface();
 
-      const { requiredAmountsByTarget, receivers } =
-        parsedArgs._targets.reduce<{
-          requiredAmountsByTarget: { [tokenAddress: string]: BigNumber };
-          receivers: string[];
-        }>(
-          (acc, target, index) => {
-            const [receiver, amount] = erc20Interface.decodeFunctionData(
-              "transfer",
-              parsedArgs._data[index],
-            ) as [string, BigNumber];
+      const requiredAmountsByTarget = parsedArgs._targets.reduce<{
+        [tokenAddress: string]: BigNumber;
+      }>((acc, target, index) => {
+        const [, amount] = erc20Interface.decodeFunctionData(
+          "transfer",
+          parsedArgs._data[index],
+        ) as [unknown, BigNumber];
 
-            acc.requiredAmountsByTarget[target] ||= Zero;
-            acc.requiredAmountsByTarget[target] =
-              acc.requiredAmountsByTarget[target].add(amount);
+        acc[target] ||= Zero;
+        acc[target] = acc[target].add(amount);
 
-            acc.receivers.push(receiver);
+        return acc;
+      }, {});
 
-            return acc;
-          },
-          {
-            requiredAmountsByTarget: {},
-            receivers: [],
-          },
-        );
-
-      if (
-        !receivers.every((recipientAddress) =>
-          isAllowedIntent(allowBlockLists, {
-            senderAddress: parsedArgs._creator,
-            destinationDomain: chainIdsToName[destinationChainId.toString()],
-            recipientAddress,
-          }),
-        )
-      ) {
-        return {
-          error: "Not allowed intent",
-          success: false,
-        };
-      }
-
-      const fillerAddress =
-        await this.multiProvider.getSignerAddress(destinationChainId);
+      const fillerAddress = await this.multiProvider.getSignerAddress(
+        adapter.chainName,
+      );
+      const signer = this.multiProvider.getSigner(adapter.chainName);
 
       const areTargetFundsAvailable = await Promise.all(
         Object.entries(requiredAmountsByTarget).map(

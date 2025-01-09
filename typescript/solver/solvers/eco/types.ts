@@ -28,4 +28,9 @@ export type IntentData = { adapter: EcoMetadata["adapters"][number] };
 
 export type ParsedArgs = IntentCreatedEventObject & {
   orderId: string;
+  senderAddress: IntentCreatedEventObject["_creator"];
+  recipients: Array<{
+    destinationChainName: string;
+    recipientAddress: string;
+  }>;
 };
