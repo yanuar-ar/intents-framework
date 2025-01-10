@@ -19,17 +19,31 @@ type ParsedArgs = {
   }>;
 };
 
+export type Rule<
+  TMetadata extends Metadata,
+  TParsedArgs extends ParsedArgs,
+  TIntentData extends unknown,
+> = (
+  parsedArgs: TParsedArgs,
+  context: BaseFiller<TMetadata, TParsedArgs, TIntentData>,
+) => Promise<Result<string>>;
+
 export abstract class BaseFiller<
   TMetadata extends Metadata,
   TParsedArgs extends ParsedArgs,
   TIntentData extends unknown,
 > {
+  rules: Array<Rule<TMetadata, TParsedArgs, TIntentData>> = [];
+
   protected constructor(
     readonly multiProvider: MultiProvider,
     readonly allowBlockLists: GenericAllowBlockLists,
     readonly metadata: TMetadata,
     readonly log: Logger,
-  ) {}
+    rules?: Array<Rule<TMetadata, TParsedArgs, TIntentData>>,
+  ) {
+    if (rules) this.rules = rules;
+  }
 
   create() {
     return async (parsedArgs: TParsedArgs, originChainName: string) => {
@@ -84,9 +98,28 @@ export abstract class BaseFiller<
       };
     }
 
+    const result = await this.evaluateRules(parsedArgs);
+
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+
     return { error: "Not implemented", success: false };
   }
 
+  protected async evaluateRules(parsedArgs: TParsedArgs) {
+    let result: Result<string> = { success: true, data: "No rules" };
+
+    for (const rule of this.rules) {
+      result = await rule(parsedArgs, this);
+
+      if (!result.success) {
+        break;
+      }
+    }
+
+    return result;
+  }
 
   protected abstract fill(
     parsedArgs: TParsedArgs,

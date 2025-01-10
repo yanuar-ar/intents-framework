@@ -1,4 +1,5 @@
-import { AddressZero } from "@ethersproject/constants";
+import type { BigNumber } from "@ethersproject/bignumber";
+import { AddressZero, Zero } from "@ethersproject/constants";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import {
   addressToBytes32,
@@ -9,23 +10,42 @@ import {
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
 import type { IntentData, OpenEventArgs } from "./types.js";
-import { getChainIdsWithEnoughTokens, log, settleOrder } from "./utils.js";
+import { log, settleOrder } from "./utils.js";
 
 import { chainIdsToName } from "../../config/index.js";
 import { BaseFiller } from "../BaseFiller.js";
-import { retrieveOriginInfo, retrieveTargetInfo } from "../utils.js";
+import {
+  retrieveOriginInfo,
+  retrieveTargetInfo,
+  retrieveTokenBalance,
+} from "../utils.js";
 import { allowBlockLists, metadata } from "./config/index.js";
 
+export type Metadata = {
+  protocolName: string;
+};
+
+export type Hyperlane7683Rule = Hyperlane7683Filler["rules"][number];
+
 class Hyperlane7683Filler extends BaseFiller<
-  { protocolName: string },
+  Metadata,
   OpenEventArgs,
   IntentData
 > {
-  constructor(multiProvider: MultiProvider) {
+  constructor(
+    multiProvider: MultiProvider,
+    rules?: BaseFiller<Metadata, OpenEventArgs, IntentData>["rules"],
+  ) {
     const { protocolName } = metadata;
     const hyperlane7683FillerMetadata = { protocolName };
 
-    super(multiProvider, allowBlockLists, hyperlane7683FillerMetadata, log);
+    super(
+      multiProvider,
+      allowBlockLists,
+      hyperlane7683FillerMetadata,
+      log,
+      rules,
+    );
   }
 
   protected async retrieveOriginInfo(parsedArgs: OpenEventArgs) {
@@ -61,40 +81,10 @@ class Hyperlane7683Filler extends BaseFiller<
   protected async prepareIntent(
     parsedArgs: OpenEventArgs,
   ): Promise<Result<IntentData>> {
-    await super.prepareIntent(parsedArgs);
+    const { fillInstructions, maxSpent } = parsedArgs.resolvedOrder;
 
     try {
-      const chainIdsWithEnoughTokens = await getChainIdsWithEnoughTokens(
-        parsedArgs.resolvedOrder,
-        this.multiProvider,
-      );
-
-      this.log.debug({
-        msg: "Chain IDs with enough tokens",
-        protocolName: this.metadata.protocolName,
-        chainIdsWithEnoughTokens,
-      });
-
-      const fillInstructions = parsedArgs.resolvedOrder.fillInstructions.filter(
-        ({ destinationChainId }) =>
-          chainIdsWithEnoughTokens.includes(destinationChainId.toString()),
-      );
-
-      this.log.debug({
-        msg: "Fill instructions",
-        protocolName: this.metadata.protocolName,
-        fillInstructions: JSON.stringify(fillInstructions),
-      });
-
-      const maxSpent = parsedArgs.resolvedOrder.maxSpent.filter(({ chainId }) =>
-        chainIdsWithEnoughTokens.includes(chainId.toString()),
-      );
-
-      this.log.debug({
-        msg: "Max spent",
-        protocolName: this.metadata.protocolName,
-        maxSpent: JSON.stringify(maxSpent),
-      });
+      await super.prepareIntent(parsedArgs);
 
       return { data: { fillInstructions, maxSpent }, success: true };
     } catch (error: any) {
@@ -222,5 +212,58 @@ class Hyperlane7683Filler extends BaseFiller<
   }
 }
 
-export const create = (multiProvider: MultiProvider) =>
-  new Hyperlane7683Filler(multiProvider).create();
+const enoughBalanceOnDestination: Hyperlane7683Rule = async (
+  parsedArgs,
+  context,
+) => {
+  const amountByTokenByChain = parsedArgs.resolvedOrder.maxSpent.reduce<{
+    [chainId: number]: { [token: string]: BigNumber };
+  }>((acc, { token, ...output }) => {
+    token = bytes32ToAddress(token);
+    const chainId = output.chainId.toNumber();
+
+    acc[chainId] ||= { [token]: Zero };
+    acc[chainId][token] ||= Zero;
+
+    acc[chainId][token] = acc[chainId][token].add(output.amount);
+
+    return acc;
+  }, {});
+
+  for (const chainId in amountByTokenByChain) {
+    const chainTokens = amountByTokenByChain[chainId];
+    const fillerAddress = await context.multiProvider.getSignerAddress(chainId);
+    const provider = context.multiProvider.getProvider(chainId);
+
+    for (const tokenAddress in chainTokens) {
+      const amount = chainTokens[tokenAddress];
+      const balance = await retrieveTokenBalance(
+        tokenAddress,
+        fillerAddress,
+        provider,
+      );
+
+      if (balance.lt(amount)) {
+        return {
+          error: `Insufficient balance on destination chain ${chainId}, for ${tokenAddress}`,
+          success: false,
+        };
+      }
+    }
+  }
+
+  return { data: "Enough tokens to fulfill the intent", success: true };
+};
+
+export const create = (
+  multiProvider: MultiProvider,
+  rules?: Hyperlane7683Filler["rules"],
+  keepBaseRules = true,
+) => {
+  const customRules = rules ?? [];
+
+  return new Hyperlane7683Filler(
+    multiProvider,
+    keepBaseRules ? [enoughBalanceOnDestination, ...customRules] : customRules,
+  ).create();
+};

@@ -1,4 +1,5 @@
-import { BigNumber } from "@ethersproject/bignumber";
+import type { Provider } from "@ethersproject/abstract-provider";
+import type { BigNumber } from "@ethersproject/bignumber";
 import { isHexString } from "@ethersproject/bytes";
 import { AddressZero } from "@ethersproject/constants";
 import { formatUnits } from "@ethersproject/units";
@@ -132,4 +133,17 @@ export async function retrieveTargetInfo({
     ({ amount, chainName, decimals, symbol }) =>
       `${formatUnits(amount, decimals)} ${symbol} out on ${chainName}`,
   );
+}
+
+export function retrieveTokenBalance(
+  tokenAddress: string,
+  ownerAddress: string,
+  provider: Provider,
+) {
+  if (tokenAddress === AddressZero) {
+    return provider.getBalance(ownerAddress);
+  }
+
+  const erc20 = Erc20__factory.connect(tokenAddress, provider);
+  return erc20.balanceOf(ownerAddress);
 }
