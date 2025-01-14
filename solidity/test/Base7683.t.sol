@@ -65,7 +65,7 @@ contract Base7683ForTest is Base7683, StdCheats {
         counterpart = _counterpart;
     }
 
-    function _resolveOrder(GaslessCrossChainOrder memory order)
+    function _resolveOrder(GaslessCrossChainOrder memory order, bytes calldata)
         internal
         view
         override
@@ -228,17 +228,19 @@ contract Base7683ForTestNative is Base7683ForTest {
             originData: _orderData
         });
 
+        orderId = keccak256("someId");
+
         resolvedOrder = ResolvedCrossChainOrder({
             user: _sender,
             originChainId: _origin,
             openDeadline: _openDeadline,
             fillDeadline: _fillDeadline,
+            orderId: orderId,
             minReceived: minReceived,
             maxSpent: maxSpent,
             fillInstructions: fillInstructions
         });
 
-        orderId = keccak256("someId");
         nonce = 1;
     }
 }

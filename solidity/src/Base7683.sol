@@ -134,12 +134,12 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
      * @dev This method must emit the Open event
      * @param _order The GaslessCrossChainOrder definition
      * @param _signature The user's signature over the order
-     * NOT USED originFillerData Any filler-defined data required by the settler
+     * @param _originFillerData Any filler-defined data required by the settler
      */
     function openFor(
         GaslessCrossChainOrder calldata _order,
         bytes calldata _signature,
-        bytes calldata
+        bytes calldata _originFillerData
     )
         external
         virtual
@@ -148,7 +148,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         if (_order.originSettler != address(this)) revert InvalidGaslessOrderSettler();
         if (_order.originChainId != _localDomain()) revert InvalidGaslessOrderOrigin();
 
-        (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(_order);
+        (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(_order, _originFillerData);
 
         orders[orderId] = abi.encode(resolvedOrder);
         orderStatus[orderId] = OPENED;
@@ -196,14 +196,14 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
      */
     function resolveFor(
         GaslessCrossChainOrder calldata _order,
-        bytes calldata
+        bytes calldata _originFillerData
     )
         public
         view
         virtual
         returns (ResolvedCrossChainOrder memory _resolvedOrder)
     {
-        (_resolvedOrder,,) = _resolveOrder(_order);
+        (_resolvedOrder,,) = _resolveOrder(_order, _originFillerData);
     }
 
     /**
@@ -429,11 +429,12 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
      * @notice Resolves a GaslessCrossChainOrder into a ResolvedCrossChainOrder.
      * @dev To be implemented by the inheriting contract. Contains logic specific to the order type and data.
      * @param _order The GaslessCrossChainOrder to resolve.
+     * @param _originFillerData Any filler-defined data required by the settler
      * @return _resolvedOrder A ResolvedCrossChainOrder with hydrated data.
      * @return _orderId The unique identifier for the order.
      * @return _nonce The nonce associated with the order.
      */
-    function _resolveOrder(GaslessCrossChainOrder memory _order)
+    function _resolveOrder(GaslessCrossChainOrder memory _order, bytes calldata _originFillerData)
         internal
         view
         virtual
