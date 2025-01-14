@@ -49,8 +49,6 @@ contract Hyperlane7683 is GasRouter, BasicSwap7683 {
         _MailboxClient_initialize(_customHook, _interchainSecurityModule, _owner);
     }
 
-    // ============ External Functions ============
-
     // ============ Internal Functions ============
 
     /**

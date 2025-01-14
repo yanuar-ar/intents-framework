@@ -29,7 +29,11 @@ library Hyperlane7683Message {
      * @param _message The interchain message
      * @return The array of calls
      */
-    function decode(bytes calldata _message) internal pure returns (bool, bytes32[] memory, bytes[] memory) {
+    function decode(bytes calldata _message)
+        internal
+        pure
+        returns (bool, bytes32[] memory, bytes[] memory)
+    {
         return abi.decode(_message, (bool, bytes32[], bytes[]));
     }
 
@@ -44,7 +48,13 @@ library Hyperlane7683Message {
         return encode(true, _orderIds, _ordersFillerData);
     }
 
-    function encodeRefund(bytes32[] memory _orderIds) internal pure returns (bytes memory) {
+    function encodeRefund(
+        bytes32[] memory _orderIds
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return encode(false, _orderIds, new bytes[](0));
     }
 }
