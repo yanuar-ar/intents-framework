@@ -10,7 +10,9 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Hyperlane7683 } from "../src/Hyperlane7683.sol";
 import { OrderData, OrderEncoder } from "../src/libs/OrderEncoder.sol";
 
-import { OnchainCrossChainOrder } from "../src/ERC7683/IERC7683.sol";
+import {
+    OnchainCrossChainOrder
+} from "../src/ERC7683/IERC7683.sol";
 
 /// @dev See the Solidity Scripting tutorial: https://book.getfoundry.sh/tutorials/solidity-scripting
 contract OpenOrder is Script {
@@ -48,8 +50,11 @@ contract OpenOrder is Script {
             new bytes(0)
         );
 
-        OnchainCrossChainOrder memory onchainOrder =
-            OnchainCrossChainOrder(fillDeadline, OrderEncoder.orderDataType(), OrderEncoder.encode(order));
+        OnchainCrossChainOrder memory onchainOrder = OnchainCrossChainOrder(
+            fillDeadline,
+            OrderEncoder.orderDataType(),
+            OrderEncoder.encode(order)
+        );
 
         Hyperlane7683(localRouter).open(onchainOrder);
 
