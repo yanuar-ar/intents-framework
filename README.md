@@ -1,4 +1,18 @@
+<p align="center">
+    <a href="https://bootnode.dev">
+      <img src="https://www.bootnode.dev/external/github-headers/Intents.png" alt="bootnode anon voting banner">
+    </a>
+</p>
+
+<div align="center"><strong>Interpret and execute user intents</strong></div>
+<div align="center">A suite of smart contracts, solvers, and UI for decentralized intent management.</div>
+<br />
+
 # Intents Framework
+[![License: MIT][license-badge]][license]
+
+[license]: https://www.apache.org/licenses/LICENSE-2.0
+[license-badge]: https://img.shields.io/badge/License-Apache-blue.svg
 
 ## Description
 
