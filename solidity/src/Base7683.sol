@@ -352,18 +352,6 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     // ============ Internal Functions ============
 
     /**
-     * @notice Computes the index of the bitmap and the bit position within the bitmap for a given nonce.
-     * @dev Used for unordered nonces to map a nonce to a specific word and bit position.
-     * @param _nonce The nonce to derive the word and bit positions.
-     * @return _wordPos The index of the bitmap in the nonce mapping.
-     * @return _bitPos The bit position within the bitmap word.
-     */
-    function bitmapPositions(uint256 _nonce) private pure returns (uint256 _wordPos, uint256 _bitPos) {
-        _wordPos = uint248(_nonce >> 8);
-        _bitPos = uint8(_nonce);
-    }
-
-    /**
      * @notice Marks a nonce as used by setting its bit in the appropriate bitmap.
      * @dev Ensures that a nonce cannot be reused by flipping the corresponding bit in the bitmap.
      * Reverts if the nonce is already used.
