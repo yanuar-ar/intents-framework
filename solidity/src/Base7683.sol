@@ -59,8 +59,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
     // ============ Public Storage ============
 
-    /// @notice Tracks the bitmap of used nonces for each address.
-    mapping(address => mapping(uint256 => uint256)) public nonceBitmap;
+    /// @notice Tracks the used nonces for each address.
+    mapping(address => mapping(uint256 => bool)) public usedNonces;
 
     /// @notice Stores the resolved orders by their ID.
     mapping(bytes32 orderId => bytes resolvedOrder) public orders;
@@ -324,10 +324,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
      * @return isValid True if the nonce is valid, false otherwise.
      */
     function isValidNonce(address _from, uint256 _nonce) external view virtual returns (bool) {
-        (uint256 wordPos, uint256 bitPos) = bitmapPositions(_nonce);
-        uint256 bit = 1 << bitPos;
-
-        return nonceBitmap[_from][wordPos] & bit == 0;
+        return !usedNonces[_from][_nonce];
     }
 
     // ============ Public Functions ============
@@ -374,11 +371,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
      * @param _nonce The nonce to mark as used.
      */
     function _useNonce(address _from, uint256 _nonce) internal {
-        (uint256 wordPos, uint256 bitPos) = bitmapPositions(_nonce);
-        uint256 bit = 1 << bitPos;
-        uint256 flipped = nonceBitmap[_from][wordPos] ^= bit;
-
-        if (flipped & bit == 0) revert InvalidNonce();
+        if (usedNonces[_from][_nonce]) revert InvalidNonce();
+        usedNonces[_from][_nonce] = true;
     }
 
     /**
