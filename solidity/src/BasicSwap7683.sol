@@ -212,11 +212,12 @@ abstract contract BasicSwap7683 is Base7683 {
     /**
      * @dev Resolves a GaslessCrossChainOrder.
      * @param _order The GaslessCrossChainOrder to resolve.
+     * NOT USED _originFillerData Any filler-defined data required by the settler
      * @return A ResolvedCrossChainOrder structure.
      * @return The order ID.
      * @return The order nonce.
      */
-    function _resolveOrder(GaslessCrossChainOrder memory _order)
+    function _resolveOrder(GaslessCrossChainOrder memory _order, bytes calldata)
         internal
         view
         virtual

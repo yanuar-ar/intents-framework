@@ -62,12 +62,12 @@ contract BasicSwap7683ForTest is BasicSwap7683 {
         _refundOrders(_orders, _orderIds);
     }
 
-    function resolveOrder(GaslessCrossChainOrder memory order)
+    function resolveOrder(GaslessCrossChainOrder memory order, bytes calldata _dummy)
         public
         view
         returns (ResolvedCrossChainOrder memory, bytes32 orderId, uint256 nonce)
     {
-        return _resolveOrder(order);
+        return _resolveOrder(order, _dummy);
     }
 
     function resolveOrder(OnchainCrossChainOrder memory order)
@@ -433,7 +433,7 @@ contract BasicSwap7683Test is BaseTest {
             OrderEncoder.encode(orderData), permitNonce, uint32(block.timestamp + 10), orderData.fillDeadline
         );
 
-        (ResolvedCrossChainOrder memory rOrder,,) = baseSwap.resolveOrder(order);
+        (ResolvedCrossChainOrder memory rOrder,,) = baseSwap.resolveOrder(order, new bytes(0));
 
         _assertResolvedOrder(
             rOrder,

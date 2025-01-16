@@ -72,7 +72,7 @@ contract Base7683ForTest is Base7683, StdCheats {
         counterpart = _counterpart;
     }
 
-    function _resolveOrder(GaslessCrossChainOrder memory order)
+    function _resolveOrder(GaslessCrossChainOrder memory order, bytes calldata)
         internal
         view
         override
@@ -184,6 +184,71 @@ contract Base7683ForTest is Base7683, StdCheats {
 
     function localDomain() public view returns (uint32) {
         return _localDomain();
+    }
+}
+
+contract Base7683ForTestNative is Base7683ForTest {
+    constructor(
+        address _permit2,
+        uint32 _local,
+        uint32 _remote,
+        address _inputToken,
+        address _outputToken
+    )
+        Base7683ForTest(_permit2, _local, _remote, _inputToken, _outputToken)
+    { }
+
+    function _resolvedOrder(
+        address _sender,
+        uint32 _openDeadline,
+        uint32 _fillDeadline,
+        bytes memory _orderData
+    )
+        internal
+        view
+        override
+        returns (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce)
+    {
+        // this can be used by the filler to approve the tokens to be spent on destination
+        Output[] memory maxSpent = new Output[](1);
+        maxSpent[0] = Output({
+            token: TypeCasts.addressToBytes32(address(0)),
+            amount: 100,
+            recipient: counterpart,
+            chainId: _destination
+        });
+
+        // this can be used by the filler know how much it can expect to receive
+        Output[] memory minReceived = new Output[](1);
+        minReceived[0] = Output({
+            token: TypeCasts.addressToBytes32(address(0)),
+            amount: 100,
+            recipient: bytes32(0),
+            chainId: _origin
+        });
+
+        // this can be user by the filler to know how to fill the order
+        FillInstruction[] memory fillInstructions = new FillInstruction[](1);
+        fillInstructions[0] = FillInstruction({
+            destinationChainId: _destination,
+            destinationSettler: counterpart,
+            originData: _orderData
+        });
+
+        orderId = keccak256("someId");
+
+        resolvedOrder = ResolvedCrossChainOrder({
+            user: _sender,
+            originChainId: _origin,
+            openDeadline: _openDeadline,
+            fillDeadline: _fillDeadline,
+            orderId: orderId,
+            minReceived: minReceived,
+            maxSpent: maxSpent,
+            fillInstructions: fillInstructions
+        });
+
+        nonce = 1;
     }
 }
 

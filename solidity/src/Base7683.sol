@@ -59,8 +59,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
     // ============ Public Storage ============
 
-    /// @notice Tracks the bitmap of used nonces for each address.
-    mapping(address => mapping(uint256 => uint256)) public nonceBitmap;
+    /// @notice Tracks the used nonces for each address.
+    mapping(address => mapping(uint256 => bool)) public usedNonces;
 
     /// @notice Stores the resolved orders by their ID.
     mapping(bytes32 orderId => bytes resolvedOrder) public orders;
@@ -134,12 +134,12 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
      * @dev This method must emit the Open event
      * @param _order The GaslessCrossChainOrder definition
      * @param _signature The user's signature over the order
-     * NOT USED originFillerData Any filler-defined data required by the settler
+     * @param _originFillerData Any filler-defined data required by the settler
      */
     function openFor(
         GaslessCrossChainOrder calldata _order,
         bytes calldata _signature,
-        bytes calldata
+        bytes calldata _originFillerData
     )
         external
         virtual
@@ -148,7 +148,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
         if (_order.originSettler != address(this)) revert InvalidGaslessOrderSettler();
         if (_order.originChainId != _localDomain()) revert InvalidGaslessOrderOrigin();
 
-        (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(_order);
+        (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(_order, _originFillerData);
 
         orders[orderId] = abi.encode(resolvedOrder);
         orderStatus[orderId] = OPENED;
@@ -196,14 +196,14 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
      */
     function resolveFor(
         GaslessCrossChainOrder calldata _order,
-        bytes calldata
+        bytes calldata _originFillerData
     )
         public
         view
         virtual
         returns (ResolvedCrossChainOrder memory _resolvedOrder)
     {
-        (_resolvedOrder,,) = _resolveOrder(_order);
+        (_resolvedOrder,,) = _resolveOrder(_order, _originFillerData);
     }
 
     /**
@@ -324,10 +324,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
      * @return isValid True if the nonce is valid, false otherwise.
      */
     function isValidNonce(address _from, uint256 _nonce) external view virtual returns (bool) {
-        (uint256 wordPos, uint256 bitPos) = bitmapPositions(_nonce);
-        uint256 bit = 1 << bitPos;
-
-        return nonceBitmap[_from][wordPos] & bit == 0;
+        return !usedNonces[_from][_nonce];
     }
 
     // ============ Public Functions ============
@@ -374,11 +371,8 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
      * @param _nonce The nonce to mark as used.
      */
     function _useNonce(address _from, uint256 _nonce) internal {
-        (uint256 wordPos, uint256 bitPos) = bitmapPositions(_nonce);
-        uint256 bit = 1 << bitPos;
-        uint256 flipped = nonceBitmap[_from][wordPos] ^= bit;
-
-        if (flipped & bit == 0) revert InvalidNonce();
+        if (usedNonces[_from][_nonce]) revert InvalidNonce();
+        usedNonces[_from][_nonce] = true;
     }
 
     /**
@@ -429,11 +423,12 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
      * @notice Resolves a GaslessCrossChainOrder into a ResolvedCrossChainOrder.
      * @dev To be implemented by the inheriting contract. Contains logic specific to the order type and data.
      * @param _order The GaslessCrossChainOrder to resolve.
+     * @param _originFillerData Any filler-defined data required by the settler
      * @return _resolvedOrder A ResolvedCrossChainOrder with hydrated data.
      * @return _orderId The unique identifier for the order.
      * @return _nonce The nonce associated with the order.
      */
-    function _resolveOrder(GaslessCrossChainOrder memory _order)
+    function _resolveOrder(GaslessCrossChainOrder memory _order, bytes calldata _originFillerData)
         internal
         view
         virtual
