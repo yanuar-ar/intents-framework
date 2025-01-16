@@ -1,6 +1,15 @@
 import { TokenAmount, WarpCore } from '@hyperlane-xyz/sdk';
-import { ProtocolType, errorToString, isNullish, toWei } from '@hyperlane-xyz/utils';
-import { ChevronIcon, IconButton, SpinnerIcon, SwapIcon } from '@hyperlane-xyz/widgets';
+import { errorToString, isNullish, ProtocolType, toWei } from '@hyperlane-xyz/utils';
+import {
+  AccountInfo,
+  ChevronIcon,
+  getAccountAddressAndPubKey,
+  IconButton,
+  SpinnerIcon,
+  SwapIcon,
+  useAccountAddressForChain,
+  useAccounts,
+} from '@hyperlane-xyz/widgets';
 import BigNumber from 'bignumber.js';
 import { Form, Formik, useFormikContext } from 'formik';
 import { useMemo, useState } from 'react';
@@ -10,7 +19,6 @@ import { ConnectAwareSubmitButton } from '../../components/buttons/ConnectAwareS
 import { SolidButton } from '../../components/buttons/SolidButton';
 import { TextField } from '../../components/input/TextField';
 import { config } from '../../consts/config';
-import SwapIcon from '../../images/icons/swap.svg';
 import { Color } from '../../styles/Color';
 import { logger } from '../../utils/logger';
 import { ChainConnectionWarning } from '../chains/ChainConnectionWarning';

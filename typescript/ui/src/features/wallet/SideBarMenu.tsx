@@ -1,5 +1,4 @@
-import { AccountList } from '@hyperlane-xyz/widgets';
-import { SpinnerIcon } from '@hyperlane-xyz/widgets';
+import { AccountList, SpinnerIcon } from '@hyperlane-xyz/widgets';
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -78,28 +77,12 @@ export function SideBarMenu({
           <div className="w-full rounded-t-md bg-primary-500 px-3.5 py-2 text-base font-normal tracking-wider text-white">
             Connected Wallets
           </div>
-<<<<<<< HEAD
           <AccountList
             multiProvider={multiProvider}
             onClickConnectWallet={onClickConnectWallet}
             onCopySuccess={onCopySuccess}
             className="px-3 py-3"
           />
-=======
-          <div className="my-3 space-y-2 px-3">
-            {readyAccounts.map((acc, i) => (
-              <AccountSummary key={i} account={acc} />
-            ))}
-            <button onClick={onConnectWallet} className={`${styles.btn} pl-2.5`}>
-              <WalletIcon width={17} height={14} />
-              <div className="ml-2">Connect wallet</div>
-            </button>
-            <button onClick={onClickDisconnect} className={`${styles.btn} pl-2.5`}>
-              <LogoutIcon width={20} height={20} />
-              <div className="ml-2">Disconnect all wallets</div>
-            </button>
-          </div>
->>>>>>> daa5453 (feat: remove redundant components, add from widgets)
           <div className="mb-4 w-full bg-primary-500 px-3.5 py-2 text-base font-normal tracking-wider text-white">
             Transfer History
           </div>

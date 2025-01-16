@@ -1,9 +1,11 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 import {
+  CopyButton,
   MessageStatus,
   MessageTimeline,
   Modal,
   SpinnerIcon,
+  useAccountForChain,
   useMessageTimeline,
   useTimeout,
   useWalletDetails,
@@ -11,7 +13,6 @@ import {
 } from '@hyperlane-xyz/widgets';
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CopyButton } from '../../components/buttons/CopyButton';
 import { ChainLogo } from '../../components/icons/ChainLogo';
 import { TokenIcon } from '../../components/icons/TokenIcon';
 import LinkIcon from '../../images/icons/external-link-icon.svg';

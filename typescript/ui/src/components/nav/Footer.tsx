@@ -1,9 +1,8 @@
-import { GithubIcon } from '@hyperlane-xyz/widgets';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ReactNode } from 'react';
 
-import { DiscordIcon, GithubIcon, HyperlaneLogo, TwitterIcon } from '@hyperlane-xyz/widgets';
+import { GithubIcon } from '@hyperlane-xyz/widgets';
 
 import { links } from '../../consts/links';
 import Logo from '../../images/logos/app-logo.svg';
