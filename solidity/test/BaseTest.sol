@@ -316,9 +316,8 @@ contract BaseTest is Test, DeployPermit2 {
     }
 
     function _orderDataById(bytes32 orderId) internal view returns (bytes memory orderData) {
-        (ResolvedCrossChainOrder memory resolvedOrder) =
-            abi.decode(_base7683.orders(orderId), (ResolvedCrossChainOrder));
-        orderData = resolvedOrder.fillInstructions[0].originData;
+        (,orderData) =
+            abi.decode(_base7683.openOrders(orderId), (bytes32, bytes));
     }
 
     function _assertOpenOrder(
