@@ -27,6 +27,11 @@ export type ResolvedCrossChainOrder = Omit<
 
 export interface OpenEventArgs {
   orderId: string;
+  senderAddress: ResolvedCrossChainOrder["user"];
+  recipients: Array<{
+    destinationChainName: string;
+    recipientAddress: string;
+  }>;
   resolvedOrder: ResolvedCrossChainOrder;
 }
 
@@ -37,12 +42,14 @@ export type IntentData = {
 
 export const Hyperlane7683MetadataSchema = z.object({
   protocolName: z.string(),
-  originSettler: z.object({
-    address: z.string(),
-    chainName: z.string().refine((name) => chainNames.includes(name), {
-      message: "Invalid chainName",
+  originSettlers: z.array(
+    z.object({
+      address: z.string(),
+      chainName: z.string().refine((name) => chainNames.includes(name), {
+        message: "Invalid chainName",
+      }),
     }),
-  }),
+  ),
 });
 
 export type Hyperlane7683Metadata = z.infer<typeof Hyperlane7683MetadataSchema>;
