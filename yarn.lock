@@ -3977,6 +3977,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"backoff@npm:^2.5.0":
+  version: 2.5.0
+  resolution: "backoff@npm:2.5.0"
+  dependencies:
+    precond: "npm:0.2"
+  checksum: 10/5286c3f02665f3347591e04728ba0755e76a45aa40e037f7db3f2029ede927bfe94755a03033e93cc971a4b6c6605d8cfe514433e362c5a86c0b5bbc5d47acce
+  languageName: node
+  linkType: hard
+
 "balanced-match@npm:^1.0.0":
   version: 1.0.2
   resolution: "balanced-match@npm:1.0.2"
@@ -7813,6 +7822,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"pino-socket@npm:^7.4.0":
+  version: 7.4.0
+  resolution: "pino-socket@npm:7.4.0"
+  dependencies:
+    backoff: "npm:^2.5.0"
+    nopt: "npm:^7.0.0"
+    pump: "npm:^3.0.0"
+    split2: "npm:^4.0.0"
+    through2: "npm:^4.0.2"
+  bin:
+    pino-socket: psock.js
+  checksum: 10/e26144400b2d75f5547f10898102aecbcc52355b5069587bea5bb5e1e431c2a8b0dd24cd6d623a21e34c62e0ff12883f4ebf185ad151cd6e9e2c7862cf9cece7
+  languageName: node
+  linkType: hard
+
 "pino-std-serializers@npm:^6.0.0":
   version: 6.2.2
   resolution: "pino-std-serializers@npm:6.2.2"
@@ -7891,6 +7915,13 @@ __metadata:
     picocolors: "npm:^1.1.1"
     source-map-js: "npm:^1.2.1"
   checksum: 10/28fe1005b1339870e0a5006375ba5ac1213fd69800f79e7db09c398e074421ba6e162898e94f64942fed554037fd292db3811d87835d25ab5ef7f3c9daacb6ca
+  languageName: node
+  linkType: hard
+
+"precond@npm:0.2":
+  version: 0.2.3
+  resolution: "precond@npm:0.2.3"
+  checksum: 10/d5215e17cc812996f72ee57a684ff159709bdfa48538e71c361d17aecd750bf25f64f85ba2c49031860708e0e70ac4394b9c8280725f227b88bce0fe76f8389a
   languageName: node
   linkType: hard
 
@@ -8098,7 +8129,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"readable-stream@npm:^3.6.0":
+"readable-stream@npm:3, readable-stream@npm:^3.6.0":
   version: 3.6.2
   resolution: "readable-stream@npm:3.6.2"
   dependencies:
@@ -8709,6 +8740,7 @@ __metadata:
     ethers: "npm:^5.7.2"
     pino: "npm:^9.5.0"
     pino-pretty: "npm:^13.0.0"
+    pino-socket: "npm:^7.4.0"
     prettier: "npm:^3.3.3"
     tsx: "npm:^4.19.2"
     typechain: "npm:^8.3.2"
@@ -9072,6 +9104,15 @@ __metadata:
     readable-stream: "npm:~2.3.6"
     xtend: "npm:~4.0.1"
   checksum: 10/cd71f7dcdc7a8204fea003a14a433ef99384b7d4e31f5497e1f9f622b3cf3be3691f908455f98723bdc80922a53af7fa10c3b7abbe51c6fd3d536dbc7850e2c4
+  languageName: node
+  linkType: hard
+
+"through2@npm:^4.0.2":
+  version: 4.0.2
+  resolution: "through2@npm:4.0.2"
+  dependencies:
+    readable-stream: "npm:3"
+  checksum: 10/72c246233d9a989bbebeb6b698ef0b7b9064cb1c47930f79b25d87b6c867e075432811f69b7b2ac8da00ca308191c507bdab913944be8019ac43b036ce88f6ba
   languageName: node
   linkType: hard
 
