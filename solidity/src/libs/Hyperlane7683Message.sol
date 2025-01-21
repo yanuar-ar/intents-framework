@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 // ============ External Imports ============
 
-library Router7683Message {
+library Hyperlane7683Message {
     /**
      * @notice Returns formatted Router7683 message
      * @dev This function should only be used in memory message construction.

@@ -3,7 +3,7 @@ pragma solidity >=0.8.25;
 
 /// @title GaslessCrossChainOrder CrossChainOrder type
 /// @notice Standard order struct to be signed by users, disseminated to fillers, and submitted to origin settler
-/// contracts
+/// contracts by fillers
 struct GaslessCrossChainOrder {
     /// @dev The contract address that the order is meant to be settled by.
     /// Fillers send this order to this contract address on the origin chain
@@ -14,7 +14,7 @@ struct GaslessCrossChainOrder {
     /// @dev Nonce to be used as replay protection for the order
     uint256 nonce;
     /// @dev The chainId of the origin chain
-    uint64 originChainId;
+    uint256 originChainId;
     /// @dev The timestamp by which the order must be opened
     uint32 openDeadline;
     /// @dev The timestamp by which the order must be filled on the destination chain
@@ -28,7 +28,8 @@ struct GaslessCrossChainOrder {
 }
 
 /// @title OnchainCrossChainOrder CrossChainOrder type
-/// @notice Standard order struct for user-opened orders, where the user is the msg.sender.
+/// @notice Standard order struct for user-opened orders, where the user is the one submitting the order creation
+/// transaction
 struct OnchainCrossChainOrder {
     /// @dev The timestamp by which the order must be filled on the destination chain
     uint32 fillDeadline;
@@ -49,21 +50,25 @@ struct ResolvedCrossChainOrder {
     /// @dev The address of the user who is initiating the transfer
     address user;
     /// @dev The chainId of the origin chain
-    uint64 originChainId;
+    uint256 originChainId;
     /// @dev The timestamp by which the order must be opened
     uint32 openDeadline;
     /// @dev The timestamp by which the order must be filled on the destination chain(s)
     uint32 fillDeadline;
+    /// @dev The unique identifier for this order within this settlement system
+    bytes32 orderId;
     /// @dev The max outputs that the filler will send. It's possible the actual amount depends on the state of the
     /// destination
     ///      chain (destination dutch auction, for instance), so these outputs should be considered a cap on filler
     /// liabilities.
     Output[] maxSpent;
-    /// @dev The minimum outputs that must to be given to the filler as part of order settlement. Similar to maxSpent,
-    /// it's possible
+    /// @dev The minimum outputs that must be given to the filler as part of order settlement. Similar to maxSpent, it's
+    /// possible
     ///      that special order types may not be able to guarantee the exact amount at open time, so this should be
     /// considered
-    ///      a floor on filler receipts.
+    ///      a floor on filler receipts. Setting the `recipient` of an `Output` to address(0) indicates that the filler
+    /// is not
+    ///      known when creating this order.
     Output[] minReceived;
     /// @dev Each instruction in this array is parameterizes a single leg of the fill. This provides the filler with the
     /// information
@@ -71,7 +76,7 @@ struct ResolvedCrossChainOrder {
     FillInstruction[] fillInstructions;
 }
 
-/// @notice Tokens that must be receive for a valid order fulfillment
+/// @notice Tokens that must be received for a valid order fulfillment
 struct Output {
     /// @dev The address of the ERC20 token on the destination chain
     /// @dev address(0) used as a sentinel for the native token
@@ -81,16 +86,16 @@ struct Output {
     /// @dev The address to receive the output tokens
     bytes32 recipient;
     /// @dev The destination chain for this output
-    uint64 chainId;
+    uint256 chainId;
 }
 
 /// @title FillInstruction type
 /// @notice Instructions to parameterize each leg of the fill
 /// @dev Provides all the origin-generated information required to produce a valid fill leg
 struct FillInstruction {
-    /// @dev The contract address that the order is meant to be settled by
-    uint64 destinationChainId;
-    /// @dev The contract address that the order is meant to be filled on
+    /// @dev The chain that this instruction is intended to be filled on
+    uint256 destinationChainId;
+    /// @dev The contract address that the instruction is intended to be filled on
     bytes32 destinationSettler;
     /// @dev The data generated on the origin chain needed by the destinationSettler to process the fill
     bytes originData;
