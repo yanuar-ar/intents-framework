@@ -28,7 +28,7 @@ contract OpenOrder is Script {
         address outputToken = vm.envAddress("ITT_OUTPUT");
         uint256 amountIn = vm.envUint("AMOUNT_IN");
         uint256 amountOut = vm.envUint("AMOUNT_OUT");
-        uint256 senderNonce = Hyperlane7683(localRouter).senderNonce(sender);
+        uint256 senderNonce = vm.envUint("SENDER_NONCE");
         uint32 originDomain = Hyperlane7683(localRouter).localDomain();
         uint256 destinationDomain = vm.envUint("DESTINATION_DOMAIN");
         uint32 fillDeadline = type(uint32).max;
@@ -45,6 +45,7 @@ contract OpenOrder is Script {
             senderNonce,
             originDomain,
             uint32(destinationDomain),
+            TypeCasts.addressToBytes32(localRouter),
             fillDeadline,
             new bytes(0)
         );
