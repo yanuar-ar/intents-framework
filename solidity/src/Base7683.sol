@@ -63,7 +63,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     mapping(address => mapping(uint256 => bool)) public usedNonces;
 
     /// @notice Stores the resolved orders by their ID.
-    mapping(bytes32 orderId => bytes resolvedOrder) public orders;
+    mapping(bytes32 orderId => bytes orderData) public openOrders;
 
     /// @notice Tracks filled orders and their associated data.
     mapping(bytes32 orderId => FilledOrder filledOrder) public filledOrders;
@@ -150,7 +150,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
 
         (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(_order, _originFillerData);
 
-        orders[orderId] = abi.encode(resolvedOrder);
+        openOrders[orderId] = abi.encode(_order.orderDataType, _order.orderData);
         orderStatus[orderId] = OPENED;
         _useNonce(_order.user, nonce);
 
@@ -168,7 +168,7 @@ abstract contract Base7683 is IOriginSettler, IDestinationSettler {
     function open(OnchainCrossChainOrder calldata _order) external payable virtual {
         (ResolvedCrossChainOrder memory resolvedOrder, bytes32 orderId, uint256 nonce) = _resolveOrder(_order);
 
-        orders[orderId] = abi.encode(resolvedOrder);
+        openOrders[orderId] = abi.encode(_order.orderDataType, _order.orderData);
         orderStatus[orderId] = OPENED;
         _useNonce(msg.sender, nonce);
 

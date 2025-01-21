@@ -100,8 +100,8 @@ contract BasicSwap7683ForTest is BasicSwap7683 {
         _handleRefundOrder(_orderId);
     }
 
-    function setOrderOpened(bytes32 _orderId, ResolvedCrossChainOrder memory rOrder) public {
-        orders[_orderId] = abi.encode(rOrder);
+    function setOrderOpened(bytes32 _orderId, OrderData memory orderData) public {
+        openOrders[_orderId] = abi.encode(OrderEncoder.orderDataType(), OrderEncoder.encode(orderData));
         orderStatus[_orderId] = OPENED;
     }
 
@@ -268,11 +268,9 @@ contract BasicSwap7683Test is BaseTest {
     function test__handleSettleOrder_works() public {
         OrderData memory orderData = prepareOrderData();
         bytes32 orderId = bytes32("order1");
-        ResolvedCrossChainOrder memory rOrder =
-            baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
 
         // set the order as opened
-        baseSwap.setOrderOpened(orderId, rOrder);
+        baseSwap.setOrderOpened(orderId, orderData);
 
         deal(address(inputToken), address(baseSwap), 1_000_000, true);
 
@@ -295,11 +293,9 @@ contract BasicSwap7683Test is BaseTest {
         orderData.inputToken = TypeCasts.addressToBytes32(address(0));
         orderData.outputToken = TypeCasts.addressToBytes32(address(0));
         bytes32 orderId = bytes32("order1");
-        ResolvedCrossChainOrder memory rOrder =
-            baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
 
         // set the order as opened
-        baseSwap.setOrderOpened(orderId, rOrder);
+        baseSwap.setOrderOpened(orderId, orderData);
 
         deal(address(baseSwap), 1_000_000);
 
@@ -337,11 +333,9 @@ contract BasicSwap7683Test is BaseTest {
     function test__handleRefundOrder_works() public {
         OrderData memory orderData = prepareOrderData();
         bytes32 orderId = bytes32("order1");
-        ResolvedCrossChainOrder memory rOrder =
-            baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
 
         // set the order as opened
-        baseSwap.setOrderOpened(orderId, rOrder);
+        baseSwap.setOrderOpened(orderId, orderData);
 
         deal(address(inputToken), address(baseSwap), 1_000_000, true);
 
@@ -364,11 +358,9 @@ contract BasicSwap7683Test is BaseTest {
         orderData.inputToken = TypeCasts.addressToBytes32(address(0));
         orderData.outputToken = TypeCasts.addressToBytes32(address(0));
         bytes32 orderId = bytes32("order1");
-        ResolvedCrossChainOrder memory rOrder =
-            baseSwap.resolvedOrder(OrderEncoder.orderDataType(), kakaroto, 0, 0, OrderEncoder.encode(orderData));
 
         // set the order as opened
-        baseSwap.setOrderOpened(orderId, rOrder);
+        baseSwap.setOrderOpened(orderId, orderData);
 
         deal(address(baseSwap), 1_000_000);
 
