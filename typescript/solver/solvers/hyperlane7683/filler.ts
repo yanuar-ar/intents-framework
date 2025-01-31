@@ -20,6 +20,7 @@ import {
   retrieveTokenBalance,
 } from "../utils.js";
 import { allowBlockLists, metadata } from "./config/index.js";
+import { saveBlockNumber } from "./db.js";
 
 export type Metadata = {
   protocolName: string;
@@ -95,7 +96,12 @@ class Hyperlane7683Filler extends BaseFiller<
     }
   }
 
-  protected async fill(parsedArgs: OpenEventArgs, data: IntentData) {
+  protected async fill(
+    parsedArgs: OpenEventArgs,
+    data: IntentData,
+    originChainName: string,
+    blockNumber: number
+  ) {
     this.log.info({
       msg: "Filling Intent",
       intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
@@ -197,9 +203,12 @@ class Hyperlane7683Filler extends BaseFiller<
             txDetails: txInfo,
             txHash: receipt.transactionHash,
           });
+
         },
       ),
     );
+
+    await saveBlockNumber(originChainName, blockNumber)
   }
 
   settleOrder(parsedArgs: OpenEventArgs, data: IntentData) {

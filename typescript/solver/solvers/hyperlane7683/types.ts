@@ -49,6 +49,8 @@ export const Hyperlane7683MetadataSchema = z.object({
       chainName: z.string().refine((name) => chainNames.includes(name), {
         message: "Invalid chainName",
       }),
+      initialBlock: z.number(),
+      processedEvents: z.number().optional()
     }),
   ),
 });

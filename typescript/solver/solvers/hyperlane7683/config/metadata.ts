@@ -6,21 +6,25 @@ import {
 const metadata: Hyperlane7683Metadata = {
   protocolName: "Hyperlane7683",
   originSettlers: [
+    // {
+    //   address: "0x6d2175B89315A9EB6c7eA71fDE54Ac0f294aDC34",
+    //   chainName: "optimismsepolia",
+    //   initialBlock: 23140076
+    // },
+    // {
+    //   address: "0x6d2175B89315A9EB6c7eA71fDE54Ac0f294aDC34",
+    //   chainName: "arbitrumsepolia",
+    //   initialBlock: 118764795
+    // },
+    // {
+    //   address: "0x6d2175B89315A9EB6c7eA71fDE54Ac0f294aDC34",
+    //   chainName: "sepolia",
+    //   initialBlock: 7590000
+    // },
     {
-      address: "0xe0c8f83bA0686FDF1a76AF0cC202181AEaA25a03",
-      chainName: "optimismsepolia",
-    },
-    {
-      address: "0xe0c8f83bA0686FDF1a76AF0cC202181AEaA25a03",
-      chainName: "arbitrumsepolia",
-    },
-    {
-      address: "0xe0c8f83bA0686FDF1a76AF0cC202181AEaA25a03",
-      chainName: "sepolia",
-    },
-    {
-      address: "0xe0c8f83bA0686FDF1a76AF0cC202181AEaA25a03",
+      address: "0x6d2175B89315A9EB6c7eA71fDE54Ac0f294aDC34",
       chainName: "basesepolia",
+      initialBlock: 21157285
     },
   ],
 };
