@@ -255,6 +255,47 @@ const enoughBalanceOnDestination: Hyperlane7683Rule = async (
   return { data: "Enough tokens to fulfill the intent", success: true };
 };
 
+  // - ETH: 1
+  // - OP: 10
+  // - ARB: 42161
+  // - Base: 8453
+  // - Bera: 80094
+  // - Form: 478
+
+const allowedTokens: Record<string, string> = {
+  "1": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  "10": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+  "42161": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+  "8453": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "80094": "0x549943e04f40284185054145c6E4e9568C1D3241", // TODO - check this one
+  "478": "0xFBf489bb4783D4B1B2e7D07ba39873Fb8068507D",  // TODO - check this one
+};
+
+const MAX_AMOUNT_OUT = 50*10^6;
+
+const capedAmounts: Hyperlane7683Rule = async (
+  parsedArgs
+) => {
+  const tokenIn = parsedArgs.resolvedOrder.minReceived[0].token;
+  const amountIn = parsedArgs.resolvedOrder.minReceived[0].amount;
+  const originChainId = parsedArgs.resolvedOrder.minReceived[0].chainId.toString();
+
+  const tokenOut = parsedArgs.resolvedOrder.maxSpent[0].token;
+  const amountOut = parsedArgs.resolvedOrder.maxSpent[0].amount;
+  const destChainId = parsedArgs.resolvedOrder.maxSpent[0].chainId.toString();
+
+  if (
+    tokenIn !== allowedTokens[originChainId] ||
+    tokenOut !== allowedTokens[destChainId] ||
+    amountIn.lt(amountOut) ||
+    amountOut.gt(MAX_AMOUNT_OUT)
+  ) {
+    return { error: "Amounts and tokens are not ok", success: false };
+  }
+
+  return { data: "Amounts and tokens are ok", success: true };
+}
+
 export const create = (
   multiProvider: MultiProvider,
   rules?: Hyperlane7683Filler["rules"],
@@ -264,6 +305,6 @@ export const create = (
 
   return new Hyperlane7683Filler(
     multiProvider,
-    keepBaseRules ? [enoughBalanceOnDestination, ...customRules] : customRules,
+    keepBaseRules ? [enoughBalanceOnDestination, capedAmounts, ...customRules] : customRules,
   ).create();
 };
