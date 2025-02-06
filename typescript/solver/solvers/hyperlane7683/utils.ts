@@ -45,19 +45,27 @@ export async function settleOrder(
               destinationSettler,
               filler,
             );
+            try {
+              const tx = await destination.settle([orderId], {
+                value: await destination.quoteGasPayment(destinationChain),
+              });
 
-            const tx = await destination.settle([orderId], {
-              value: await destination.quoteGasPayment(destinationChain),
-            });
+              const receipt = await tx.wait();
 
-            const receipt = await tx.wait();
-
-            log.info({
-              msg: "Settled Intent",
-              intent: `${solverName}-${orderId}`,
-              txDetails: `https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
-              txHash: receipt.transactionHash,
-            });
+              log.info({
+                msg: "Settled Intent",
+                intent: `${solverName}-${orderId}`,
+                txDetails: `https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
+                txHash: receipt.transactionHash,
+              });
+            } catch (error) {
+              log.error({
+                msg: `Failed settling`,
+                intent: `${solverName}-${orderId}`,
+                error,
+              });
+              return;
+            }
           }),
         );
       },

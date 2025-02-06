@@ -5,11 +5,12 @@ import type { Contract, EventFilter, Signer } from "ethers";
 import { chainMetadata } from "../config/chainMetadata.js";
 import type { Logger } from "../logger.js";
 import type { TypedEvent, TypedListener } from "../typechain/common.js";
+import type { ParsedArgs } from "./BaseFiller.js";
 
 export abstract class BaseListener<
   TContract extends Contract,
   TEvent extends TypedEvent,
-  TParsedArgs,
+  TParsedArgs extends ParsedArgs,
 > {
   protected constructor(
     private readonly contractFactory: {
@@ -21,7 +22,7 @@ export abstract class BaseListener<
         address: string;
         chainName: string;
         initialBlock: number;
-        processedEvents?: number;
+        processedIds?: string[];
       }>;
       protocolName: string;
     },
@@ -29,35 +30,57 @@ export abstract class BaseListener<
   ) {}
 
   create() {
-    return async (handler: (args: TParsedArgs, originChainName: string, blockNumber: number) => void) => {
+    return async (
+      handler: (
+        args: TParsedArgs,
+        originChainName: string,
+        blockNumber: number,
+      ) => void,
+    ) => {
       const multiProvider = new MultiProvider(chainMetadata);
 
-      this.metadata.contracts.forEach(async ({ address, chainName, initialBlock, processedEvents }) => {
-        const provider = multiProvider.getProvider(chainName);
-        const contract = this.contractFactory.connect(address, provider);
-        const filter = contract.filters[this.eventName]();
+      this.metadata.contracts.forEach(
+        async ({ address, chainName, initialBlock, processedIds }) => {
+          const provider = multiProvider.getProvider(chainName);
+          const contract = this.contractFactory.connect(address, provider);
+          const filter = contract.filters[this.eventName]();
 
-        const listener: TypedListener<TEvent> = (...args) => {
-          handler(this.parseEventArgs(args), chainName, args[args.length - 1].blockNumber);
-        };
+          const listener: TypedListener<TEvent> = (...args) => {
+            handler(
+              this.parseEventArgs(args),
+              chainName,
+              args[args.length - 1].blockNumber,
+            );
+          };
 
-        const latest = (await provider.getBlockNumber()) - 1;
-        if (latest > initialBlock) {
-          this.processPrevBlocks(chainName, contract, filter, initialBlock, latest, handler, processedEvents)
-        }
+          console.log({ initialBlock, processedIds });
 
-        contract.on(filter, listener);
+          const latest = (await provider.getBlockNumber()) - 1;
+          if (latest > initialBlock) {
+            this.processPrevBlocks(
+              chainName,
+              contract,
+              filter,
+              initialBlock,
+              latest,
+              handler,
+              processedIds,
+            );
+          }
 
-        contract.provider.getNetwork().then((network) => {
-          this.log.info({
-            msg: "Listener started",
-            event: this.eventName,
-            protocol: this.metadata.protocolName,
-            chainId: network.chainId,
-            chainName: chainName,
+          contract.on(filter, listener);
+
+          contract.provider.getNetwork().then((network) => {
+            this.log.info({
+              msg: "Listener started",
+              event: this.eventName,
+              protocol: this.metadata.protocolName,
+              chainId: network.chainId,
+              chainName: chainName,
+            });
           });
-        });
-      });
+        },
+      );
     };
   }
 
@@ -67,15 +90,23 @@ export abstract class BaseListener<
     filter: EventFilter,
     from: number,
     to: number,
-    handler: (args: TParsedArgs, originChainName: string, blockNumber: number) => void,
-    processedEvents?: number,
+    handler: (
+      args: TParsedArgs,
+      originChainName: string,
+      blockNumber: number,
+    ) => void,
+    processedIds?: string[],
   ) {
-    const pastEvents = await contract.queryFilter(filter, from, to)
-        const sliceStart = processedEvents && pastEvents.length >= processedEvents ? processedEvents : 0;
-
-        pastEvents.slice(sliceStart).forEach(async (e) => {
-          handler(this.parseEventArgs((e as TEvent).args), chainName, e.blockNumber);
-        })
+    const pastEvents = await contract.queryFilter(filter, from, to);
+    for (let event of pastEvents) {
+      const parsedArgs = this.parseEventArgs((event as TEvent).args);
+      if (
+        event.blockNumber === from &&
+        processedIds?.includes(parsedArgs.orderId)
+      )
+        continue;
+      await handler(parsedArgs, chainName, event.blockNumber);
+    }
   }
 
   protected abstract parseEventArgs(

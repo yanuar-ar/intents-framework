@@ -21,7 +21,8 @@ const main = async () => {
 
   // ecoListener(ecoFiller);
 
-  const hyperlane7683Listener = await solvers["hyperlane7683"].listener.create();
+  const hyperlane7683Listener =
+    await solvers["hyperlane7683"].listener.create();
   const hyperlane7683Filler =
     solvers["hyperlane7683"].filler.create(multiProvider);
 

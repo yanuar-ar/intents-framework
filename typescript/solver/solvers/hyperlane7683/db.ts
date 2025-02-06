@@ -11,7 +11,7 @@ const createTable = `
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       chainName TEXT NOT NULL ,
       blockNumber INTEGER,
-      processedEvents INTEGER
+      processedIds TEXT
     )
 `;
 
@@ -22,39 +22,51 @@ await db.batch([createTable, chainBlockIndex, chainBlockUniqueIndex], "write");
 
 export const getLastIndexedBlocks = async () => {
   const result = await db.execute(
-  `SELECT ib.chainName, ib.blockNumber, ib.processedEvents
+    `SELECT ib.chainName, ib.blockNumber, ib.processedIds
     FROM indexedBlocks ib
     JOIN (
       SELECT chainName, MAX(blockNumber) AS maxBlock
       FROM indexedBlocks
       GROUP BY chainName
   ) sub ON ib.chainName = sub.chainName AND ib.blockNumber = sub.maxBlock;
-  `);
+  `,
+  );
 
-  return result.rows.reduce((acc, current) => {
-    acc[current['chainName'] as string] = {
-      blockNumber: current['blockNumber'] as number,
-      processedEvents: current['processedEvents']  as number
-    }
+  return result.rows.reduce(
+    (acc, current) => {
+      acc[current["chainName"] as string] = {
+        blockNumber: current["blockNumber"] as number,
+        processedIds: (current["processedIds"] as string).split(","),
+      };
 
-    return acc;
-  }, {} as Record<string, {
-    blockNumber: number;
-    processedEvents: number;
-  }>)
-}
+      return acc;
+    },
+    {} as Record<
+      string,
+      {
+        blockNumber: number;
+        processedIds: Array<string>;
+      }
+    >,
+  );
+};
 
-export const saveBlockNumber = (chainName: string, blockNumber: number) => {
+export const saveBlockNumber = (
+  chainName: string,
+  blockNumber: number,
+  processedIds: string,
+) => {
   db.execute({
-    sql: `INSERT INTO indexedBlocks (chainName, blockNumber, processedEvents)
-    VALUES (:chainName, :blockNumber, 1)
+    sql: `INSERT INTO indexedBlocks (chainName, blockNumber, processedIds)
+    VALUES (:chainName, :blockNumber, :processedIds)
     ON CONFLICT(chainName, blockNumber)
-    DO UPDATE SET processedEvents = processedEvents + 1;`,
+    DO UPDATE SET processedIds = indexedBlocks.processedIds || ',' || excluded.processedIds;`,
     args: {
       chainName,
-      blockNumber
+      blockNumber,
+      processedIds,
     },
   });
-}
+};
 
 export default db;

@@ -7,7 +7,7 @@ import type {
 } from "../../typechain/hyperlane7683/contracts/Hyperlane7683.js";
 import { BaseListener } from "../BaseListener.js";
 import { metadata } from "./config/index.js";
-import type { OpenEventArgs,  Hyperlane7683Metadata } from "./types.js";
+import type { OpenEventArgs, Hyperlane7683Metadata } from "./types.js";
 import { log } from "./utils.js";
 import { getLastIndexedBlocks } from "./db.js";
 
@@ -41,22 +41,25 @@ export class Hyperlane7683Listener extends BaseListener<
 
 export const create = async () => {
   const { originSettlers } = metadata;
-  const blocksByChain = await getLastIndexedBlocks()
+  const blocksByChain = await getLastIndexedBlocks();
+
+  console.log({ blocksByChain });
 
   metadata.originSettlers = originSettlers.map((originSettler) => {
     if (
       blocksByChain[originSettler.chainName] &&
       blocksByChain[originSettler.chainName].blockNumber &&
-      blocksByChain[originSettler.chainName].blockNumber > originSettler.initialBlock
+      blocksByChain[originSettler.chainName].blockNumber >=
+        originSettler.initialBlock
     ) {
       return {
         ...originSettler,
         initialBlock: blocksByChain[originSettler.chainName].blockNumber,
-        processedEvents: blocksByChain[originSettler.chainName].processedEvents
-      }
+        processedIds: blocksByChain[originSettler.chainName].processedIds,
+      };
     }
     return originSettler;
   });
 
   return new Hyperlane7683Listener(metadata).create();
-}
+};

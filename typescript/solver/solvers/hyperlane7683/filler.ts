@@ -7,6 +7,8 @@ import {
   type Result,
 } from "@hyperlane-xyz/utils";
 
+import { MaxUint256 } from "@ethersproject/constants";
+
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
 import type { IntentData, OpenEventArgs } from "./types.js";
@@ -100,7 +102,7 @@ class Hyperlane7683Filler extends BaseFiller<
     parsedArgs: OpenEventArgs,
     data: IntentData,
     originChainName: string,
-    blockNumber: number
+    blockNumber: number,
   ) {
     this.log.info({
       msg: "Filling Intent",
@@ -121,38 +123,44 @@ class Hyperlane7683Filler extends BaseFiller<
             return;
           }
 
-          const tx = await Erc20__factory.connect(tokenAddress, filler).approve(
-            recipient,
-            amount,
-          );
+          const token = Erc20__factory.connect(tokenAddress, filler);
 
-          const receipt = await tx.wait();
-          const baseUrl =
-            this.multiProvider.getChainMetadata(_chainId).blockExplorers?.[0]
-              .url;
+          const fillerAddress = await filler.getAddress();
+          const allowance = await token.allowance(fillerAddress, recipient);
 
-          if (baseUrl) {
+          if (allowance.lt(amount)) {
+            const tx = await Erc20__factory.connect(
+              tokenAddress,
+              filler,
+            ).approve(recipient, MaxUint256);
+
+            const receipt = await tx.wait();
+            const baseUrl =
+              this.multiProvider.getChainMetadata(_chainId).blockExplorers?.[0]
+                .url;
+
             this.log.debug({
               msg: "Approval",
               protocolName: this.metadata.protocolName,
-              tx: `${baseUrl}/tx/${receipt.transactionHash}`,
+              amount: MaxUint256.toString(),
+              tokenAddress,
+              recipient,
+              chainId: _chainId,
+              tx: baseUrl
+                ? `${baseUrl}/tx/${receipt.transactionHash}`
+                : `${receipt.transactionHash}`,
             });
           } else {
             this.log.debug({
-              msg: "Approval",
+              msg: "Approval not required",
               protocolName: this.metadata.protocolName,
-              tx: `${receipt.transactionHash}`,
+              amount: amount.toString(),
+              allowance: allowance.toString(),
+              tokenAddress,
+              recipient,
+              chainId: _chainId,
             });
           }
-
-          this.log.debug({
-            msg: "Approval",
-            protocolName: this.metadata.protocolName,
-            amount: amount.toString(),
-            tokenAddress,
-            recipient,
-            chainId: _chainId,
-          });
         },
       ),
     );
@@ -203,12 +211,12 @@ class Hyperlane7683Filler extends BaseFiller<
             txDetails: txInfo,
             txHash: receipt.transactionHash,
           });
-
         },
       ),
     );
 
-    await saveBlockNumber(originChainName, blockNumber)
+    // await saveBlockNumber(originChainName, blockNumber, parsedArgs.orderId);
+    await saveBlockNumber(originChainName, 21491220, parsedArgs.orderId);
   }
 
   settleOrder(parsedArgs: OpenEventArgs, data: IntentData) {
@@ -264,6 +272,33 @@ const enoughBalanceOnDestination: Hyperlane7683Rule = async (
   return { data: "Enough tokens to fulfill the intent", success: true };
 };
 
+const intentNotFilled: Hyperlane7683Rule = async (parsedArgs, context) => {
+  const destinationSettler = bytes32ToAddress(
+    parsedArgs.resolvedOrder.fillInstructions[0].destinationSettler,
+  );
+  const _chainId =
+    parsedArgs.resolvedOrder.fillInstructions[0].destinationChainId.toString();
+  const filler = await context.multiProvider.getSigner(_chainId);
+
+  const destination = Hyperlane7683__factory.connect(
+    destinationSettler,
+    filler,
+  );
+
+  // TODO - make this a literal constant to avoid getting this from the blockchain
+  const UNKNOWN =
+    "0x0000000000000000000000000000000000000000000000000000000000000000";
+  console.log("intentNotFilled UNKNOWN", UNKNOWN);
+
+  const orderStatus = await destination.orderStatus(parsedArgs.orderId);
+  console.log("intentNotFilled orderStatus", orderStatus);
+
+  if (orderStatus !== UNKNOWN) {
+    return { error: "Intent already filled", success: false };
+  }
+  return { data: "Intent not yet filled", success: true };
+};
+
 export const create = (
   multiProvider: MultiProvider,
   rules?: Hyperlane7683Filler["rules"],
@@ -273,6 +308,8 @@ export const create = (
 
   return new Hyperlane7683Filler(
     multiProvider,
-    keepBaseRules ? [enoughBalanceOnDestination, ...customRules] : customRules,
+    keepBaseRules
+      ? [intentNotFilled, enoughBalanceOnDestination, ...customRules]
+      : customRules,
   ).create();
 };
