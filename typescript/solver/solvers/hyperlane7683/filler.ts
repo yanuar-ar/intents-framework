@@ -273,7 +273,7 @@ const allowedTokens: Record<string, string> = {
 
 const MAX_AMOUNT_OUT = 50*10^6;
 
-const capedAmounts: Hyperlane7683Rule = async (
+const filterByTokenAndAmount: Hyperlane7683Rule = async (
   parsedArgs
 ) => {
   const tokenIn = parsedArgs.resolvedOrder.minReceived[0].token;
@@ -305,6 +305,6 @@ export const create = (
 
   return new Hyperlane7683Filler(
     multiProvider,
-    keepBaseRules ? [enoughBalanceOnDestination, capedAmounts, ...customRules] : customRules,
+    keepBaseRules ? [filterByTokenAndAmount, enoughBalanceOnDestination, ...customRules] : customRules,
   ).create();
 };
