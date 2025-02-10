@@ -259,6 +259,7 @@ const enoughBalanceOnDestination: Hyperlane7683Rule = async (
   // - OP: 10
   // - ARB: 42161
   // - Base: 8453
+  // - Gnosis: 100
   // - Bera: 80094
   // - Form: 478
 
@@ -267,6 +268,7 @@ const allowedTokens: Record<string, string> = {
   "10": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
   "42161": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
   "8453": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "100": "0x2a22f9c3b484c3629090feed35f17ff8f88f76f0",
   "80094": "0x549943e04f40284185054145c6E4e9568C1D3241", // TODO - check this one
   "478": "0xFBf489bb4783D4B1B2e7D07ba39873Fb8068507D",  // TODO - check this one
 };
