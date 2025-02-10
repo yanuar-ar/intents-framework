@@ -25,6 +25,10 @@ const metadata: Hyperlane7683Metadata = {
     },
     {
       address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
+      chainName: "gnosis",
+    },
+    {
+      address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
       chainName: "berachain",
     },
     {
