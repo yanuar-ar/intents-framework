@@ -271,7 +271,7 @@ const allowedTokens: Record<string, string> = {
   "478": "0xFBf489bb4783D4B1B2e7D07ba39873Fb8068507D",  // TODO - check this one
 };
 
-const MAX_AMOUNT_OUT = 50*10^6;
+const MAX_AMOUNT_OUT = 100*10^6;
 
 const filterByTokenAndAmount: Hyperlane7683Rule = async (
   parsedArgs
