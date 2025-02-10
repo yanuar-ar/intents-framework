@@ -6,22 +6,48 @@ import {
 const metadata: Hyperlane7683Metadata = {
   protocolName: "Hyperlane7683",
   originSettlers: [
+    // mainnet
     {
-      address: "0xe0c8f83bA0686FDF1a76AF0cC202181AEaA25a03",
-      chainName: "optimismsepolia",
+      address: "0x5F69f9aeEB44e713fBFBeb136d712b22ce49eb88",
+      chainName: "ethereum",
     },
     {
-      address: "0xe0c8f83bA0686FDF1a76AF0cC202181AEaA25a03",
-      chainName: "arbitrumsepolia",
+      address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
+      chainName: "optimism",
     },
     {
-      address: "0xe0c8f83bA0686FDF1a76AF0cC202181AEaA25a03",
-      chainName: "sepolia",
+      address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
+      chainName: "arbitrum",
     },
     {
-      address: "0xe0c8f83bA0686FDF1a76AF0cC202181AEaA25a03",
-      chainName: "basesepolia",
+      address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
+      chainName: "base",
     },
+    {
+      address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
+      chainName: "berachain",
+    },
+    {
+      address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
+      chainName: "form",
+    },
+    // testnet
+    // {
+    //   address: "0x6d2175B89315A9EB6c7eA71fDE54Ac0f294aDC34",
+    //   chainName: "optimismsepolia",
+    // },
+    // {
+    //   address: "0x6d2175B89315A9EB6c7eA71fDE54Ac0f294aDC34",
+    //   chainName: "arbitrumsepolia",
+    // },
+    // {
+    //   address: "0x6d2175B89315A9EB6c7eA71fDE54Ac0f294aDC34",
+    //   chainName: "sepolia",
+    // },
+    // {
+    //   address: "0x6d2175B89315A9EB6c7eA71fDE54Ac0f294aDC34",
+    //   chainName: "basesepolia",
+    // },
   ],
 };
 
