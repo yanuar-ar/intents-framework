@@ -15,12 +15,7 @@ const main = async () => {
   log.info("🙍 Intent Solver 📝");
   log.info("Starting...");
 
-  // TODO: implement a way to choose different listeners and fillers
-  const ecoListener = solvers["eco"].listener.create();
-  const ecoFiller = solvers["eco"].filler.create(multiProvider);
-
-  ecoListener(ecoFiller);
-
+  // // TODO: implement a way to choose different listeners and fillers
   const hyperlane7683Listener = solvers["hyperlane7683"].listener.create();
   const hyperlane7683Filler =
     solvers["hyperlane7683"].filler.create(multiProvider);
