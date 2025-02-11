@@ -28,8 +28,6 @@ With out-of-the-box ERC-7683 support, the Open Intents Framework standardizes cr
 - **Ready-to-Use UI:** A pre-built, customizable UI template that makes intents accessible to end users.
 - **Credibly Neutral:** works across different intent-based protocols and settlement mechanisms
 
-
-
 ## Directory Structure
 
 - `solidity/` - Contains the smart contract code written in Solidity.
