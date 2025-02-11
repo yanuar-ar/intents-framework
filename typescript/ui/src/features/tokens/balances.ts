@@ -102,7 +102,7 @@ export async function checkOrderFilled({
   const config = createConfig({
     chains: [chain],
     transports: {
-      [chain.id]: http(),
+      [chain.id]: http(chain.id === 8453 ? 'https://base.llamarpc.com' : undefined),
     },
   });
 
@@ -117,6 +117,7 @@ export async function checkOrderFilled({
       chainId: destinationChainId,
       eventName: 'Filled',
       fromBlock: fromBlock,
+      args: { orderId },
       abi,
       onLogs([{ data, transactionHash }]) {
         if (data?.toLowerCase().startsWith(orderId.toLowerCase())) {

@@ -19,7 +19,6 @@ import { checkOrderFilled } from '../tokens/balances';
 import { getTokenByIndex, useWarpCore } from '../tokens/hooks';
 import { TransferContext, TransferFormValues, TransferStatus } from './types';
 import { fetchFeeQuotes } from './useFeeQuotes';
-import { tryGetMsgIdFromTransferReceipt } from './utils';
 
 const CHAIN_MISMATCH_ERROR = 'ChainMismatchError';
 const TRANSFER_TIMEOUT_ERROR1 = 'block height exceeded';
@@ -183,11 +182,13 @@ async function executeTransfer({
       hashes.push(hash);
     }
 
-    const msgId = txReceipt
-      ? tryGetMsgIdFromTransferReceipt(multiProvider, origin, txReceipt)
-      : undefined;
+    const msgId = undefined;
 
-    const orderId = (txReceipt?.receipt as TransactionReceipt)?.logs?.[2]?.topics?.[1];
+    const orderId = (txReceipt?.receipt as TransactionReceipt)?.logs?.find(
+      (log) =>
+        log.topics[0].toLowerCase() ===
+        '0x3448bbc2203c608599ad448eeb1007cea04b788ac631f9f558e8dd01a3c27b3d',
+    )!.topics[1];
 
     const remoteTxHash = await checkOrderFilled({
       destination,
