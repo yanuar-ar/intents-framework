@@ -205,6 +205,7 @@ class Hyperlane7683Filler extends BaseFiller<
   settleOrder(parsedArgs: OpenEventArgs, data: IntentData) {
     return settleOrder(
       data.fillInstructions,
+      parsedArgs.resolvedOrder.originChainId,
       parsedArgs.orderId,
       this.multiProvider,
       this.metadata.protocolName,
@@ -273,15 +274,17 @@ const allowedTokens: Record<string, string> = {
   "478": "0xFBf489bb4783D4B1B2e7D07ba39873Fb8068507D", // TODO - check this one
 };
 
-const MAX_AMOUNT_OUT = (100 * 10) ^ 6;
+const MAX_AMOUNT_OUT = 100e6;
 
 const filterByTokenAndAmount: Hyperlane7683Rule = async (parsedArgs) => {
-  const tokenIn = parsedArgs.resolvedOrder.minReceived[0].token;
+  const tokenIn = bytes32ToAddress(
+    parsedArgs.resolvedOrder.minReceived[0].token,
+  );
   const amountIn = parsedArgs.resolvedOrder.minReceived[0].amount;
   const originChainId =
     parsedArgs.resolvedOrder.minReceived[0].chainId.toString();
 
-  const tokenOut = parsedArgs.resolvedOrder.maxSpent[0].token;
+  const tokenOut = bytes32ToAddress(parsedArgs.resolvedOrder.maxSpent[0].token);
   const amountOut = parsedArgs.resolvedOrder.maxSpent[0].amount;
   const destChainId = parsedArgs.resolvedOrder.maxSpent[0].chainId.toString();
 

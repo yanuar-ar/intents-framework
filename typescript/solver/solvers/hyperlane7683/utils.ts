@@ -10,6 +10,7 @@ export const log = createLogger(metadata.protocolName);
 
 export async function settleOrder(
   fillInstructions: ResolvedCrossChainOrder["fillInstructions"],
+  originChainId: ResolvedCrossChainOrder["originChainId"],
   orderId: string,
   multiProvider: MultiProvider,
   solverName: string,
@@ -47,7 +48,7 @@ export async function settleOrder(
             );
 
             const tx = await destination.settle([orderId], {
-              value: await destination.quoteGasPayment(destinationChain),
+              value: await destination.quoteGasPayment(originChainId),
             });
 
             const receipt = await tx.wait();
