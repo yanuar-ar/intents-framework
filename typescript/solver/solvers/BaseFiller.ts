@@ -66,9 +66,17 @@ export abstract class BaseFiller<
 
       const { data } = intent;
 
-      await this.fill(parsedArgs, data, originChainName);
+      try {
+        await this.fill(parsedArgs, data, originChainName);
 
-      await this.settleOrder(parsedArgs, data);
+        await this.settleOrder(parsedArgs, data);
+      } catch (error) {
+        this.log.error({
+          msg: `Failed processing intent`,
+          intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
+          error: JSON.stringify(error),
+        });
+      }
     };
   }
 
@@ -92,10 +100,7 @@ export abstract class BaseFiller<
     const { senderAddress, recipients } = parsedArgs;
 
     if (!this.isAllowedIntent({ senderAddress, recipients })) {
-      return {
-        error: "Not allowed intent",
-        success: false,
-      };
+      throw new Error("Not allowed intent");
     }
 
     const result = await this.evaluateRules(parsedArgs);

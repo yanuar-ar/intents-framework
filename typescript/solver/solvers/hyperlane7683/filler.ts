@@ -1,5 +1,5 @@
 import type { BigNumber } from "@ethersproject/bignumber";
-import { AddressZero, Zero } from "@ethersproject/constants";
+import { AddressZero, Zero, MaxUint256 } from "@ethersproject/constants";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import {
   addressToBytes32,
@@ -115,38 +115,44 @@ class Hyperlane7683Filler extends BaseFiller<
             return;
           }
 
-          const tx = await Erc20__factory.connect(tokenAddress, filler).approve(
-            recipient,
-            amount,
-          );
+          const token = Erc20__factory.connect(tokenAddress, filler);
 
-          const receipt = await tx.wait();
-          const baseUrl =
-            this.multiProvider.getChainMetadata(_chainId).blockExplorers?.[0]
-              .url;
+          const fillerAddress = await filler.getAddress();
+          const allowance = await token.allowance(fillerAddress, recipient);
 
-          if (baseUrl) {
+          if (allowance.lt(amount)) {
+            const tx = await Erc20__factory.connect(
+              tokenAddress,
+              filler,
+            ).approve(recipient, MaxUint256);
+
+            const receipt = await tx.wait();
+            const baseUrl =
+              this.multiProvider.getChainMetadata(_chainId).blockExplorers?.[0]
+                .url;
+
             this.log.debug({
               msg: "Approval",
               protocolName: this.metadata.protocolName,
-              tx: `${baseUrl}/tx/${receipt.transactionHash}`,
+              amount: MaxUint256.toString(),
+              tokenAddress,
+              recipient,
+              chainId: _chainId,
+              tx: baseUrl
+                ? `${baseUrl}/tx/${receipt.transactionHash}`
+                : `${receipt.transactionHash}`,
             });
           } else {
             this.log.debug({
-              msg: "Approval",
+              msg: "Approval not required",
               protocolName: this.metadata.protocolName,
-              tx: `${receipt.transactionHash}`,
+              amount: amount.toString(),
+              allowance: allowance.toString(),
+              tokenAddress,
+              recipient,
+              chainId: _chainId,
             });
           }
-
-          this.log.debug({
-            msg: "Approval",
-            protocolName: this.metadata.protocolName,
-            amount: amount.toString(),
-            tokenAddress,
-            recipient,
-            chainId: _chainId,
-          });
         },
       ),
     );

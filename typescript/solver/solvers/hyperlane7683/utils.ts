@@ -47,32 +47,41 @@ export async function settleOrder(
               filler,
             );
 
-            const value = await destination.quoteGasPayment(originChainId);
+            try {
+              const value = await destination.quoteGasPayment(originChainId);
 
-            const _tx = await destination.populateTransaction.settle(
-              [orderId],
-              { value },
-            );
+              const _tx = await destination.populateTransaction.settle(
+                [orderId],
+                { value },
+              );
 
-            const gasLimit = await multiProvider.estimateGas(
-              destinationChain,
-              _tx,
-              await filler.getAddress(),
-            );
+              const gasLimit = await multiProvider.estimateGas(
+                destinationChain,
+                _tx,
+                await filler.getAddress(),
+              );
 
-            const tx = await destination.settle([orderId], {
-              value,
-              gasLimit: gasLimit.mul(110).div(100),
-            });
+              const tx = await destination.settle([orderId], {
+                value,
+                gasLimit: gasLimit.mul(110).div(100),
+              });
 
-            const receipt = await tx.wait();
+              const receipt = await tx.wait();
 
-            log.info({
-              msg: "Settled Intent",
-              intent: `${solverName}-${orderId}`,
-              txDetails: `https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
-              txHash: receipt.transactionHash,
-            });
+              log.info({
+                msg: "Settled Intent",
+                intent: `${solverName}-${orderId}`,
+                txDetails: `https://explorer.hyperlane.xyz/?search=${receipt.transactionHash}`,
+                txHash: receipt.transactionHash,
+              });
+            } catch (error) {
+              log.error({
+                msg: `Failed settling`,
+                intent: `${solverName}-${orderId}`,
+                error,
+              });
+              return;
+            }
           }),
         );
       },
