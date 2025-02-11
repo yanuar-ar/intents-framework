@@ -4,11 +4,11 @@
     </a>
 </p>
 
-<div align="center"><strong>Interpret and execute user intents</strong></div>
-<div align="center">A suite of smart contracts, solvers, and UI for decentralized intent management.</div>
+<div align="center"><strong>Intents For Everyone, With Everyone</strong></div>
+<div align="center">a modular, open-source framework for permissionless, scalable intent execution.</div>
 <br />
 
-# Intents Framework
+# Open Intents Framework
 [![License: MIT][license-badge]][license]
 
 [license]: https://www.apache.org/licenses/LICENSE-2.0
@@ -16,13 +16,19 @@
 
 ## Description
 
-The Intents Framework is a modular and interoperable system designed to interpret and execute user intents on any EVM-compatible blockchain. It leverages a combination of smart contracts, solvers, and an optional UI component to provide a comprehensive solution for decentralized intent management.
+The Open Intents Framework is an open-source framework that provides a full stack of smart contracts, solvers and UI with modular abstractions for settlement to build and deploy intent protocols across EVM chains.
+
+With out-of-the-box ERC-7683 support, the Open Intents Framework standardizes cross-chain transactions and unlocks intents on day 1 for builders in the whole Ethereum ecosystem (and beyond).
 
 ## Features
 
-- **Modular Components**: Easily interchangeable modules including smart contracts, solvers, and UI components.
-- **EIP-7683 Compliance**: Ensures compatibility and standardization across Ethereum blockchain.
-- **Cross-Chain Functionality**: Facilitates operations across multiple blockchain platforms.
+- **ERC-7683 Reference Implementation:** Standardizes cross-chain intent execution, making transactions more interoperable and predictable across EVM chains.
+- **Open-Source Reference Solver:** application that provides customizable protocol-independent features—such as indexing, transaction submission, and rebalancing.
+- **Composable Smart Contracts:** composable framework where developers can mix and match smart contracts, solvers, and settlement layers to fit their use case
+- **Ready-to-Use UI:** A pre-built, customizable UI template that makes intents accessible to end users.
+- **Credibly Neutral:** works across different intent-based protocols and settlement mechanisms
+
+
 
 ## Directory Structure
 
