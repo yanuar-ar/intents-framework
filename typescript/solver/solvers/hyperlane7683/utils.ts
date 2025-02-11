@@ -47,8 +47,22 @@ export async function settleOrder(
               filler,
             );
 
+            const value = await destination.quoteGasPayment(originChainId);
+
+            const _tx = await destination.populateTransaction.settle(
+              [orderId],
+              { value },
+            );
+
+            const gasLimit = await multiProvider.estimateGas(
+              destinationChain,
+              _tx,
+              await filler.getAddress(),
+            );
+
             const tx = await destination.settle([orderId], {
-              value: await destination.quoteGasPayment(originChainId),
+              value,
+              gasLimit: gasLimit.mul(110).div(100),
             });
 
             const receipt = await tx.wait();
