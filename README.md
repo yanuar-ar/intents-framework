@@ -5,7 +5,7 @@
 </p>
 
 <div align="center"><strong>Intents For Everyone, With Everyone</strong></div>
-<div align="center">a modular, open-source framework for permissionless, scalable intent execution.</div>
+<div align="center">A modular, open-source framework for permissionless, scalable intent execution.</div>
 <br />
 
 # Open Intents Framework
