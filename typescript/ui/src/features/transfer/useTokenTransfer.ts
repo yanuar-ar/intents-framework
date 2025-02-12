@@ -187,25 +187,26 @@ async function executeTransfer({
     const orderId = (txReceipt?.receipt as TransactionReceipt)?.logs?.find(
       (log) =>
         log.topics[0].toLowerCase() ===
-        '0x3448bbc2203c608599ad448eeb1007cea04b788ac631f9f558e8dd01a3c27b3d',
+        '0x3448bbc2203c608599ad448eeb1007cea04b788ac631f9f558e8dd01a3c27b3d', // `Open` event
     )!.topics[1];
+
+    updateTransferStatus(transferIndex, (transferStatus = TransferStatus.WaitingForFulfillment), {
+      originTxHash: hashes.at(-1),
+      msgId,
+      orderId,
+    });
 
     const remoteTxHash = await checkOrderFilled({
       destination,
-      transferIndex,
       orderId,
       originToken,
       multiProvider,
-      updateTransferStatus,
     }).catch((error) => {
       logger.error('Error checking order filled', error);
       return undefined;
     });
 
     updateTransferStatus(transferIndex, (transferStatus = TransferStatus.ConfirmedTransfer), {
-      originTxHash: hashes.at(-1),
-      msgId,
-      orderId,
       remoteTxHash,
     });
   } catch (error: any) {
