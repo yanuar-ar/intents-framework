@@ -1,6 +1,6 @@
 <p align="center">
-    <a href="https://bootnode.dev">
-      <img src="https://www.bootnode.dev/external/github-headers/Intents.png" alt="bootnode anon voting banner">
+    <a href="https://openintent.org/">
+      <img src="https://www.bootnode.dev/external/github-headers/Intents.png" alt="open intents framework banner">
     </a>
 </p>
 
