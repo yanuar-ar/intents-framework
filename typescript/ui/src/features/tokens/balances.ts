@@ -10,8 +10,7 @@ import { useToastError } from '../../components/toast/useToastError';
 import { logger } from '../../utils/logger';
 import { useMultiProvider } from '../chains/hooks';
 import { getChainDisplayName } from '../chains/utils';
-import { AppState } from '../store';
-import { TransferFormValues, TransferStatus } from '../transfer/types';
+import { TransferFormValues } from '../transfer/types';
 import { useTokenByIndex } from './hooks';
 
 export function useBalance(chain?: ChainName, token?: IToken, address?: Address) {
@@ -80,18 +79,14 @@ const abi = [
 
 export async function checkOrderFilled({
   destination,
-  transferIndex,
   orderId,
   originToken,
   multiProvider,
-  updateTransferStatus,
 }: {
   destination: ChainName;
-  transferIndex: number;
   orderId: string;
   originToken: Token;
   multiProvider: MultiProtocolProvider;
-  updateTransferStatus: AppState['updateTransferStatus'];
 }): Promise<string> {
   const destinationChainId = multiProvider.getEvmChainId(destination);
 
@@ -110,7 +105,6 @@ export async function checkOrderFilled({
 
   return new Promise((resolve, reject) => {
     const connection = originToken?.getConnectionForChain(destination);
-    updateTransferStatus(transferIndex, TransferStatus.Preparing);
 
     const unwatch = watchContractEvent(config, {
       address: connection?.token.collateralAddressOrDenom as ViemAddress,
