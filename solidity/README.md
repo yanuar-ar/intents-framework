@@ -117,7 +117,7 @@ For opening an onchain order you can run `yarn run:openOrder`. Make sure the fol
 For refunding an expired order you can run `yarn run:refundOrder`. Make sure the following environment variable are set:
 
 - `NETWORK`: the name of the network you want to run the script, it should be the destination network of your order
-- `USER_PK`: the private key to use for executing the tx
+- `USER_PK`: the private key to use for executing the tx, the address should own some gas to pay for the Hyperlane message
 - `ORDER_ORIGIN`: the chain id of the order's origin chain
 - `ORDER_FILL_DEADLINE`: the `fillDeadline` used when opening the order
 - `ORDER_DATA`: the `orderData` used when opening the order
