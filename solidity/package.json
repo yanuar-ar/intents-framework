@@ -69,6 +69,8 @@
     "openOrder": "forge script script/OpenOrder.s.sol:OpenOrder -f $NETWORK --broadcast --verify --slow -vvv",
     "run:openOrder": "dotenv-run-script openOrder",
     "enrollRouter": "forge script script/EnrollRouter.s.sol:EnrollRouter -f $NETWORK --broadcast --slow -vvv",
-    "run:enrollRouter": "dotenv-run-script enrollRouter"
+    "run:enrollRouter": "dotenv-run-script enrollRouter",
+    "refundOrder": "forge script script/RefundOrder.s.sol:RefundOrder -f $NETWORK --broadcast --slow -vvv",
+    "run:refundOrder": "dotenv-run-script refundOrder"
   }
 }
