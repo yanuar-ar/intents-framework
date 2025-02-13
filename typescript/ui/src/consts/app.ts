@@ -9,7 +9,7 @@ export const MAIN_FONT = SpaceGrotesk({
 });
 export const APP_NAME = 'Open Intents Framework';
 export const APP_DESCRIPTION = 'Intents For Everyone, With Everyone';
-export const APP_URL = 'intent-ui-template.vercel.app';
+export const APP_URL = 'dapp.openintents.xyz';
 export const BRAND_COLOR = Color.primary;
 export const BACKGROUND_COLOR = Color.primary;
 export const BACKGROUND_IMAGE =
