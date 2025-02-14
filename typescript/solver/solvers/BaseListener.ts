@@ -53,8 +53,6 @@ export abstract class BaseListener<
             );
           };
 
-          console.log({ initialBlock, processedIds });
-
           const latest = (await provider.getBlockNumber()) - 1;
           if (latest > initialBlock) {
             this.processPrevBlocks(
@@ -103,8 +101,9 @@ export abstract class BaseListener<
       if (
         event.blockNumber === from &&
         processedIds?.includes(parsedArgs.orderId)
-      )
+      ) {
         continue;
+      }
       await handler(parsedArgs, chainName, event.blockNumber);
     }
   }

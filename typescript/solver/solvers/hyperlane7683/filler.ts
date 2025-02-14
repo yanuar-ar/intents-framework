@@ -215,13 +215,13 @@ class Hyperlane7683Filler extends BaseFiller<
       ),
     );
 
-    // await saveBlockNumber(originChainName, blockNumber, parsedArgs.orderId);
-    await saveBlockNumber(originChainName, 21491220, parsedArgs.orderId);
+    await saveBlockNumber(originChainName, blockNumber, parsedArgs.orderId);
   }
 
   settleOrder(parsedArgs: OpenEventArgs, data: IntentData) {
     return settleOrder(
       data.fillInstructions,
+      parsedArgs.resolvedOrder.originChainId,
       parsedArgs.orderId,
       this.multiProvider,
       this.metadata.protocolName,
@@ -285,13 +285,10 @@ const intentNotFilled: Hyperlane7683Rule = async (parsedArgs, context) => {
     filler,
   );
 
-  // TODO - make this a literal constant to avoid getting this from the blockchain
   const UNKNOWN =
     "0x0000000000000000000000000000000000000000000000000000000000000000";
-  console.log("intentNotFilled UNKNOWN", UNKNOWN);
 
   const orderStatus = await destination.orderStatus(parsedArgs.orderId);
-  console.log("intentNotFilled orderStatus", orderStatus);
 
   if (orderStatus !== UNKNOWN) {
     return { error: "Intent already filled", success: false };
