@@ -11,6 +11,7 @@ export const EcoMetadataSchema = z.object({
       chainName: z.string().refine((name) => chainNames.includes(name), {
         message: "Invalid chainName",
       }),
+      initialBlock: z.number(),
     }),
   ),
   adapters: z.array(
