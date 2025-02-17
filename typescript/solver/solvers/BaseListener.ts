@@ -42,6 +42,7 @@ export abstract class BaseListener<
       for (const value of Object.values(chainMetadata)) {
         value.rpcUrls = value.rpcUrls.map((rpc) => {
           rpc.pagination = rpc.pagination ?? {};
+          // TODO - make the maxBlockRange 3000 into the config metadata
           rpc.pagination.maxBlockRange = rpc.pagination.maxBlockRange ?? 3000;
           return rpc;
         });
@@ -71,7 +72,7 @@ export abstract class BaseListener<
           }
 
           // TODO - make this configurable
-          const POLL_INTERVAL = 3 * 1000; // 10 seconds
+          const POLL_INTERVAL = 3 * 1000; // 3 seconds
           setInterval(
             () => this.pollEvents(chainName, contract, filter, handler),
             POLL_INTERVAL,
