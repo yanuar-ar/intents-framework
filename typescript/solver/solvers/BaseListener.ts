@@ -40,11 +40,13 @@ export abstract class BaseListener<
       ) => void,
     ) => {
       for (const value of Object.values(chainMetadata)) {
-        value.rpcUrls =  value.rpcUrls.map((rpc) => {
+        value.rpcUrls = value.rpcUrls.map((rpc) => {
           rpc.pagination = rpc.pagination ? rpc.pagination : {};
-          rpc.pagination.maxBlockRange = rpc.pagination.maxBlockRange ? rpc.pagination.maxBlockRange : 3000;
+          rpc.pagination.maxBlockRange = rpc.pagination.maxBlockRange
+            ? rpc.pagination.maxBlockRange
+            : 3000;
           return rpc;
-        })
+        });
       }
 
       const multiProvider = new MultiProvider(chainMetadata);
