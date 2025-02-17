@@ -9,13 +9,19 @@ import { objMerge } from "@hyperlane-xyz/utils";
 
 const customChainMetadata = {
   // Example custom configuration
-  // "base": {
-  //   "rpcUrls": [
+  // basesepolia: {
+  //   rpcUrls: [
   //     {
-  //       "http": "https://base.llamarpc.com"
-  //     }
-  //   ]
-  // }
+  //       http: "https://sepolia.base.org"
+  //     },
+  //     {
+  //       http: "https://base-sepolia-rpc.publicnode.com",
+  //       pagination: {
+  //         maxBlockRange: 3000,
+  //       },
+  //     },
+  //   ],
+  // },
 };
 
 const chainMetadata = objMerge<ChainMap<ChainMetadata>>(

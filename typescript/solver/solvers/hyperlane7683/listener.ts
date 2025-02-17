@@ -47,6 +47,7 @@ export const create = async () => {
     if (
       blocksByChain[originSettler.chainName] &&
       blocksByChain[originSettler.chainName].blockNumber &&
+      originSettler.initialBlock &&
       blocksByChain[originSettler.chainName].blockNumber >=
         originSettler.initialBlock
     ) {
