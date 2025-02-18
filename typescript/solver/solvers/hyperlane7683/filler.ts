@@ -292,7 +292,7 @@ const intentNotFilled: Hyperlane7683Rule = async (parsedArgs, context) => {
     return { error: "Intent already filled", success: false };
   }
   return { data: "Intent not yet filled", success: true };
-}
+};
 
 // - ETH: 1
 // - OP: 10
@@ -352,7 +352,12 @@ export const create = (
   return new Hyperlane7683Filler(
     multiProvider,
     keepBaseRules
-      ? [filterByTokenAndAmount, intentNotFilled, enoughBalanceOnDestination, ...customRules]
+      ? [
+          filterByTokenAndAmount,
+          intentNotFilled,
+          enoughBalanceOnDestination,
+          ...customRules,
+        ]
       : customRules,
   ).create();
 };

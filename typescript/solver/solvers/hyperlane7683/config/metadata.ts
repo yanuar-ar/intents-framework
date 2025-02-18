@@ -57,7 +57,9 @@ const metadata: Hyperlane7683Metadata = {
     //   address: "0x6d2175B89315A9EB6c7eA71fDE54Ac0f294aDC34",
     //   chainName: "basesepolia",
     //   initialBlock: 21491220,
-    // }
+    //   pollInterval: 1000,
+    //   confirmationBlocks: 2,
+    // },
   ],
 };
 

@@ -21,6 +21,8 @@ export abstract class BaseListener<
       contracts: Array<{
         address: string;
         chainName: string;
+        pollInterval?: number;
+        confirmationBlocks?: number;
         initialBlock?: number;
         processedIds?: string[];
       }>;
@@ -28,6 +30,12 @@ export abstract class BaseListener<
     },
     private readonly log: Logger,
   ) {}
+
+  private lastProcessedBlocks: Record<string, number> = {};
+
+  private defaultPollInterval: number = 3000; // 3 seconds
+
+  private defaultMaxBlockRange: number = 3000;
 
   create() {
     return async (
@@ -37,36 +45,56 @@ export abstract class BaseListener<
         blockNumber: number,
       ) => void,
     ) => {
+      for (const value of Object.values(chainMetadata)) {
+        value.rpcUrls = value.rpcUrls.map((rpc) => {
+          rpc.pagination = rpc.pagination ?? {};
+          rpc.pagination.maxBlockRange =
+            rpc.pagination.maxBlockRange ?? this.defaultMaxBlockRange;
+          return rpc;
+        });
+      }
+
       const multiProvider = new MultiProvider(chainMetadata);
 
       this.metadata.contracts.forEach(
-        async ({ address, chainName, initialBlock, processedIds }) => {
+        async ({
+          address,
+          chainName,
+          pollInterval,
+          confirmationBlocks,
+          initialBlock,
+          processedIds,
+        }) => {
           const provider = multiProvider.getProvider(chainName);
           const contract = this.contractFactory.connect(address, provider);
           const filter = contract.filters[this.eventName]();
 
-          const listener: TypedListener<TEvent> = (...args) => {
-            handler(
-              this.parseEventArgs(args),
-              chainName,
-              args[args.length - 1].blockNumber,
-            );
-          };
+          const latest = await provider.getBlockNumber();
+          this.lastProcessedBlocks[chainName] = latest;
 
-          const latest = (await provider.getBlockNumber()) - 1;
-          if (initialBlock && latest > initialBlock) {
+          if (initialBlock && initialBlock < latest - 1) {
             this.processPrevBlocks(
               chainName,
               contract,
               filter,
               initialBlock,
-              latest,
+              latest - 1,
               handler,
               processedIds,
             );
           }
 
-          contract.on(filter, listener);
+          setInterval(
+            () =>
+              this.pollEvents(
+                chainName,
+                contract,
+                filter,
+                handler,
+                confirmationBlocks,
+              ),
+            pollInterval ?? this.defaultPollInterval,
+          );
 
           contract.provider.getNetwork().then((network) => {
             this.log.info({
@@ -80,6 +108,53 @@ export abstract class BaseListener<
         },
       );
     };
+  }
+
+  protected async pollEvents(
+    chainName: string,
+    contract: TContract,
+    filter: EventFilter,
+    handler: (
+      args: TParsedArgs,
+      originChainName: string,
+      blockNumber: number,
+    ) => void,
+    confirmationBlocks?: number,
+  ) {
+    const latestBlock = await contract.provider.getBlockNumber();
+    const fromBlock = this.lastProcessedBlocks[chainName] + 1;
+    const toBlock = latestBlock - (confirmationBlocks ?? 0);
+
+    if (toBlock <= fromBlock) {
+      this.log.debug({
+        msg: "No new confirmed blocks yet",
+        protocolName: this.metadata.protocolName,
+        chainName,
+      });
+
+      return;
+    }
+
+    const events = await contract.queryFilter(filter, fromBlock, toBlock);
+
+    this.log.debug({
+      msg: "Polling",
+      protocolName: this.metadata.protocolName,
+      chainName,
+      fromBlock,
+      toBlock,
+      eventsFound: events.length,
+    });
+
+    for (let i = 0; i < events.length; i++) {
+      handler(
+        this.parseEventArgs((events[i] as TEvent).args),
+        chainName,
+        events[i].blockNumber,
+      );
+    }
+
+    this.lastProcessedBlocks[chainName] = toBlock;
   }
 
   protected async processPrevBlocks(
@@ -96,6 +171,7 @@ export abstract class BaseListener<
     processedIds?: string[],
   ) {
     const pastEvents = await contract.queryFilter(filter, from, to);
+
     for (let event of pastEvents) {
       const parsedArgs = this.parseEventArgs((event as TEvent).args);
       if (
