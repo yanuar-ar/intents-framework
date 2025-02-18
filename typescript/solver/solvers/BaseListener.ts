@@ -21,7 +21,7 @@ export abstract class BaseListener<
       contracts: Array<{
         address: string;
         chainName: string;
-        initialBlock: number;
+        initialBlock?: number;
         processedIds?: string[];
       }>;
       protocolName: string;
@@ -54,7 +54,7 @@ export abstract class BaseListener<
           };
 
           const latest = (await provider.getBlockNumber()) - 1;
-          if (latest > initialBlock) {
+          if (initialBlock && latest > initialBlock) {
             this.processPrevBlocks(
               chainName,
               contract,

@@ -45,10 +45,8 @@ export const create = async () => {
 
   metadata.originSettlers = originSettlers.map((originSettler) => {
     if (
-      blocksByChain[originSettler.chainName] &&
-      blocksByChain[originSettler.chainName].blockNumber &&
-      blocksByChain[originSettler.chainName].blockNumber >=
-        originSettler.initialBlock
+      (blocksByChain[originSettler.chainName]?.blockNumber ?? 0) >=
+      (originSettler.initialBlock ?? 0)
     ) {
       return {
         ...originSettler,
