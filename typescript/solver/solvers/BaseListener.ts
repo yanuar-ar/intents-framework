@@ -21,6 +21,8 @@ export abstract class BaseListener<
       contracts: Array<{
         address: string;
         chainName: string;
+        pollInterval?: number;
+        confirmationBlocks?: number;
         initialBlock?: number;
         processedIds?: string[];
       }>;
@@ -30,6 +32,10 @@ export abstract class BaseListener<
   ) {}
 
   private lastProcessedBlocks: Record<string, number> = {};
+
+  private defaultPollInterval: number = 3000; // 3 seconds
+
+  private defaultMaxBlockRange: number = 3000;
 
   create() {
     return async (
@@ -42,8 +48,7 @@ export abstract class BaseListener<
       for (const value of Object.values(chainMetadata)) {
         value.rpcUrls = value.rpcUrls.map((rpc) => {
           rpc.pagination = rpc.pagination ?? {};
-          // TODO - make the maxBlockRange 3000 into the config metadata
-          rpc.pagination.maxBlockRange = rpc.pagination.maxBlockRange ?? 3000;
+          rpc.pagination.maxBlockRange = rpc.pagination.maxBlockRange ?? this.defaultMaxBlockRange;
           return rpc;
         });
       }
@@ -51,7 +56,7 @@ export abstract class BaseListener<
       const multiProvider = new MultiProvider(chainMetadata);
 
       this.metadata.contracts.forEach(
-        async ({ address, chainName, initialBlock, processedIds }) => {
+        async ({ address, chainName, pollInterval, confirmationBlocks, initialBlock, processedIds }) => {
           const provider = multiProvider.getProvider(chainName);
           const contract = this.contractFactory.connect(address, provider);
           const filter = contract.filters[this.eventName]();
@@ -71,11 +76,9 @@ export abstract class BaseListener<
             );
           }
 
-          // TODO - make this configurable
-          const POLL_INTERVAL = 3 * 1000; // 3 seconds
           setInterval(
-            () => this.pollEvents(chainName, contract, filter, handler),
-            POLL_INTERVAL,
+            () => this.pollEvents(chainName, contract, filter, handler, confirmationBlocks),
+            pollInterval ?? this.defaultPollInterval,
           );
 
           contract.provider.getNetwork().then((network) => {
@@ -101,13 +104,11 @@ export abstract class BaseListener<
       originChainName: string,
       blockNumber: number,
     ) => void,
+    confirmationBlocks?: number,
   ) {
-    // TODO - make this configurable
-    const CONFIRMATIONS = 6;
-
     const latestBlock = await contract.provider.getBlockNumber();
     const fromBlock = this.lastProcessedBlocks[chainName] + 1;
-    const toBlock = latestBlock - CONFIRMATIONS;
+    const toBlock = latestBlock - (confirmationBlocks ?? 0);
 
     if (toBlock <= fromBlock) {
       this.log.debug({
