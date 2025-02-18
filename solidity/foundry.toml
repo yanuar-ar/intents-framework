@@ -30,7 +30,7 @@
   form = { key = "${API_KEY_FORMSCAN}", url = "https://explorer.form.network/api" }
   gnosis_chain = { key = "${API_KEY_GNOSISSCAN}" }
   unichain = { key = "${API_KEY_UNICHAIN}" }
-  altera = { key = "${API_KEY_ALTERA}", url = "https://artscan.artela.network/api" }
+  artela = { key = "${API_KEY_ALTERA}", url = "https://artscan.artela.network/api" }
 
   avalanche = { key = "${API_KEY_SNOWTRACE}" }
   bnb_smart_chain = { key = "${API_KEY_BSCSCAN}" }
