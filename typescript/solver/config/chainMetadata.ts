@@ -9,11 +9,8 @@ import { objMerge } from "@hyperlane-xyz/utils";
 
 const customChainMetadata = {
   // Example custom configuration
-  basesepolia: {
-    rpcUrls: [
-      {
-        http: "https://base-sepolia.g.alchemy.com/v2/e04wNClOYrs76gzfiAfjyaNzx0ubV_z-"
-      }
+  // basesepolia: {
+  //   rpcUrls: [
   // ,
   //     {
   //       http: "https://base-sepolia-rpc.publicnode.com",
@@ -21,15 +18,15 @@ const customChainMetadata = {
   //         maxBlockRange: 3000,
   //       },
   //     },
-    ],
-  },
+  //   ],
+  // },
 };
 
 const chainMetadata = objMerge<ChainMap<ChainMetadata>>(
   defaultChainMetadata,
   customChainMetadata,
   10,
-  false,
+  true,
 );
 
 z.record(z.string(), ChainMetadataSchema).parse(chainMetadata);

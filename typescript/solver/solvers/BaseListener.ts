@@ -48,7 +48,8 @@ export abstract class BaseListener<
       for (const value of Object.values(chainMetadata)) {
         value.rpcUrls = value.rpcUrls.map((rpc) => {
           rpc.pagination = rpc.pagination ?? {};
-          rpc.pagination.maxBlockRange = rpc.pagination.maxBlockRange ?? this.defaultMaxBlockRange;
+          rpc.pagination.maxBlockRange =
+            rpc.pagination.maxBlockRange ?? this.defaultMaxBlockRange;
           return rpc;
         });
       }
@@ -56,7 +57,14 @@ export abstract class BaseListener<
       const multiProvider = new MultiProvider(chainMetadata);
 
       this.metadata.contracts.forEach(
-        async ({ address, chainName, pollInterval, confirmationBlocks, initialBlock, processedIds }) => {
+        async ({
+          address,
+          chainName,
+          pollInterval,
+          confirmationBlocks,
+          initialBlock,
+          processedIds,
+        }) => {
           const provider = multiProvider.getProvider(chainName);
           const contract = this.contractFactory.connect(address, provider);
           const filter = contract.filters[this.eventName]();
@@ -77,7 +85,14 @@ export abstract class BaseListener<
           }
 
           setInterval(
-            () => this.pollEvents(chainName, contract, filter, handler, confirmationBlocks),
+            () =>
+              this.pollEvents(
+                chainName,
+                contract,
+                filter,
+                handler,
+                confirmationBlocks,
+              ),
             pollInterval ?? this.defaultPollInterval,
           );
 
