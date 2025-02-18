@@ -3865,13 +3865,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/registry@npm:9.3.0":
-  version: 9.3.0
-  resolution: "@hyperlane-xyz/registry@npm:9.3.0"
+"@hyperlane-xyz/registry@npm:9.7.0":
+  version: 9.7.0
+  resolution: "@hyperlane-xyz/registry@npm:9.7.0"
   dependencies:
     yaml: "npm:2.4.5"
     zod: "npm:^3.21.2"
-  checksum: 10/22d34cf5b002b9bca751dbfcc5ba0ea1cb145b0f1e9394c9a6fa4b80d84cc0f9b8f1461c9aed902892b6d351cfd7aaf77484f0db531aa913e646086ac467e80f
+  checksum: 10/d4c3434a8eb84b79d8b83d3bbc2d3ae021c85af79abf7bf9a8f5d8799e79e1809edba6470838c00415efd77818f9ca412b3984e96b75e6a5406057dff3ae3912
   languageName: node
   linkType: hard
 
@@ -4180,7 +4180,7 @@ __metadata:
     "@ethersproject/abi": "npm:^5.7.0"
     "@ethersproject/providers": "npm:^5.7.2"
     "@headlessui/react": "npm:^2.2.0"
-    "@hyperlane-xyz/registry": "npm:9.3.0"
+    "@hyperlane-xyz/registry": "npm:9.7.0"
     "@hyperlane-xyz/sdk": "patch:@hyperlane-xyz/sdk@patch%3A@hyperlane-xyz/sdk@patch%253A@hyperlane-xyz/sdk@patch%25253A@hyperlane-xyz/sdk@patch%2525253A@hyperlane-xyz/sdk@patch%252525253A@hyperlane-xyz/sdk@patch%25252525253A@hyperlane-xyz/sdk@patch%2525252525253A@hyperlane-xyz/sdk@npm%252525252525253A7.2.0%25252525252523~/.yarn/patches/@hyperlane-xyz-sdk-npm-7.2.0-84fab5b120.patch%2525252525253A%2525252525253Aversion=7.2.0&hash=2c784f%252525252523~/.yarn/patches/@hyperlane-xyz-sdk-patch-5a90f5762a.patch%25252525253A%25252525253Aversion=7.2.0&hash=bf6807%2525252523~/.yarn/patches/@hyperlane-xyz-sdk-patch-ae53d49afa.patch%252525253A%252525253Aversion=7.2.0&hash=eacfdd%25252523~/.yarn/patches/@hyperlane-xyz-sdk-patch-8a403e0bf4.patch%2525253A%2525253Aversion=7.2.0&hash=bfd92e%252523~/.yarn/patches/@hyperlane-xyz-sdk-patch-0b3fa7b5c8.patch%25253A%25253Aversion=7.2.0&hash=7b0eb8%2523~/.yarn/patches/@hyperlane-xyz-sdk-patch-a33395c3b4.patch%253A%253Aversion=7.2.0&hash=6593bd%23~/.yarn/patches/@hyperlane-xyz-sdk-patch-5eff7628e4.patch%3A%3Aversion=7.2.0&hash=a9caab#~/.yarn/patches/@hyperlane-xyz-sdk-patch-3eff8f1d74.patch"
     "@hyperlane-xyz/utils": "npm:7.2.0"
     "@hyperlane-xyz/widgets": "npm:7.2.0"
@@ -4226,7 +4226,7 @@ __metadata:
     tailwindcss: "npm:^3.4.15"
     ts-node: "npm:^10.9.2"
     typescript: "npm:5.6.3"
-    viem: "npm:^2.21.41"
+    viem: "npm:^2.23.2"
     wagmi: "npm:^2.12.26"
     yaml: "npm:^2.6.0"
     yaml-loader: "npm:^0.8.1"
