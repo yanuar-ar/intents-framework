@@ -68,6 +68,10 @@
     "run:deployToken": "dotenv-run-script deployToken",
     "openOrder": "forge script script/OpenOrder.s.sol:OpenOrder -f $NETWORK --broadcast --verify --slow -vvv",
     "run:openOrder": "dotenv-run-script openOrder",
+    "deployBatchOpen": "forge script script/DeployBatchOpen.s.sol:DeployBatchOpen -f $NETWORK --broadcast --verify --slow -vvv",
+    "run:deployBatchOpen": "dotenv-run-script deployBatchOpen",
+    "openBatchOrder": "forge script script/OpenBatchOrder.s.sol:OpenBatchOrder -f $NETWORK --broadcast --verify --slow -vvv",
+    "run:openBatchOrder": "dotenv-run-script openBatchOrder",
     "enrollRouter": "forge script script/EnrollRouter.s.sol:EnrollRouter -f $NETWORK --broadcast --slow -vvv",
     "run:enrollRouter": "dotenv-run-script enrollRouter"
   }

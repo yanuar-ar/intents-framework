@@ -20,6 +20,7 @@ import {
   retrieveTokenBalance,
 } from "../utils.js";
 import { allowBlockLists, metadata } from "./config/index.js";
+import { saveBlockNumber } from "./db.js";
 
 export type Metadata = {
   protocolName: string;
@@ -95,7 +96,12 @@ class Hyperlane7683Filler extends BaseFiller<
     }
   }
 
-  protected async fill(parsedArgs: OpenEventArgs, data: IntentData) {
+  protected async fill(
+    parsedArgs: OpenEventArgs,
+    data: IntentData,
+    originChainName: string,
+    blockNumber: number,
+  ) {
     this.log.info({
       msg: "Filling Intent",
       intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
@@ -206,6 +212,8 @@ class Hyperlane7683Filler extends BaseFiller<
         },
       ),
     );
+
+    await saveBlockNumber(originChainName, blockNumber, parsedArgs.orderId);
   }
 
   settleOrder(parsedArgs: OpenEventArgs, data: IntentData) {
@@ -261,6 +269,30 @@ const enoughBalanceOnDestination: Hyperlane7683Rule = async (
 
   return { data: "Enough tokens to fulfill the intent", success: true };
 };
+
+const intentNotFilled: Hyperlane7683Rule = async (parsedArgs, context) => {
+  const destinationSettler = bytes32ToAddress(
+    parsedArgs.resolvedOrder.fillInstructions[0].destinationSettler,
+  );
+  const _chainId =
+    parsedArgs.resolvedOrder.fillInstructions[0].destinationChainId.toString();
+  const filler = await context.multiProvider.getSigner(_chainId);
+
+  const destination = Hyperlane7683__factory.connect(
+    destinationSettler,
+    filler,
+  );
+
+  const UNKNOWN =
+    "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+  const orderStatus = await destination.orderStatus(parsedArgs.orderId);
+
+  if (orderStatus !== UNKNOWN) {
+    return { error: "Intent already filled", success: false };
+  }
+  return { data: "Intent not yet filled", success: true };
+}
 
 // - ETH: 1
 // - OP: 10
@@ -320,7 +352,7 @@ export const create = (
   return new Hyperlane7683Filler(
     multiProvider,
     keepBaseRules
-      ? [filterByTokenAndAmount, enoughBalanceOnDestination, ...customRules]
+      ? [filterByTokenAndAmount, intentNotFilled, enoughBalanceOnDestination, ...customRules]
       : customRules,
   ).create();
 };
