@@ -7,14 +7,14 @@ const metadata: Hyperlane7683Metadata = {
   protocolName: "Hyperlane7683",
   originSettlers: [
     // mainnet
-    {
-      address: "0x5F69f9aeEB44e713fBFBeb136d712b22ce49eb88",
-      chainName: "ethereum",
-    },
-    {
-      address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
-      chainName: "optimism",
-    },
+    // {
+    //   address: "0x5F69f9aeEB44e713fBFBeb136d712b22ce49eb88",
+    //   chainName: "ethereum",
+    // },
+    // {
+    //   address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
+    //   chainName: "optimism",
+    // },
     {
       address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
       chainName: "arbitrum",
@@ -23,26 +23,26 @@ const metadata: Hyperlane7683Metadata = {
       address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
       chainName: "base",
     },
-    {
-      address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
-      chainName: "gnosis",
-    },
-    {
-      address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
-      chainName: "berachain",
-    },
-    {
-      address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
-      chainName: "form",
-    },
-    {
-      address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
-      chainName: "unichain",
-    },
-    {
-      address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
-      chainName: "artela",
-    },
+    // {
+    //   address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
+    //   chainName: "gnosis",
+    // },
+    // {
+    //   address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
+    //   chainName: "berachain",
+    // },
+    // {
+    //   address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
+    //   chainName: "form",
+    // },
+    // {
+    //   address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
+    //   chainName: "unichain",
+    // },
+    // {
+    //   address: "0x9245A985d2055CeA7576B293Da8649bb6C5af9D0",
+    //   chainName: "artela",
+    // },
 
     // testnet
     // {
