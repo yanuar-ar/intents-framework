@@ -5,10 +5,7 @@ import {
   isAllowedIntent,
 } from "../config/index.js";
 import type { Logger } from "../logger.js";
-
-type Metadata = {
-  protocolName: string;
-};
+import type { BaseMetadata, BuildRules } from "./types.js";
 
 export type ParsedArgs = {
   orderId: string;
@@ -19,8 +16,8 @@ export type ParsedArgs = {
   }>;
 };
 
-export type Rule<
-  TMetadata extends Metadata,
+export type BaseRule<
+  TMetadata extends BaseMetadata,
   TParsedArgs extends ParsedArgs,
   TIntentData extends unknown,
 > = (
@@ -29,20 +26,20 @@ export type Rule<
 ) => Promise<Result<string>>;
 
 export abstract class BaseFiller<
-  TMetadata extends Metadata,
+  TMetadata extends BaseMetadata,
   TParsedArgs extends ParsedArgs,
   TIntentData extends unknown,
 > {
-  rules: Array<Rule<TMetadata, TParsedArgs, TIntentData>> = [];
+  rules: Array<BaseRule<TMetadata, TParsedArgs, TIntentData>> = [];
 
   protected constructor(
     readonly multiProvider: MultiProvider,
     readonly allowBlockLists: GenericAllowBlockLists,
     readonly metadata: TMetadata,
     readonly log: Logger,
-    rules?: Array<Rule<TMetadata, TParsedArgs, TIntentData>>,
+    rulesConfig?: BuildRules<BaseRule<TMetadata, TParsedArgs, TIntentData>>,
   ) {
-    if (rules) this.rules = rules;
+    if (rulesConfig) this.rules = this.buildRules(rulesConfig);
   }
 
   create() {
@@ -51,15 +48,26 @@ export abstract class BaseFiller<
       originChainName: string,
       blockNumber: number,
     ) => {
-      const origin = await this.retrieveOriginInfo(parsedArgs, originChainName);
-      const target = await this.retrieveTargetInfo(parsedArgs);
+      try {
+        const origin = await this.retrieveOriginInfo(
+          parsedArgs,
+          originChainName,
+        );
+        const target = await this.retrieveTargetInfo(parsedArgs);
 
-      this.log.info({
-        msg: "Intent Indexed",
-        intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
-        origin: origin.join(", "),
-        target: target.join(", "),
-      });
+        this.log.info({
+          msg: "Intent Indexed",
+          intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
+          origin: origin.join(", "),
+          target: target.join(", "),
+        });
+      } catch (error) {
+        this.log.error({
+          msg: "Failed retrieving origin and target info",
+          intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
+          error: JSON.stringify(error),
+        });
+      }
 
       const intent = await this.prepareIntent(parsedArgs);
 
@@ -73,7 +81,7 @@ export abstract class BaseFiller<
       try {
         await this.fill(parsedArgs, data, originChainName, blockNumber);
 
-        await this.settleOrder(parsedArgs, data);
+        await this.settleOrder(parsedArgs, data, originChainName);
       } catch (error) {
         this.log.error({
           msg: `Failed processing intent`,
@@ -137,7 +145,11 @@ export abstract class BaseFiller<
     blockNumber: number,
   ): Promise<void>;
 
-  protected async settleOrder(parsedArgs: TParsedArgs, data: TIntentData) {
+  protected async settleOrder(
+    parsedArgs: TParsedArgs,
+    data: TIntentData,
+    originChainName: string,
+  ) {
     return;
   }
 
@@ -158,5 +170,39 @@ export abstract class BaseFiller<
         recipientAddress,
       }),
     );
+  }
+
+  private buildRules({
+    base = [],
+    custom,
+  }: BuildRules<BaseRule<TMetadata, TParsedArgs, TIntentData>>): Array<
+    BaseRule<TMetadata, TParsedArgs, TIntentData>
+  > {
+    const customRules = [];
+
+    if (this.metadata.customRules?.rules.length) {
+      if (!custom) {
+        throw new Error(
+          "Custom rules are specified in metadata, but no corresponding rule functions were provided.",
+        );
+      }
+
+      for (let i = 0; i < this.metadata.customRules.rules.length; i++) {
+        const rule = this.metadata.customRules.rules[i];
+        const ruleFn = custom[rule.name];
+
+        if (!ruleFn) {
+          throw new Error(
+            `Custom rule "${rule.name}" is specified in metadata but is not provided in the custom rules configuration.`,
+          );
+        }
+
+        customRules.push(ruleFn(rule.args));
+      }
+    }
+
+    const keepBaseRules = this.metadata.customRules?.keepBaseRules ?? true;
+
+    return keepBaseRules ? [...base, ...customRules] : customRules;
   }
 }

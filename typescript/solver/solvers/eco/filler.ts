@@ -8,6 +8,7 @@ import { chainIds, chainIdsToName } from "../../config/index.js";
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { EcoAdapter__factory } from "../../typechain/factories/eco/contracts/EcoAdapter__factory.js";
 import { BaseFiller } from "../BaseFiller.js";
+import { BuildRules, RulesMap } from "../types.js";
 import {
   retrieveOriginInfo,
   retrieveTargetInfo,
@@ -17,33 +18,11 @@ import { allowBlockLists, metadata } from "./config/index.js";
 import type { EcoMetadata, IntentData, ParsedArgs } from "./types.js";
 import { log, withdrawRewards } from "./utils.js";
 
-export type Metadata = {
-  adapters: { [chainId: string]: EcoMetadata["adapters"][number] };
-  protocolName: EcoMetadata["protocolName"];
-};
-
 export type EcoRule = EcoFiller["rules"][number];
 
-export class EcoFiller extends BaseFiller<Metadata, ParsedArgs, IntentData> {
-  constructor(
-    multiProvider: MultiProvider,
-    rules?: BaseFiller<Metadata, ParsedArgs, IntentData>["rules"],
-  ) {
-    const { adapters, protocolName } = metadata;
-    const ecoFillerMetadata = {
-      adapters: adapters.reduce<{
-        [chainId: string]: EcoMetadata["adapters"][number];
-      }>(
-        (acc, adapter) => ({
-          ...acc,
-          [chainIds[adapter.chainName]]: adapter,
-        }),
-        {},
-      ),
-      protocolName,
-    };
-
-    super(multiProvider, allowBlockLists, ecoFillerMetadata, log, rules);
+export class EcoFiller extends BaseFiller<EcoMetadata, ParsedArgs, IntentData> {
+  constructor(multiProvider: MultiProvider, rules?: BuildRules<EcoRule>) {
+    super(multiProvider, allowBlockLists, metadata, log, rules);
   }
 
   protected retrieveOriginInfo(parsedArgs: ParsedArgs, chainName: string) {
@@ -81,10 +60,12 @@ export class EcoFiller extends BaseFiller<Metadata, ParsedArgs, IntentData> {
   protected async prepareIntent(
     parsedArgs: ParsedArgs,
   ): Promise<Result<IntentData>> {
-    const adapter =
-      this.metadata.adapters[parsedArgs._destinationChain.toString()];
+    const chainName = this.multiProvider.getChainName(
+      parsedArgs._destinationChain.toString(),
+    );
+    const adapterAddress = this.metadata.adapters[chainName];
 
-    if (!adapter) {
+    if (!adapterAddress) {
       return {
         error: "No adapter found for destination chain",
         success: false,
@@ -94,7 +75,7 @@ export class EcoFiller extends BaseFiller<Metadata, ParsedArgs, IntentData> {
     try {
       await super.prepareIntent(parsedArgs);
 
-      return { data: { adapter }, success: true };
+      return { data: { adapterAddress }, success: true };
     } catch (error: any) {
       return {
         error: error.message ?? "Failed to prepare Eco Intent.",
@@ -117,7 +98,7 @@ export class EcoFiller extends BaseFiller<Metadata, ParsedArgs, IntentData> {
       msg: "Approving tokens",
       protocolName: this.metadata.protocolName,
       intentHash: parsedArgs._hash,
-      adapterAddress: data.adapter.address,
+      adapterAddress: data.adapterAddress,
     });
 
     const erc20Interface = Erc20__factory.createInterface();
@@ -136,25 +117,21 @@ export class EcoFiller extends BaseFiller<Metadata, ParsedArgs, IntentData> {
       return acc;
     }, {});
 
-    const signer = this.multiProvider.getSigner(data.adapter.chainName);
+    const destinationChainId = parsedArgs._destinationChain.toString();
+    const signer = this.multiProvider.getSigner(destinationChainId);
+
     await Promise.all(
       Object.entries(requiredAmountsByTarget).map(
         async ([target, requiredAmount]) => {
           const erc20 = Erc20__factory.connect(target, signer);
 
-          const tx = await erc20.approve(data.adapter.address, requiredAmount);
+          const tx = await erc20.approve(data.adapterAddress, requiredAmount);
           await tx.wait();
         },
       ),
     );
 
-    const _chainId = parsedArgs._destinationChain.toString();
-
-    const filler = this.multiProvider.getSigner(_chainId);
-    const ecoAdapter = EcoAdapter__factory.connect(
-      data.adapter.address,
-      filler,
-    );
+    const ecoAdapter = EcoAdapter__factory.connect(data.adapterAddress, signer);
 
     const claimantAddress =
       await this.multiProvider.getSignerAddress(originChainName);
@@ -190,10 +167,14 @@ export class EcoFiller extends BaseFiller<Metadata, ParsedArgs, IntentData> {
     });
   }
 
-  settleOrder(parsedArgs: ParsedArgs, data: IntentData) {
+  settleOrder(
+    parsedArgs: ParsedArgs,
+    data: IntentData,
+    originChainName: string,
+  ) {
     return withdrawRewards(
       parsedArgs,
-      data.adapter.chainName,
+      originChainName,
       this.multiProvider,
       this.metadata.protocolName,
     );
@@ -241,13 +222,10 @@ const enoughBalanceOnDestination: EcoRule = async (parsedArgs, context) => {
 
 export const create = (
   multiProvider: MultiProvider,
-  rules?: EcoFiller["rules"],
-  keepBaseRules = true,
+  customRules?: RulesMap<EcoRule>,
 ) => {
-  const customRules = rules ?? [];
-
-  return new EcoFiller(
-    multiProvider,
-    keepBaseRules ? [enoughBalanceOnDestination, ...customRules] : customRules,
-  ).create();
+  return new EcoFiller(multiProvider, {
+    base: [enoughBalanceOnDestination],
+    custom: customRules,
+  }).create();
 };
