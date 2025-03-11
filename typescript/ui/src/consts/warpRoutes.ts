@@ -1,9 +1,29 @@
 import { type WarpCoreConfig } from '@hyperlane-xyz/sdk';
 import { zeroAddress } from 'viem';
 
-// const ROUTER = '0x376dc8e71a223af488d885ce04a7021f32c2d1e0';
-const ROUTER = '0xe0c8f83bA0686FDF1a76AF0cC202181AEaA25a03';
+const ROUTER = '0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3';
 const ITT = '0x5f94BC7Fb4A2779fef010F96b496cD36A909E818';
+
+const NETWORK_SEPARATOR = '101010';
+
+export const TOP_MAX = {
+  'bsesepolia': {
+    [ITT]: 100e18,
+    [zeroAddress]: 1e16,
+  },
+  'optimismsepolia': {
+    [ITT]: 100e18,
+    [zeroAddress]: 1e16,
+  },
+  'arbitrumsepolia': {
+    [ITT]: 100e18,
+    [zeroAddress]: 1e16,
+  },
+  'sepolia': {
+    [ITT]: 100e18,
+    [zeroAddress]: 1e16,
+  },
+}
 
 // A list of Warp Route token configs
 // These configs will be merged with the warp routes in the configured registry
@@ -187,5 +207,37 @@ export const warpRouteConfigs: WarpCoreConfig = {
       protocol: 'ethereum',
     },
   ],
-  options: {},
+  // Mainnet Op Arb Base Bera Form
+  options: {
+    interchainFeeConstants: [
+      {
+        amount: 3e14,
+        origin: ['optimismsepolia', 'basesepolia', 'arbitrumsepolia'].join(NETWORK_SEPARATOR),
+        destination: 'sepolia',
+        addressOrDenom: zeroAddress,
+      },
+      {
+        amount: 75e16,
+        origin: ['optimismsepolia', 'basesepolia', 'arbitrumsepolia'].join(NETWORK_SEPARATOR),
+        destination: 'sepolia',
+        addressOrDenom: ITT,
+      },
+      {
+        amount: 1e10,
+        origin: ['optimismsepolia', 'basesepolia', 'arbitrumsepolia', 'sepolia'].join(
+          NETWORK_SEPARATOR,
+        ),
+        destination: ['optimismsepolia', 'basesepolia', 'arbitrumsepolia'].join(NETWORK_SEPARATOR),
+        addressOrDenom: zeroAddress,
+      },
+      {
+        amount: 5e16,
+        origin: ['optimismsepolia', 'basesepolia', 'arbitrumsepolia', 'sepolia'].join(
+          NETWORK_SEPARATOR,
+        ),
+        destination: ['optimismsepolia', 'basesepolia', 'arbitrumsepolia'].join(NETWORK_SEPARATOR),
+        addressOrDenom: ITT,
+      },
+    ],
+  },
 };

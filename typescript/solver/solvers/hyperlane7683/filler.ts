@@ -1,5 +1,5 @@
 import type { BigNumber } from "@ethersproject/bignumber";
-import { AddressZero, Zero } from "@ethersproject/constants";
+import { AddressZero, MaxUint256, Zero } from "@ethersproject/constants";
 import type { MultiProvider } from "@hyperlane-xyz/sdk";
 import {
   addressToBytes32,
@@ -9,43 +9,36 @@ import {
 
 import { Erc20__factory } from "../../typechain/factories/contracts/Erc20__factory.js";
 import { Hyperlane7683__factory } from "../../typechain/factories/hyperlane7683/contracts/Hyperlane7683__factory.js";
-import type { IntentData, OpenEventArgs } from "./types.js";
+import type {
+  Hyperlane7683Metadata,
+  IntentData,
+  OpenEventArgs,
+} from "./types.js";
 import { log, settleOrder } from "./utils.js";
 
 import { chainIdsToName } from "../../config/index.js";
 import { BaseFiller } from "../BaseFiller.js";
+import { BuildRules, RulesMap } from "../types.js";
 import {
   retrieveOriginInfo,
   retrieveTargetInfo,
   retrieveTokenBalance,
 } from "../utils.js";
 import { allowBlockLists, metadata } from "./config/index.js";
-
-export type Metadata = {
-  protocolName: string;
-};
+import { saveBlockNumber } from "./db.js";
 
 export type Hyperlane7683Rule = Hyperlane7683Filler["rules"][number];
 
 class Hyperlane7683Filler extends BaseFiller<
-  Metadata,
+  Hyperlane7683Metadata,
   OpenEventArgs,
   IntentData
 > {
   constructor(
     multiProvider: MultiProvider,
-    rules?: BaseFiller<Metadata, OpenEventArgs, IntentData>["rules"],
+    rules?: BuildRules<Hyperlane7683Rule>,
   ) {
-    const { protocolName } = metadata;
-    const hyperlane7683FillerMetadata = { protocolName };
-
-    super(
-      multiProvider,
-      allowBlockLists,
-      hyperlane7683FillerMetadata,
-      log,
-      rules,
-    );
+    super(multiProvider, allowBlockLists, metadata, log, rules);
   }
 
   protected async retrieveOriginInfo(parsedArgs: OpenEventArgs) {
@@ -95,7 +88,12 @@ class Hyperlane7683Filler extends BaseFiller<
     }
   }
 
-  protected async fill(parsedArgs: OpenEventArgs, data: IntentData) {
+  protected async fill(
+    parsedArgs: OpenEventArgs,
+    data: IntentData,
+    originChainName: string,
+    blockNumber: number,
+  ) {
     this.log.info({
       msg: "Filling Intent",
       intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
@@ -115,38 +113,44 @@ class Hyperlane7683Filler extends BaseFiller<
             return;
           }
 
-          const tx = await Erc20__factory.connect(tokenAddress, filler).approve(
-            recipient,
-            amount,
-          );
+          const token = Erc20__factory.connect(tokenAddress, filler);
 
-          const receipt = await tx.wait();
-          const baseUrl =
-            this.multiProvider.getChainMetadata(_chainId).blockExplorers?.[0]
-              .url;
+          const fillerAddress = await filler.getAddress();
+          const allowance = await token.allowance(fillerAddress, recipient);
 
-          if (baseUrl) {
+          if (allowance.lt(amount)) {
+            const tx = await Erc20__factory.connect(
+              tokenAddress,
+              filler,
+            ).approve(recipient, MaxUint256);
+
+            const receipt = await tx.wait();
+            const baseUrl =
+              this.multiProvider.getChainMetadata(_chainId).blockExplorers?.[0]
+                .url;
+
             this.log.debug({
               msg: "Approval",
               protocolName: this.metadata.protocolName,
-              tx: `${baseUrl}/tx/${receipt.transactionHash}`,
+              amount: MaxUint256.toString(),
+              tokenAddress,
+              recipient,
+              chainId: _chainId,
+              tx: baseUrl
+                ? `${baseUrl}/tx/${receipt.transactionHash}`
+                : `${receipt.transactionHash}`,
             });
           } else {
             this.log.debug({
-              msg: "Approval",
+              msg: "Approval not required",
               protocolName: this.metadata.protocolName,
-              tx: `${receipt.transactionHash}`,
+              amount: amount.toString(),
+              allowance: allowance.toString(),
+              tokenAddress,
+              recipient,
+              chainId: _chainId,
             });
           }
-
-          this.log.debug({
-            msg: "Approval",
-            protocolName: this.metadata.protocolName,
-            amount: amount.toString(),
-            tokenAddress,
-            recipient,
-            chainId: _chainId,
-          });
         },
       ),
     );
@@ -200,11 +204,14 @@ class Hyperlane7683Filler extends BaseFiller<
         },
       ),
     );
+
+    await saveBlockNumber(originChainName, blockNumber, parsedArgs.orderId);
   }
 
   settleOrder(parsedArgs: OpenEventArgs, data: IntentData) {
     return settleOrder(
       data.fillInstructions,
+      parsedArgs.resolvedOrder.originChainId,
       parsedArgs.orderId,
       this.multiProvider,
       this.metadata.protocolName,
@@ -257,13 +264,10 @@ const enoughBalanceOnDestination: Hyperlane7683Rule = async (
 
 export const create = (
   multiProvider: MultiProvider,
-  rules?: Hyperlane7683Filler["rules"],
-  keepBaseRules = true,
+  customRules?: RulesMap<Hyperlane7683Rule>,
 ) => {
-  const customRules = rules ?? [];
-
-  return new Hyperlane7683Filler(
-    multiProvider,
-    keepBaseRules ? [enoughBalanceOnDestination, ...customRules] : customRules,
-  ).create();
+  return new Hyperlane7683Filler(multiProvider, {
+    base: [enoughBalanceOnDestination],
+    custom: customRules,
+  }).create();
 };

@@ -9,6 +9,7 @@ import {
   SwapIcon,
   useAccountAddressForChain,
   useAccounts,
+  useModal,
 } from '@hyperlane-xyz/widgets';
 import BigNumber from 'bignumber.js';
 import { Form, Formik, useFormikContext } from 'formik';
@@ -19,6 +20,7 @@ import { ConnectAwareSubmitButton } from '../../components/buttons/ConnectAwareS
 import { SolidButton } from '../../components/buttons/SolidButton';
 import { TextField } from '../../components/input/TextField';
 import { config } from '../../consts/config';
+import { TOP_MAX } from '../../consts/warpRoutes';
 import { Color } from '../../styles/Color';
 import { logger } from '../../utils/logger';
 import { ChainConnectionWarning } from '../chains/ChainConnectionWarning';
@@ -31,8 +33,13 @@ import { useStore } from '../store';
 import { SelectOrInputTokenIds } from '../tokens/SelectOrInputTokenIds';
 import { TokenSelectField } from '../tokens/TokenSelectField';
 import { useIsApproveRequired } from '../tokens/approval';
-import { useDestinationBalance, useOriginBalance } from '../tokens/balances';
+import {
+  getDestinationNativeBalance,
+  useDestinationBalance,
+  useOriginBalance,
+} from '../tokens/balances';
 import { getIndexForToken, getTokenByIndex, useWarpCore } from '../tokens/hooks';
+import { RecipientConfirmationModal } from './RecipientConfirmationModal';
 import { useFetchMaxAmount } from './maxAmount';
 import { TransferFormValues } from './types';
 import { useRecipientBalanceWatcher } from './useBalanceWatcher';
@@ -50,12 +57,26 @@ export function TransferTokenForm() {
   const [isReview, setIsReview] = useState(false);
   // Flag for check current type of token
   const [isNft, setIsNft] = useState(false);
+  // Modal for confirming address
+  const {
+    open: openConfirmationModal,
+    close: closeConfirmationModal,
+    isOpen: isConfirmationModalOpen,
+  } = useModal();
 
   const validate = (values: TransferFormValues) => validateForm(warpCore, values, accounts);
 
-  const onSubmitForm = (values: TransferFormValues) => {
-    logger.debug('Reviewing transfer form values for:', values.origin, values.destination);
-    setIsReview(true);
+  const onSubmitForm = async (values: TransferFormValues) => {
+    logger.debug('Checking destination native balance for:', values.destination, values.recipient);
+    const balance = await getDestinationNativeBalance(multiProvider, values);
+    if (isNullish(balance)) return;
+    else if (balance > 0n) {
+      logger.debug('Reviewing transfer form values for:', values.origin, values.destination);
+      setIsReview(true);
+    } else {
+      logger.debug('Recipient has no balance on destination. Confirming address.');
+      openConfirmationModal();
+    }
   };
 
   return (
@@ -80,6 +101,11 @@ export function TransferTokenForm() {
             isReview={isReview}
             isValidating={isValidating}
             setIsReview={setIsReview}
+          />
+          <RecipientConfirmationModal
+            isOpen={isConfirmationModalOpen}
+            close={closeConfirmationModal}
+            onConfirm={() => setIsReview(true)}
           />
         </Form>
       )}
@@ -241,6 +267,10 @@ function ButtonSection({
 
   const isSanctioned = useIsAccountSanctioned();
 
+  const { setTransferLoading } = useStore((s) => ({
+    setTransferLoading: s.setTransferLoading,
+  }));
+
   const onDoneTransactions = () => {
     setIsReview(false);
     setTransferLoading(false);
@@ -248,16 +278,11 @@ function ButtonSection({
   };
   const { triggerTransactions } = useTokenTransfer(onDoneTransactions);
 
-  const { setTransferLoading } = useStore((s) => ({
-    setTransferLoading: s.setTransferLoading,
-  }));
-
   const triggerTransactionsHandler = async () => {
     if (isSanctioned) {
       return;
     }
     setIsReview(false);
-    setTransferLoading(true);
     await triggerTransactions(values);
   };
 
@@ -277,7 +302,7 @@ function ButtonSection({
         type="button"
         color="primary"
         onClick={() => setIsReview(false)}
-        classes="px-6 py-1.5"
+        className="px-6 py-1.5"
         icon={<ChevronIcon direction="w" width={10} height={6} color={Color.white} />}
       >
         <span>Edit</span>
@@ -286,7 +311,7 @@ function ButtonSection({
         type="button"
         color="accent"
         onClick={triggerTransactionsHandler}
-        classes="flex-1 px-3 py-1.5"
+        className="flex-1 px-3 py-1.5"
       >
         {`Send to ${chainDisplayName}`}
       </SolidButton>
@@ -314,9 +339,9 @@ function MaxButton({ balance, disabled }: { balance?: TokenAmount; disabled?: bo
     <SolidButton
       type="button"
       onClick={onClick}
-      color="primary"
+      color="secondary"
       disabled={disabled}
-      classes="text-xs absolute right-1 top-2.5 bottom-1 px-2 opacity-90 all:rounded"
+      className="text-xs absolute right-1 top-2.5 bottom-1 px-2 all:rounded"
     >
       {isLoading ? (
         <div className="flex items-center">
@@ -344,9 +369,9 @@ function SelfButton({ disabled }: { disabled?: boolean }) {
     <SolidButton
       type="button"
       onClick={onClick}
-      color="primary"
+      color="secondary"
       disabled={disabled}
-      classes="text-xs absolute right-1 top-2.5 bottom-1 px-2 opacity-90 all:rounded"
+      className="text-xs absolute right-1 top-2.5 bottom-1 px-2 all:rounded"
     >
       Self
     </SolidButton>
@@ -365,14 +390,15 @@ function ReviewDetails({ visible }: { visible: boolean }) {
 
   const amountWei = isNft ? amount.toString() : toWei(amount, originToken?.decimals);
 
-  const { isLoading: isApproveLoading, isApproveRequired } = useIsApproveRequired(
+  const { isLoading: isLoadingApprove, isApproveRequired } = useIsApproveRequired(
     originToken,
     amountWei,
     visible,
   );
-  const { isLoading: isQuoteLoading, fees } = useFeeQuotes(values, visible);
 
-  const isLoading = isApproveLoading || isQuoteLoading;
+  const { fees, isLoading: isLoadingFees } = useFeeQuotes(values, visible);
+
+  const isLoading = isLoadingApprove || isLoadingFees;
 
   return (
     <div
@@ -420,15 +446,15 @@ function ReviewDetails({ visible }: { visible: boolean }) {
                 {fees?.localQuote && fees.localQuote.amount > 0n && (
                   <p className="flex">
                     <span className="min-w-[6.5rem]">Local Gas (est.)</span>
-                    <span>{`${fees.localQuote.getDecimalFormattedAmount().toFixed(4) || '0'} ${
+                    <span>{`${fees.localQuote.getDecimalFormattedAmount().toFixed(18) || '0'} ${
                       fees.localQuote.token.symbol || ''
                     }`}</span>
                   </p>
                 )}
                 {fees?.interchainQuote && fees.interchainQuote.amount > 0n && (
                   <p className="flex">
-                    <span className="min-w-[6.5rem]">Interchain Gas</span>
-                    <span>{`${fees.interchainQuote.getDecimalFormattedAmount().toFixed(4) || '0'} ${
+                    <span className="min-w-[6.5rem]">Solver Fee</span>
+                    <span>{`${fees.interchainQuote.getDecimalFormattedAmount().toFixed(18) || '0'} ${
                       fees.interchainQuote.token.symbol || ''
                     }`}</span>
                   </p>
@@ -487,6 +513,7 @@ async function validateForm(
       destination,
       recipient,
       sender: address || '',
+      topMax: TOP_MAX[origin][token.addressOrDenom],
     });
     return result;
   } catch (error: any) {

@@ -17,13 +17,19 @@ const main = async () => {
 
   // TODO: implement a way to choose different listeners and fillers
   const ecoListener = solvers["eco"].listener.create();
-  const ecoFiller = solvers["eco"].filler.create(multiProvider);
+  const ecoFiller = solvers["eco"].filler.create(
+    multiProvider,
+    solvers["eco"].rules,
+  );
 
   ecoListener(ecoFiller);
 
-  const hyperlane7683Listener = solvers["hyperlane7683"].listener.create();
-  const hyperlane7683Filler =
-    solvers["hyperlane7683"].filler.create(multiProvider);
+  const hyperlane7683Listener =
+    await solvers["hyperlane7683"].listener.create();
+  const hyperlane7683Filler = solvers["hyperlane7683"].filler.create(
+    multiProvider,
+    solvers["hyperlane7683"].rules,
+  );
 
   hyperlane7683Listener(hyperlane7683Filler);
 };

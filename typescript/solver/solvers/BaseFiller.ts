@@ -5,12 +5,9 @@ import {
   isAllowedIntent,
 } from "../config/index.js";
 import type { Logger } from "../logger.js";
+import type { BaseMetadata, BuildRules } from "./types.js";
 
-type Metadata = {
-  protocolName: string;
-};
-
-type ParsedArgs = {
+export type ParsedArgs = {
   orderId: string;
   senderAddress: string;
   recipients: Array<{
@@ -19,8 +16,8 @@ type ParsedArgs = {
   }>;
 };
 
-export type Rule<
-  TMetadata extends Metadata,
+export type BaseRule<
+  TMetadata extends BaseMetadata,
   TParsedArgs extends ParsedArgs,
   TIntentData extends unknown,
 > = (
@@ -29,33 +26,48 @@ export type Rule<
 ) => Promise<Result<string>>;
 
 export abstract class BaseFiller<
-  TMetadata extends Metadata,
+  TMetadata extends BaseMetadata,
   TParsedArgs extends ParsedArgs,
   TIntentData extends unknown,
 > {
-  rules: Array<Rule<TMetadata, TParsedArgs, TIntentData>> = [];
+  rules: Array<BaseRule<TMetadata, TParsedArgs, TIntentData>> = [];
 
   protected constructor(
     readonly multiProvider: MultiProvider,
     readonly allowBlockLists: GenericAllowBlockLists,
     readonly metadata: TMetadata,
     readonly log: Logger,
-    rules?: Array<Rule<TMetadata, TParsedArgs, TIntentData>>,
+    rulesConfig?: BuildRules<BaseRule<TMetadata, TParsedArgs, TIntentData>>,
   ) {
-    if (rules) this.rules = rules;
+    if (rulesConfig) this.rules = this.buildRules(rulesConfig);
   }
 
   create() {
-    return async (parsedArgs: TParsedArgs, originChainName: string) => {
-      const origin = await this.retrieveOriginInfo(parsedArgs, originChainName);
-      const target = await this.retrieveTargetInfo(parsedArgs);
+    return async (
+      parsedArgs: TParsedArgs,
+      originChainName: string,
+      blockNumber: number,
+    ) => {
+      try {
+        const origin = await this.retrieveOriginInfo(
+          parsedArgs,
+          originChainName,
+        );
+        const target = await this.retrieveTargetInfo(parsedArgs);
 
-      this.log.info({
-        msg: "Intent Indexed",
-        intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
-        origin: origin.join(", "),
-        target: target.join(", "),
-      });
+        this.log.info({
+          msg: "Intent Indexed",
+          intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
+          origin: origin.join(", "),
+          target: target.join(", "),
+        });
+      } catch (error) {
+        this.log.error({
+          msg: "Failed retrieving origin and target info",
+          intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
+          error: JSON.stringify(error),
+        });
+      }
 
       const intent = await this.prepareIntent(parsedArgs);
 
@@ -66,9 +78,17 @@ export abstract class BaseFiller<
 
       const { data } = intent;
 
-      await this.fill(parsedArgs, data, originChainName);
+      try {
+        await this.fill(parsedArgs, data, originChainName, blockNumber);
 
-      await this.settleOrder(parsedArgs, data);
+        await this.settleOrder(parsedArgs, data, originChainName);
+      } catch (error) {
+        this.log.error({
+          msg: `Failed processing intent`,
+          intent: `${this.metadata.protocolName}-${parsedArgs.orderId}`,
+          error: JSON.stringify(error),
+        });
+      }
     };
   }
 
@@ -92,10 +112,7 @@ export abstract class BaseFiller<
     const { senderAddress, recipients } = parsedArgs;
 
     if (!this.isAllowedIntent({ senderAddress, recipients })) {
-      return {
-        error: "Not allowed intent",
-        success: false,
-      };
+      throw new Error("Not allowed intent");
     }
 
     const result = await this.evaluateRules(parsedArgs);
@@ -125,9 +142,14 @@ export abstract class BaseFiller<
     parsedArgs: TParsedArgs,
     data: TIntentData,
     originChainName: string,
+    blockNumber: number,
   ): Promise<void>;
 
-  protected async settleOrder(parsedArgs: TParsedArgs, data: TIntentData) {
+  protected async settleOrder(
+    parsedArgs: TParsedArgs,
+    data: TIntentData,
+    originChainName: string,
+  ) {
     return;
   }
 
@@ -148,5 +170,39 @@ export abstract class BaseFiller<
         recipientAddress,
       }),
     );
+  }
+
+  private buildRules({
+    base = [],
+    custom,
+  }: BuildRules<BaseRule<TMetadata, TParsedArgs, TIntentData>>): Array<
+    BaseRule<TMetadata, TParsedArgs, TIntentData>
+  > {
+    const customRules = [];
+
+    if (this.metadata.customRules?.rules.length) {
+      if (!custom) {
+        throw new Error(
+          "Custom rules are specified in metadata, but no corresponding rule functions were provided.",
+        );
+      }
+
+      for (let i = 0; i < this.metadata.customRules.rules.length; i++) {
+        const rule = this.metadata.customRules.rules[i];
+        const ruleFn = custom[rule.name];
+
+        if (!ruleFn) {
+          throw new Error(
+            `Custom rule "${rule.name}" is specified in metadata but is not provided in the custom rules configuration.`,
+          );
+        }
+
+        customRules.push(ruleFn(rule.args));
+      }
+    }
+
+    const keepBaseRules = this.metadata.customRules?.keepBaseRules ?? true;
+
+    return keepBaseRules ? [...base, ...customRules] : customRules;
   }
 }
